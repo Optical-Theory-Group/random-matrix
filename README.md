@@ -6,7 +6,8 @@ A conda environment containing all necessary package dependencies can be install
 conda env create -f ./conda_env/environment.yml
 conda activate random_matrix
 ```
+
 ### To-do
+
 - Add project description
 - Add license
-
