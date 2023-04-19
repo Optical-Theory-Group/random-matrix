@@ -107,15 +107,15 @@ def remove_duplicate_points(points, tolerance=1e-8):
     return new_points
 
 def draw_ray(ax, theta=0, r_min=0, r_max=1, color="tab:blue", linestyle="--",alpha=1.0):
-        x = np.array([r_min*np.cos(theta), r_max*np.cos(theta)])
-        y = np.array([r_min*np.sin(theta), r_max*np.sin(theta)])
-        ax.plot(x, y, linestyle=linestyle, color=color,alpha=alpha)
+    x = np.array([r_min*np.cos(theta), r_max*np.cos(theta)])
+    y = np.array([r_min*np.sin(theta), r_max*np.sin(theta)])
+    ax.plot(x, y, linestyle=linestyle, color=color,alpha=alpha)
  
 def draw_circle(ax, r=1, t_min=0, t_max=2*np.pi, color="black", linestyle="-"):
-        t = np.linspace(t_min, t_max)
-        x = r*np.cos(t)
-        y = r*np.sin(t)
-        ax.plot(x,y,color=color, linestyle=linestyle)
+    t = np.linspace(t_min, t_max)
+    x = r*np.cos(t)
+    y = r*np.sin(t)
+    ax.plot(x,y,color=color, linestyle=linestyle)
 
 def draw_k_space():
     fig, ax = plt.subplots()
