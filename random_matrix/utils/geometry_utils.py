@@ -1,6 +1,6 @@
 import numpy as np
 from itertools import combinations
-from random_matrix.utils.array_utils import remove_duplicate_points
+from array_utils import remove_duplicate_points
 from scipy.spatial import ConvexHull
 
 def circle(x, r):
@@ -85,13 +85,18 @@ def is_rectangle(points):
 
     """
 
+    # Must be four points
     if len(points) != 4:
         return False
 
+    # Find all 6 possible lengths between different pairs of points
     pairs = np.array([pair for pair in combinations(points, 2)])
     side_lengths = np.linalg.norm(pairs[:, 0, :] - pairs[:, 1, :], axis=1)
     unique_side_lengths = remove_duplicate_points(side_lengths)
 
+    # There should be 2 or 3 different values for the legnths
+    # 2 in the case of a square (side length + diagonal)
+    # 3 in the case of a rectangle (2 side lenghts + diagonal)
     if len(unique_side_lengths) not in [2,3]:
         return False
 
@@ -99,6 +104,8 @@ def is_rectangle(points):
     if len(sorted_lengths) == 2:
         sorted_lengths = np.insert(sorted_lengths, 0, sorted_lengths[0])
     a, b, c = sorted_lengths
+
+    # Check that the two non-diagonal sides meet at right angles
     return np.isclose(a**2 + b**2, c**2)
 
 def rotate_points(points, axis, rotation_angle):
@@ -127,13 +134,43 @@ def rotate_points(points, axis, rotation_angle):
     return output
 
 def points_to_ordered_convex_hull_vertices(points):
+    """
+    Given a set of 2D points, compute the ordered vertices of their convex hull.
+
+    Parameters:
+    ----------
+    points : ndarray
+        A 2D NumPy array of shape (N, 2), where N is the number of points. Each row of the array represents a 2D point, where the first and second columns contain the x and y coordinates of the point, respectively.
+
+    Returns:
+    -------
+    new_points : ndarray
+        A 2D NumPy array of shape (M, 2), where M is the number of vertices of the convex hull. Each row of the array represents a vertex of the convex hull, in counterclockwise order.
+
+    """
+    
     hull = ConvexHull(points)
     vertices = hull.vertices
     new_points = points[vertices]
     return new_points
 
 def get_convex_hull_area(convex_hull):
+    """
+    Compute the area of a 2D convex hull.
+
+    Parameters:
+    ----------
+    convex_hull : ndarray or scipy.spatial.ConvexHull
+        Either a 2D NumPy array of shape (N, 2), representing the coordinates of the vertices of the convex hull in counterclockwise order, or a ConvexHull object representing the 2D convex hull.
+
+    Returns:
+    -------
+    area : float
+        The area of the convex hull.
+    """
+
     if isinstance(convex_hull, np.ndarray):
         convex_hull = ConvexHull(convex_hull)
+    # Note that 'volume' is in fact area for a convex hull of 2D points
+    # convex_hull.area instead returns the perimeter
     return convex_hull.volume
-

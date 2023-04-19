@@ -31,5 +31,23 @@ def remove_duplicate_points(points, tolerance=1e-8):
     return new_points
 
 def get_cyclic_pairs(points):
+    """
+    Given a list of 2D points, return a NumPy array containing pairs of points of the form
+    (1st, 2nd)
+    (2nd, 3rd)
+    ...
+    (n-1th, nth)
+    (nth, 1st)
+
+    Parameters:
+    ----------
+    points : list of array_like
+        A list of 2D points. Each point should be an array_like object of shape (2,) that represents the x and y coordinates of the point.
+
+    Returns:
+    -------
+    pairs : ndarray
+        A 3D NumPy array of shape (N, 2, 2), where N is the number of pairs of adjacent points in the input list. Each row of the array contains a pair of adjacent points from the input list, and each pair is represented by a 2D array of shape (2,).
+    """
     pairs = np.stack((points, np.roll(points, -2)), axis=1)    
     return pairs
