@@ -1,15 +1,7 @@
-"""
-This module contains various utility functions that are used in other parts of the codebase.
-
-If this file becomes too large, it may be split into multiple files for better organization.
-
-Please refer to the documentation of each individual function for more information on how to use it.
-"""
-
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.spatial import cKDTree
-
+from itertools import combinations
+from random_matrix.utils.array_utils import remove_duplicate_points
+from scipy.spatial import ConvexHull
 
 def circle(x, r):
     """
@@ -77,50 +69,71 @@ def polar_to_cartesian(points_polar):
     points_cartesian = np.column_stack((x, y))
     return points_cartesian
 
-def remove_duplicate_points(points, tolerance=1e-8):
+def is_rectangle(points):
     """
-    Remove duplicate points from an array of points.
-    Complexity: O(N log N)
+    Determines if a set of 4 2D points form a rectangle.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     points : numpy.ndarray
-        An array of shape (N,) or (N, 2) or (N, 3) representing the 1D, 2D or 3D points.
-    tolerance : float, optional (default=1e-8)
-        The distance tolerance used to identify duplicate points. Points that are within
-        a distance of `tolerance` of each other are considered duplicates.
+        A 2D numpy array of shape (4, 2) representing the 4 points.
+
+    Returns
+    -------
+    bool
+        True if the points form a rectangle, False otherwise.
+
+    """
+
+    if len(points) != 4:
+        return False
+
+    pairs = np.array([pair for pair in combinations(points, 2)])
+    side_lengths = np.linalg.norm(pairs[:, 0, :] - pairs[:, 1, :], axis=1)
+    unique_side_lengths = remove_duplicate_points(side_lengths)
+
+    if len(unique_side_lengths) not in [2,3]:
+        return False
+
+    sorted_lengths = np.sort(unique_side_lengths)
+    if len(sorted_lengths) == 2:
+        sorted_lengths = np.insert(sorted_lengths, 0, sorted_lengths[0])
+    a, b, c = sorted_lengths
+    return np.isclose(a**2 + b**2, c**2)
+
+def rotate_points(points, axis, rotation_angle):
+    """
+    Rotate a set of 2D points around a specified axis by a given angle.
+
+    Parameters
+    ----------
+        points (np.ndarray): 
+            A 2D numpy array of shape (n, 2) representing the coordinates of n points to be rotated.
+        axis (np.ndarray): 
+            A 1D numpy array of length 2 representing the center of rotation.
+        rotation_angle (float): 
+            The angle (in radians) by which to rotate the points.
 
     Returns:
-    --------
-    unique_points : numpy.ndarray
-        An array of shape (M,) or (M, 2) or (M, 3) representing the unique 1D, 2D or 3D points, where
-        M <= N.
+        np.ndarray: A 2D numpy array of shape (n, 2) representing the rotated points.
+
     """
 
-    if points.ndim == 1:
-        points = points[:, np.newaxis]
-    
-    tree = cKDTree(points)
-    duplicates = tree.query_ball_point(points, r=tolerance)
-    unique_indices = sorted(set([min(d) for d in duplicates]))
-    new_points = points[unique_indices].squeeze()
+    c, s = np.cos(rotation_angle), np.sin(rotation_angle)
+    rotation_matrix = np.array([[c, -s], [s, c]])
+    translated_points = points - axis
+    rotated_points = rotation_matrix @ translated_points.T
+    output = rotated_points.T + axis
+    return output
+
+def points_to_ordered_convex_hull_vertices(points):
+    hull = ConvexHull(points)
+    vertices = hull.vertices
+    new_points = points[vertices]
     return new_points
 
-def draw_ray(ax, theta=0, r_min=0, r_max=1, color="tab:blue", linestyle="--",alpha=1.0):
-    x = np.array([r_min*np.cos(theta), r_max*np.cos(theta)])
-    y = np.array([r_min*np.sin(theta), r_max*np.sin(theta)])
-    ax.plot(x, y, linestyle=linestyle, color=color,alpha=alpha)
- 
-def draw_circle(ax, r=1, t_min=0, t_max=2*np.pi, color="black", linestyle="-"):
-    t = np.linspace(t_min, t_max)
-    x = r*np.cos(t)
-    y = r*np.sin(t)
-    ax.plot(x,y,color=color, linestyle=linestyle)
+def get_convex_hull_area(convex_hull):
+    if isinstance(convex_hull, np.ndarray):
+        convex_hull = ConvexHull(convex_hull)
+    return convex_hull.volume
 
-def draw_k_space():
-    fig, ax = plt.subplots()
-    draw_ray(ax, r_min=-1, theta=0, linestyle="-", color="black", alpha=0.4)
-    draw_ray(ax, r_min=-1, theta=np.pi/2, linestyle="-", color="black", alpha=0.4)
-    ax.set_aspect("equal")
-    draw_circle(ax)
-    return ax
