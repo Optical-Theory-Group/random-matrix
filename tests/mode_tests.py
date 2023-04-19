@@ -1,6 +1,12 @@
-from modes import Mode, ModeGrid
+import sys
+sys.path.append('..')  # add parent directory to sys.path
+
+from random_matrix.mode import Mode
+from random_matrix.mode_grid import ModeGrid
 import numpy as np
-from utils import polar_to_cartesian, cartesian_to_polar
+import matplotlib.pyplot as plt
+from random_matrix.utils.geometry_utils import polar_to_cartesian, cartesian_to_polar, is_rectangle
+from random_matrix.utils.plotting_utils import draw_convex_polygon
 
 np.random.seed(128)
 
@@ -33,3 +39,11 @@ modes.plot()
 mode_boundary_data["t_offset"] = 0.1
 new_modes = ModeGrid(mode_boundary_data=mode_boundary_data)
 new_modes.plot()
+
+#######
+# Cartesian mode
+#
+
+points = np.array([[0.3,0.0],[0.6,0.0],[0.3,0.5],[0.6,0.5]])
+my_mode = Mode(index=0, mode_boundary=points,mode_shape_type="cartesian")
+my_mode.plot()

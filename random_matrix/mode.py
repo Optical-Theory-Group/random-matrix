@@ -10,7 +10,9 @@ import numpy as np
 from copy import copy
 from scipy.spatial import ConvexHull, convex_hull_plot_2d
 import matplotlib.pyplot as plt
-from utils import draw_circle, draw_ray, circle, cartesian_to_polar, polar_to_cartesian, remove_duplicate_points, draw_k_space
+from utils.plotting_utils import draw_circle, draw_ray, set_up_k_space_plot, draw_line, draw_convex_polygon, draw_horizontal_chord, draw_vertical_chord
+from utils.geometry_utils import circle, cartesian_to_polar, polar_to_cartesian, is_rectangle, get_convex_hull_area
+from utils.array_utils import remove_duplicate_points
 
 class Mode:    
     def __init__(self, index=0, mode_boundary=None, mode_shape_type=None):
@@ -73,27 +75,16 @@ class Mode:
     def _handle_polar_case(self):
         points_cartesian = self.points
         points_polar = cartesian_to_polar(points_cartesian)
-        self.points_polar = points_polar
+        n_points = len(points_polar)
 
-        all_r_values = points_polar[:,0]
-        all_t_values = points_polar[:,1]
-        unique_r_values = remove_duplicate_points(all_r_values)
-        unique_t_values = remove_duplicate_points(all_t_values)
-
-        r_min = np.min(unique_r_values)
-        r_max = np.max(unique_r_values)
+        r_min, r_max = np.min(points_polar[:,0]), np.max(points_polar[:,0])
+        t_min, t_max = np.min(points_polar[:,1]), np.max(points_polar[:,1])
         self.r_min = r_min
         self.r_max = r_max
-        
-        t_min = np.min(unique_t_values)
-        t_max = np.max(unique_t_values)
-        n_points = len(all_r_values)
 
-        # Deal with central mode and non-central mode cases separately
         match n_points:
             case 2:
-                # For a central mode, we expect 2 points
-                # One should be the origin, and the other should be any non-origin point
+                # If only two points are given, it must be the central mode        
                 is_correctly_defined_central_mode = np.isclose(r_min, 0.0) and not np.isclose(r_min, r_max)
                 if not is_correctly_defined_central_mode:
                     raise ValueError("Central mode incorrectly specified. Please include (0,0) and one other point not located at the origin.")
@@ -102,12 +93,12 @@ class Mode:
                 self.is_central_mode = True
 
             case 4:
-                # For a non-central mode, we expect 4 points
-                # These four points must exahust all possibilites of two different r and t values
-                is_correctly_defined_non_central_mode = len(unique_r_values) == 2 and len(unique_t_values) == 2
-                if not is_correctly_defined_non_central_mode:
+                # If four points are given, the mode should be a non-central mode
+                # Check that points properly align
+                is_correctly_defined_central_mode = is_rectangle(points_polar)
+                if not is_correctly_defined_central_mode:
                     raise ValueError("Non-central mode incorrectly specified. Please include 4 points with 2 unique values of r and theta.")
-
+                
                 # Ensure smaller angle is taken
                 sector_angle = t_max - t_min
                 if sector_angle > np.pi:
@@ -123,7 +114,20 @@ class Mode:
                 raise ValueError("Polar mode must be constructed from either 2 or 4 points.")
             
     def _handle_cartesian_case(self):
-        pass
+        points_cartesian = self.points
+
+        # Check that points form a rectangle
+        is_correctly_defined_cartesian_mode = is_rectangle(points_cartesian)
+        if not is_correctly_defined_cartesian_mode:
+            raise ValueError("Points do not form a rectangle.")
+
+        x_min, x_max = np.min(points_cartesian[:,0]), np.max(points_cartesian[:,0])
+        y_min, y_max = np.min(points_cartesian[:,1]), np.max(points_cartesian[:,1])
+        self.x_min = x_min
+        self.x_max = x_max
+        self.y_min = y_min
+        self.y_max = y_max
+        self.weight = get_convex_hull_area(points_cartesian)
 
     def _handle_custom_case(self):
         pass
@@ -148,13 +152,13 @@ class Mode:
 
     def plot(self, ax=None, is_solo=True, show_guidelines=True, mode_color="tab:red"):
         if is_solo:
-            ax = draw_k_space()
+            ax = set_up_k_space_plot()
 
         match self.mode_shape_type:
             case "polar":
                 self._plot_polar(ax, show_guidelines, mode_color)
             case "cartesian":
-                self._plot_cartesian()
+                self._plot_cartesian(ax, show_guidelines, mode_color)
             case "custom":
                 self._plot_custom()
 
@@ -181,57 +185,12 @@ class Mode:
             draw_circle(ax, t_min=t1, t_max=t2, r=self.r_min, linestyle="-", color=mode_color)
             draw_circle(ax, t_min=t1, t_max=t2, r=self.r_max, linestyle="-", color=mode_color)
 
-class ModeGrid:
-    def __init__(self, mode_boundary_data: dict = None) -> None:
-        self.modes = []
-        
-        # Parse mode_boundary_data
-        t_offset = mode_boundary_data.get("t_offset", 0)
+    def _plot_cartesian(self, ax, show_guidelines, mode_color):
+        if show_guidelines:
+            # Vertical lines
+            draw_vertical_chord(ax, self.x_min, color="tab:blue", linestyle="--")
+            draw_vertical_chord(ax, self.x_max, color="tab:blue", linestyle="--")
+            draw_horizontal_chord(ax, self.y_min, color="tab:blue", linestyle="--")
+            draw_horizontal_chord(ax, self.y_max, color="tab:blue", linestyle="--")
 
-        match mode_boundary_data:
-            case {"mode_shape_type": "polar", "r_vals": r_vals, "t_vals": t_vals}:
-                self._handle_polar_case(r_vals=r_vals, t_vals=t_vals, t_offset=t_offset)
-
-            case {"mode_shape_type": "cartesian", "dx": dx, "dy": dy}:
-                self._handle_cartesian_case(dx=dx, dy=dy, t_offset=t_offset)
-
-            case {"mode_shape_type": "custom", "points_array": points_array}:
-                pass
-
-            case _:
-                raise ValueError("Incorrect mode_boundary_data formatting.")
-
-    def _handle_polar_case(self, r_vals, t_vals, t_offset):
-        mode_shape_type = "polar"
-        
-        # Check that 0.0 and 1.0 are in r_vals. If not, add them
-        if not np.any(np.isclose(r_vals, 0.0)):
-            r_vals = np.concatenate(([0.0], r_vals))
-        if not np.any(np.isclose(r_vals, 1.0)):
-            r_vals = np.concatenate((r_vals, [1.0]))
-
-        # Sort out central mode
-        central_mode_radius = r_vals[1]
-        points_cartesian = np.array([[0.0,0.0], [central_mode_radius, 0.0]])
-        self.modes.append(Mode(index=0, mode_boundary=points_cartesian, mode_shape_type=mode_shape_type))
-
-        # Non-central modes
-        # Add t-offset
-        t_vals += t_offset
-
-        r_vals = r_vals[1:]
-        r_val_pairs = np.column_stack((r_vals[:-1], r_vals[1:]))
-        t_val_pairs = np.column_stack((t_vals[:-1], t_vals[1:]))
-
-        for r_val_pair in r_val_pairs:
-            for t_val_pair in t_val_pairs:
-                r_grid, t_grid = np.meshgrid(r_val_pair, t_val_pair)
-                points_polar = np.column_stack((r_grid.ravel(), t_grid.ravel()))
-                points_cartesian = polar_to_cartesian(points_polar)
-                self.modes.append(Mode(index=0, mode_boundary=points_cartesian, mode_shape_type=mode_shape_type))
-
-    def plot(self):
-        # Draw axes and k-space boundary
-        ax = draw_k_space()
-        for mode in self.modes:
-            mode.plot(ax=ax, is_solo=False, show_guidelines=False, mode_color="tab:red")
+        draw_convex_polygon(ax, self.points, color="red")
