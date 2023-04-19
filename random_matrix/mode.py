@@ -5,14 +5,12 @@ Author: Niall Francis Byrnes
 https://niallbyrnes.com
 
 """
-
 import numpy as np
-from copy import copy
-from scipy.spatial import ConvexHull, convex_hull_plot_2d
 import matplotlib.pyplot as plt
-from utils.plotting_utils import draw_circle, draw_ray, set_up_k_space_plot, draw_line, draw_convex_polygon, draw_horizontal_chord, draw_vertical_chord
-from utils.geometry_utils import circle, cartesian_to_polar, polar_to_cartesian, is_rectangle, get_convex_hull_area
-from utils.array_utils import remove_duplicate_points
+from scipy.spatial import ConvexHull, convex_hull_plot_2d
+from random_matrix.utils.plotting_utils import draw_circle, draw_ray, set_up_k_space_plot, draw_line, draw_convex_polygon, draw_horizontal_chord, draw_vertical_chord
+from random_matrix.utils.geometry_utils import circle, cartesian_to_polar, polar_to_cartesian, is_rectangle, get_convex_hull_area
+from random_matrix.utils.array_utils import remove_duplicate_points
 
 class Mode:    
     def __init__(self, index=0, mode_boundary=None, mode_shape_type=None):
