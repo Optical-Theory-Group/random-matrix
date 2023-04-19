@@ -1,6 +1,6 @@
 import numpy as np
 from itertools import combinations
-from array_utils import remove_duplicate_points
+from random_matrix.utils.array_utils import remove_duplicate_points
 from scipy.spatial import ConvexHull
 
 def circle(x, r):

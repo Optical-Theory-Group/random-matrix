@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from mode import Mode
-from utils.geometry_utils import cartesian_to_polar, polar_to_cartesian
-from utils.plotting_utils import set_up_k_space_plot
+from random_matrix.mode import Mode
+from random_matrix.utils.geometry_utils import cartesian_to_polar, polar_to_cartesian
+from random_matrix.utils.plotting_utils import set_up_k_space_plot
 
 class ModeGrid:
     def __init__(self, mode_boundary_data: dict = None) -> None:

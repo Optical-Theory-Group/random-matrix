@@ -1,11 +1,11 @@
+import numpy as np
+import matplotlib.pyplot as plt
 import sys
 sys.path.append('..')  # add parent directory to sys.path
 
 from random_matrix.mode import Mode
 from random_matrix.mode_grid import ModeGrid
-import numpy as np
-import matplotlib.pyplot as plt
-from random_matrix.utils.geometry_utils import polar_to_cartesian, cartesian_to_polar, is_rectangle
+from random_matrix.utils.geometry_utils import polar_to_cartesian, cartesian_to_polar, is_rectangle, rotate_points
 from random_matrix.utils.plotting_utils import draw_convex_polygon
 
 np.random.seed(128)
