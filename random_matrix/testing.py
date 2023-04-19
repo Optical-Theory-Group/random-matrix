@@ -1,4 +1,4 @@
-from modes import Mode, Modes
+from modes import Mode, ModeGrid
 import numpy as np
 from utils import polar_to_cartesian, cartesian_to_polar
 
@@ -26,5 +26,10 @@ num_t = 8
 r_values = np.linspace(0.0, 1.0, num_r+1)
 t_values = np.linspace(0.0, 2*np.pi, num_t+1)
 mode_boundary_data = {"r_vals": r_values, "t_vals": t_values, "mode_shape_type": "polar"}
-modes = Modes(mode_boundary_data=mode_boundary_data)
+modes = ModeGrid(mode_boundary_data=mode_boundary_data)
 modes.plot()
+
+# Rotate grid by 0.1 radians
+mode_boundary_data["t_offset"] = 0.1
+new_modes = ModeGrid(mode_boundary_data=mode_boundary_data)
+new_modes.plot()

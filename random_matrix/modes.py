@@ -181,7 +181,7 @@ class Mode:
             draw_circle(ax, t_min=t1, t_max=t2, r=self.r_min, linestyle="-", color=mode_color)
             draw_circle(ax, t_min=t1, t_max=t2, r=self.r_max, linestyle="-", color=mode_color)
 
-class Modes:
+class ModeGrid:
     def __init__(self, mode_boundary_data: dict = None) -> None:
         self.modes = []
         
@@ -215,9 +215,10 @@ class Modes:
         points_cartesian = np.array([[0.0,0.0], [central_mode_radius, 0.0]])
         self.modes.append(Mode(index=0, mode_boundary=points_cartesian, mode_shape_type=mode_shape_type))
 
-
-        
         # Non-central modes
+        # Add t-offset
+        t_vals += t_offset
+
         r_vals = r_vals[1:]
         r_val_pairs = np.column_stack((r_vals[:-1], r_vals[1:]))
         t_val_pairs = np.column_stack((t_vals[:-1], t_vals[1:]))
