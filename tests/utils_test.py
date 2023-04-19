@@ -26,3 +26,8 @@ print(is_rectangle(points))
 #
 rotated_points = rotate_points(points, np.random.randn(2), np.random.randn())
 print(is_rectangle(rotated_points))
+
+#### 
+# Get cyclic points
+#
+points = np.random.randn(5,2)

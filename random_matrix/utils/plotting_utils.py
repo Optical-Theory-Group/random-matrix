@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from random_matrix.utils.geometry_utils import points_to_ordered_convex_hull_vertices, circle
-from random_matrix.utils.array_utils import get_cyclic_pairs
+from geometry_utils import points_to_ordered_convex_hull_vertices, circle
+from array_utils import get_cyclic_pairs
 
 def draw_ray(ax, theta=0, r_min=0, r_max=1, color="tab:blue", linestyle="--",alpha=1.0):
     x = np.array([r_min*np.cos(theta), r_max*np.cos(theta)])
