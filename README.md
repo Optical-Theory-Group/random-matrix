@@ -14,6 +14,7 @@ tests/mode_tests.py
 ```
 ### Code to-do
 
+- Sort out indexing for reciprocal modes
 - Deal with edge cases for Cartesian grid
 - Allow for rotated Cartesian modes
 - Add custom case + random generation
