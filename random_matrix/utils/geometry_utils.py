@@ -1,6 +1,6 @@
 import numpy as np
 from itertools import combinations
-from random_matrix.utils.array_utils import remove_duplicate_points
+from .array_utils import remove_duplicate_points
 from scipy.spatial import ConvexHull
 
 def circle(x, r):
@@ -37,11 +37,18 @@ def cartesian_to_polar(points_cartesian):
         An array of shape (N, 2) representing the 2D points in polar coordinates. The first
         column contains the radius and the second column contains the angle in radians.
     """
+    if points_cartesian.ndim != 2 or points_cartesian.shape[1] != 2:
+        # Reshape the input array to the correct shape (N, 2)
+        points_cartesian = np.asarray(points_cartesian)
+        if points_cartesian.ndim == 1:
+            points_cartesian = points_cartesian.reshape((1, 2))
+        else:
+            raise ValueError("Input array must have shape (N, 2)")
 
     x = points_cartesian[:,0]
     y = points_cartesian[:,1]
     r = np.linalg.norm(points_cartesian, axis=1)
-    t = np.arctan2(y, x)
+    t = np.mod(np.arctan2(y, x), 2*np.pi)
     points_polar = np.column_stack((r, t)) 
     return points_polar
 
@@ -61,6 +68,13 @@ def polar_to_cartesian(points_polar):
         An array of shape (N, 2) representing the 2D points in Cartesian coordinates.
         The first column contains the x-coordinate and the second column contains the y-coordinate.
     """
+    if points_polar.ndim != 2 or points_polar.shape[1] != 2:
+        # Reshape the input array to the correct shape (N, 2)
+        points_polar = np.asarray(points_polar)
+        if points_polar.ndim == 1:
+            points_polar = points_polar.reshape((1, 2))
+        else:
+            raise ValueError("Input array must have shape (N, 2)")
 
     r = points_polar[:,0]
     t = points_polar[:,1]
@@ -68,6 +82,14 @@ def polar_to_cartesian(points_polar):
     y = r*np.sin(t)
     points_cartesian = np.column_stack((x, y))
     return points_cartesian
+
+def get_small_angular_difference(t_1, t_2):
+    t_1 = np.mod(t_1, 2*np.pi)
+    t_2 = np.mod(t_2, 2*np.pi)
+    dt = np.abs(t_2 - t_1)
+    if dt > np.pi:
+        dt = 2*np.pi - dt
+    return dt
 
 def is_rectangle(points):
     """
@@ -174,3 +196,12 @@ def get_convex_hull_area(convex_hull):
     # Note that 'volume' is in fact area for a convex hull of 2D points
     # convex_hull.area instead returns the perimeter
     return convex_hull.volume
+
+def get_boundary_area(points: np.ndarray) -> float:
+    points_polar = cartesian_to_polar(points)
+    t_1, t_2 = points_polar[:,1]
+    dt = get_small_angular_difference(t_1, t_2)
+    sector_area = 0.5*dt
+    triangle_area = 0.5*np.sin(dt)
+    area = sector_area - triangle_area
+    return area
