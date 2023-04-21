@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from random_matrix.utils.geometry_utils import points_to_ordered_convex_hull_vertices, circle
-from random_matrix.utils.array_utils import get_cyclic_pairs
+from .geometry_utils import points_to_ordered_convex_hull_vertices, circle
+from .array_utils import get_pairs
 
 def draw_ray(ax, theta=0, r_min=0, r_max=1, color="tab:blue", linestyle="--",alpha=1.0):
     x = np.array([r_min*np.cos(theta), r_max*np.cos(theta)])
@@ -35,7 +35,7 @@ def draw_horizontal_chord(ax, y, radius=1, color="black", linestyle="-"):
 
 def draw_convex_polygon(ax, points, color="black", linestyle="-"):
     ordered_points = points_to_ordered_convex_hull_vertices(points)
-    pairs = get_cyclic_pairs(ordered_points)
+    pairs = get_pairs(ordered_points, cyclic=True)
     for first_point, second_point in pairs:
         draw_line(ax, start=first_point, end=second_point, color=color, linestyle=linestyle)
 
