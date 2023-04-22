@@ -2,10 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 sys.path.append('..')  # add parent directory to sys.path
-
 from random_matrix.mode import Mode
 from random_matrix.mode_grid import ModeGrid
-from random_matrix.utils.geometry_utils import polar_to_cartesian, cartesian_to_polar, is_rectangle, rotate_points
+from random_matrix.utils.geometry_utils import (polar_to_cartesian,
+                                                cartesian_to_polar,
+                                                is_rectangle, rotate_points)
 from random_matrix.utils.plotting_utils import draw_convex_polygon
 
 np.random.seed(128)
@@ -26,7 +27,7 @@ my_mode.plot()
 
 ############
 # Polar grid of modes
-# 
+#
 num_r = 8
 num_t = 8
 r_vals = np.linspace(0.0, 1.0, num_r+1)
@@ -40,8 +41,8 @@ grid_data["t_offset"] = 0.1
 modes = ModeGrid(grid_data=grid_data)
 modes.plot(show_indices=True)
 
-## Weird non reciprocal case
-r_vals = np.array([0.2, 0.6,0.7])
+# Weird non reciprocal case
+r_vals = np.array([0.2, 0.6, 0.7])
 t_vals = np.array([0.5, 1.0, 1.4, 2.0, 3.0, 4.5, 5.0, 6.1])
 grid_data = {"r_vals": r_vals, "t_vals": t_vals, "grid_type": "polar"}
 modes = ModeGrid(grid_data=grid_data)
