@@ -7,9 +7,9 @@ from scipy.spatial import cKDTree
 from .array_types import Vector, Matrix
 
 
-def remove_duplicate_points(points: Vector[np.float32] | Matrix[np.float32],
-                            tolerance: float = 1e-8
-                            ) -> Vector[np.float32] | Matrix[np.float32]:
+def remove_duplicate_points(
+    points: Vector[np.float32] | Matrix[np.float32], tolerance: float = 1e-8
+) -> Vector[np.float32] | Matrix[np.float32]:
     """
     Remove duplicate points from an array of points.
     Complexity: O(N log N)
@@ -43,8 +43,9 @@ def remove_duplicate_points(points: Vector[np.float32] | Matrix[np.float32],
     return new_points
 
 
-def get_pairs(points: Matrix[np.float32], cyclic: bool = False
-              ) -> Matrix[np.float32]:
+def get_pairs(
+    points: Matrix[np.float32], cyclic: bool = False
+) -> Matrix[np.float32]:
     """
     Given an array of shape (N,), or an array of 2D points stored in a (N,2)
     matrix, return a NumPy array containing pairs of values of the form
@@ -76,8 +77,9 @@ def get_pairs(points: Matrix[np.float32], cyclic: bool = False
     return pairs
 
 
-def get_point_index(point: Vector[np.float32],
-                    point_array: Matrix[np.float32]) -> int | None:
+def get_point_index(
+    point: Vector[np.float32], point_array: Matrix[np.float32]
+) -> int | None:
     """
     Return the index of the first point in `point_array` that is close to the
     given `point`.

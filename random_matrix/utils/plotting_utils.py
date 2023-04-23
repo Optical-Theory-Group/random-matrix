@@ -9,9 +9,15 @@ from .array_utils import get_pairs, get_point_index
 from .array_types import Vector, Matrix
 
 
-def draw_ray(ax: plt.Axes, theta: float = 0, r_min: float = 0,
-             r_max: float = 1, color: str = "tab:blue",
-             linestyle: str = "--", alpha: float = 1.0) -> None:
+def draw_ray(
+    ax: plt.Axes,
+    theta: float = 0,
+    r_min: float = 0,
+    r_max: float = 1,
+    color: str = "tab:blue",
+    linestyle: str = "--",
+    alpha: float = 1.0,
+) -> None:
     """
     Draws a straight line segment on the given Axes object representing a ray
     extending from the origin in the direction of the given angle.
@@ -40,14 +46,19 @@ def draw_ray(ax: plt.Axes, theta: float = 0, r_min: float = 0,
         None
     """
 
-    x = np.array([r_min*np.cos(theta), r_max*np.cos(theta)])
-    y = np.array([r_min*np.sin(theta), r_max*np.sin(theta)])
+    x = np.array([r_min * np.cos(theta), r_max * np.cos(theta)])
+    y = np.array([r_min * np.sin(theta), r_max * np.sin(theta)])
     ax.plot(x, y, linestyle=linestyle, color=color, alpha=alpha)
 
 
-def draw_circle(ax: plt.Axes, r: float = 1, t_min: float = 0,
-                t_max: float = 2*np.pi, color: str = "black",
-                linestyle: str = "-") -> None:
+def draw_circle(
+    ax: plt.Axes,
+    r: float = 1,
+    t_min: float = 0,
+    t_max: float = 2 * np.pi,
+    color: str = "black",
+    linestyle: str = "-",
+) -> None:
     """
     Draws a circle of the given radius centered at the origin on the specified
     Axes object.
@@ -75,13 +86,18 @@ def draw_circle(ax: plt.Axes, r: float = 1, t_min: float = 0,
     """
 
     t = np.linspace(t_min, t_max)
-    x = r*np.cos(t)
-    y = r*np.sin(t)
+    x = r * np.cos(t)
+    y = r * np.sin(t)
     ax.plot(x, y, color=color, linestyle=linestyle)
 
 
-def draw_line(ax: plt.Axes, start: Vector[np.float32], end: Vector[np.float32],
-              color: str = "black", linestyle: str = "-") -> None:
+def draw_line(
+    ax: plt.Axes,
+    start: Vector[np.float32],
+    end: Vector[np.float32],
+    color: str = "black",
+    linestyle: str = "-",
+) -> None:
     """
     Draw a line on the given Matplotlib axis object from `start` to `end`.
 
@@ -107,9 +123,13 @@ def draw_line(ax: plt.Axes, start: Vector[np.float32], end: Vector[np.float32],
     ax.plot(xs, ys, color=color, linestyle=linestyle)
 
 
-def draw_vertical_chord(ax: plt.Axes, x: float, radius: float = 1,
-                        color: str = "black",
-                        linestyle: str = "-") -> None:
+def draw_vertical_chord(
+    ax: plt.Axes,
+    x: float,
+    radius: float = 1,
+    color: str = "black",
+    linestyle: str = "-",
+) -> None:
     """
     Draw a vertical chord on a circle given its x-coordinate and the radius of
     the circle.
@@ -138,9 +158,13 @@ def draw_vertical_chord(ax: plt.Axes, x: float, radius: float = 1,
     draw_line(ax, bottom_point, top_point, color=color, linestyle=linestyle)
 
 
-def draw_horizontal_chord(ax: plt.Axes, y: float, radius: float = 1,
-                          color: str = "black",
-                          linestyle: str = "-") -> None:
+def draw_horizontal_chord(
+    ax: plt.Axes,
+    y: float,
+    radius: float = 1,
+    color: str = "black",
+    linestyle: str = "-",
+) -> None:
     """
     Draw a horizontal chord on a circle given its y-coordinate and the radius
     of the circle.
@@ -170,8 +194,12 @@ def draw_horizontal_chord(ax: plt.Axes, y: float, radius: float = 1,
     draw_line(ax, left_point, right_point, color=color, linestyle=linestyle)
 
 
-def draw_convex_polygon(ax: plt.Axes, points: Matrix[np.float32],
-                        color: str = "black", linestyle: str = "-") -> None:
+def draw_convex_polygon(
+    ax: plt.Axes,
+    points: Matrix[np.float32],
+    color: str = "black",
+    linestyle: str = "-",
+) -> None:
     """
     Draws a convex polygon on the given `Axes` object.
 
@@ -196,14 +224,22 @@ def draw_convex_polygon(ax: plt.Axes, points: Matrix[np.float32],
     ordered_points = points_to_ordered_convex_hull_vertices(points)
     pairs = get_pairs(ordered_points, cyclic=True)
     for first_point, second_point in pairs:
-        draw_line(ax, start=first_point, end=second_point, color=color,
-                  linestyle=linestyle)
+        draw_line(
+            ax,
+            start=first_point,
+            end=second_point,
+            color=color,
+            linestyle=linestyle,
+        )
 
 
-def draw_interior_triangle(ax: plt.Axes, triangle: Matrix[np.float32],
-                           polygon_points: Matrix[np.float32],
-                           color: str = "tab:blue", linestyle: str = "-"
-                           ) -> None:
+def draw_interior_triangle(
+    ax: plt.Axes,
+    triangle: Matrix[np.float32],
+    polygon_points: Matrix[np.float32],
+    color: str = "tab:blue",
+    linestyle: str = "-",
+) -> None:
     """
     Draws a triangle inside a given polygon (excluding edges that coincide
     with the polygon edges).
@@ -239,12 +275,18 @@ def draw_interior_triangle(ax: plt.Axes, triangle: Matrix[np.float32],
         first_index = get_point_index(first_point, polygon_points)
         second_index = get_point_index(second_point, polygon_points)
         if first_index is None or second_index is None:
-            raise ValueError("Triangle vertices do not coincide with polygon "
-                             "vertices!")
+            raise ValueError(
+                "Triangle vertices do not coincide with polygon vertices!"
+            )
         index_difference = np.abs(first_index - second_index)
         if index_difference != 1:
-            draw_line(ax, start=first_point, end=second_point, color=color,
-                      linestyle=linestyle)
+            draw_line(
+                ax,
+                start=first_point,
+                end=second_point,
+                color=color,
+                linestyle=linestyle,
+            )
 
 
 def set_up_k_space_plot() -> plt.Axes:
@@ -264,8 +306,9 @@ def set_up_k_space_plot() -> plt.Axes:
 
     fig, ax = plt.subplots()
     draw_ray(ax, r_min=-1, theta=0, linestyle="-", color="black", alpha=0.4)
-    draw_ray(ax, r_min=-1, theta=np.pi/2, linestyle="-", color="black",
-             alpha=0.4)
+    draw_ray(
+        ax, r_min=-1, theta=np.pi / 2, linestyle="-", color="black", alpha=0.4
+    )
     ax.set_aspect("equal")
     draw_circle(ax)
     return ax
