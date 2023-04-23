@@ -1,5 +1,6 @@
 import sys
-sys.path.append('..')  # add parent directory to sys.path
+
+sys.path.append("..")  # add parent directory to sys.path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,13 +13,13 @@ np.random.seed(128)
 ######
 # Not a rectangle
 #
-points = np.random.randn(4,2)
+points = np.random.randn(4, 2)
 print(is_rectangle((points)))
 
 #####
 # Obvious rectangle
 #
-points = np.array([[0.0,0.0],[1.0,0.0],[0.0,5.0],[1.0,5.0]])
+points = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 5.0], [1.0, 5.0]])
 print(is_rectangle(points))
 
 #####
@@ -27,7 +28,7 @@ print(is_rectangle(points))
 rotated_points = rotate_points(points, np.random.randn(2), np.random.randn())
 print(is_rectangle(rotated_points))
 
-#### 
+####
 # Get cyclic points
 #
-points = np.random.randn(5,2)
+points = np.random.randn(5, 2)

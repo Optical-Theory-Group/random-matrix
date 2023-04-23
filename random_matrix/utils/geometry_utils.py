@@ -7,8 +7,9 @@ from scipy.spatial import ConvexHull
 from .array_types import Vector, Matrix
 
 
-def circle(x: float | Vector[np.float32], r: float
-           ) -> float | Vector[np.float32]:
+def circle(
+    x: float | Vector[np.float32], r: float
+) -> float | Vector[np.float32]:
     """
     Returns the y-coordinate(s) of a point on a circle, given the
     x-coordinate(s) and radius.
@@ -27,11 +28,12 @@ def circle(x: float | Vector[np.float32], r: float
         input x-coordinate(s).
     """
 
-    return np.sqrt(r*r-x*x)
+    return np.sqrt(r * r - x * x)
 
 
-def cartesian_to_polar(points_cartesian: Matrix[np.float32]
-                       ) -> Matrix[np.float32]:
+def cartesian_to_polar(
+    points_cartesian: Matrix[np.float32],
+) -> Matrix[np.float32]:
     """
     Convert an array of 2D points from Cartesian coordinates to polar
     coordinates.
@@ -61,7 +63,7 @@ def cartesian_to_polar(points_cartesian: Matrix[np.float32]
     x = points_cartesian[:, 0]
     y = points_cartesian[:, 1]
     r = np.linalg.norm(points_cartesian, axis=1)
-    t = np.mod(np.arctan2(y, x), 2*np.pi)
+    t = np.mod(np.arctan2(y, x), 2 * np.pi)
     points_polar = np.column_stack((r, t))
     return points_polar
 
@@ -96,8 +98,8 @@ def polar_to_cartesian(points_polar: Matrix[np.float32]) -> Matrix[np.float32]:
 
     r = points_polar[:, 0]
     t = points_polar[:, 1]
-    x = r*np.cos(t)
-    y = r*np.sin(t)
+    x = r * np.cos(t)
+    y = r * np.sin(t)
     points_cartesian = np.column_stack((x, y))
     return points_cartesian
 
@@ -118,11 +120,11 @@ def get_small_angular_difference(t_1: float, t_2: float) -> float:
         The smallest angular difference between the two angles in radians.
     """
 
-    t_1 = np.mod(t_1, 2*np.pi)
-    t_2 = np.mod(t_2, 2*np.pi)
+    t_1 = np.mod(t_1, 2 * np.pi)
+    t_2 = np.mod(t_2, 2 * np.pi)
     dt: float = np.abs(t_2 - t_1)
     if dt > np.pi:
-        dt = 2*np.pi - dt
+        dt = 2 * np.pi - dt
     return dt
 
 
@@ -168,10 +170,11 @@ def is_rectangle(points: Matrix[np.float32]) -> bool:
     return is_close
 
 
-def rotate_points(points: Vector[np.float32] | Matrix[np.float32],
-                  rotation_angle: float,
-                  axis: Vector[np.float32] = np.array([0.0, 0.0])
-                  ) -> Vector[np.float32] | Matrix[np.float32]:
+def rotate_points(
+    points: Vector[np.float32] | Matrix[np.float32],
+    rotation_angle: float,
+    axis: Vector[np.float32] = np.array([0.0, 0.0]),
+) -> Vector[np.float32] | Matrix[np.float32]:
     """
     Rotate a set of 2D points around a specified axis by a given angle.
 
@@ -198,8 +201,9 @@ def rotate_points(points: Vector[np.float32] | Matrix[np.float32],
     return output
 
 
-def points_to_ordered_convex_hull_vertices(points: Matrix[np.float32]
-                                           ) -> Matrix[np.float32]:
+def points_to_ordered_convex_hull_vertices(
+    points: Matrix[np.float32],
+) -> Matrix[np.float32]:
     """
     Given a set of 2D points, compute the ordered vertices of their convex
     hull.
@@ -272,15 +276,15 @@ def get_boundary_area(points: Matrix[np.float32]) -> float:
     points_polar = cartesian_to_polar(points)
     t_1, t_2 = points_polar[:, 1]
     dt = get_small_angular_difference(t_1, t_2)
-    sector_area = 0.5*dt
-    triangle_area = 0.5*np.sin(dt)
+    sector_area = 0.5 * dt
+    triangle_area = 0.5 * np.sin(dt)
     area: float = sector_area - triangle_area
     return area
 
 
 def get_line_segment_circle_intersection_points(
-        line_segment: Matrix[np.float32],
-        circle: Circle = Circle([0.0, 0.0], 1.0)) -> Vector[np.float32] | None:
+    line_segment: Matrix[np.float32], circle: Circle = Circle([0.0, 0.0], 1.0)
+) -> Vector[np.float32] | None:
     """
     Computes the intersection points between a line segment and a circle.
 
@@ -302,8 +306,9 @@ def get_line_segment_circle_intersection_points(
     """
 
     if np.shape(line_segment) != (2, 2):
-        raise ValueError("line_segment should be given as a (2,2) array of "
-                         "points")
+        raise ValueError(
+            "line_segment should be given as a (2,2) array of " "points"
+        )
 
     intersection_points = np.empty((0, 2), dtype=np.float32)
     first_point = line_segment[0]
@@ -319,8 +324,9 @@ def get_line_segment_circle_intersection_points(
         # If yes, add it to the intersection points
         for point in new_intersection_points:
             if line_segment_obj.contains_point(point):
-                intersection_points = np.append(intersection_points,
-                                                point.reshape(1, 2), axis=0)
+                intersection_points = np.append(
+                    intersection_points, point.reshape(1, 2), axis=0
+                )
 
     # No intersections, even for the infinite line
     except ValueError:
@@ -335,19 +341,43 @@ def get_line_segment_circle_intersection_points(
 
 
 def get_box_circle_intersection_points(
-        box_points: Matrix[np.float32],
-        circle: Circle = Circle([0.0, 0.0], 1.0)) -> Matrix[np.float32] | None:
+    box_points: Matrix[np.float32], circle: Circle = Circle([0.0, 0.0], 1.0)
+) -> Matrix[np.float32] | None:
+    """
+    Returns a matrix of intersection points between a box defined by its corner
+    points and a circle.
+
+    Parameters
+    ----------
+        box_points : Matrix[np.float32]
+            A 2D matrix of shape (N, 2) representing N corner points of the
+            box.
+        circle : Circle, optional
+            A Circle object representing the circle.
+            Defaults to Circle([0.0, 0.0], 1.0).
+
+    Retruns
+    ----------
+        Matrix[np.float32] | None
+            A 2D matrix of shape (M, 2) representing M intersection points
+            between the box and the circle, or None if there are
+            no intersection points.
+    """
 
     intersection_points = np.empty((0, 2), dtype=np.float32)
     pairs = get_pairs(box_points, cyclic=True)
     for line_segment in pairs:
-        new_intersection_points = \
-            get_line_segment_circle_intersection_points(line_segment)
+        new_intersection_points = get_line_segment_circle_intersection_points(
+            line_segment
+        )
 
+        # Add new points if there are any
         if new_intersection_points is not None:
             for point in new_intersection_points:
-                intersection_points = np.append(intersection_points,
-                                                point.reshape(1, 2), axis=0)
+                intersection_points = np.append(
+                    intersection_points, point.reshape(1, 2), axis=0
+                )
+
     if len(intersection_points) == 0:
         return None
     else:

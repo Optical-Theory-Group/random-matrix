@@ -1,7 +1,7 @@
 name: random_matrix
 channels:
-  - defaults
   - conda-forge
+  - defaults
 dependencies:
   - python=3.11.3
   - numpy
@@ -11,4 +11,5 @@ dependencies:
   - mypy
   - flake8
   - scikit-spatial
+  - black
 prefix: /var/home/niall/anaconda3/envs/random_matrix
