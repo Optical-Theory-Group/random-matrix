@@ -1,6 +1,6 @@
 ### Installation
 
-A conda environment containing all necessary packages can be installed with the following commands from the base repository folder:
+A conda environment containing all packages used in development can be installed with the following commands from the base repository folder:
 
 ```
 $ conda env create -f conda/environment.yml
