@@ -1,9 +1,10 @@
 import numpy as np
 import numpy.typing as npt
+from skspatial.objects import Line, Circle, LineSegment
 from itertools import combinations
-from .array_utils import remove_duplicate_points
+from .array_utils import remove_duplicate_points, get_pairs
 from scipy.spatial import ConvexHull
-from ._array_types import Vector, Matrix
+from .array_types import Vector, Matrix
 
 
 def circle(x: float | Vector[np.float32], r: float
@@ -168,7 +169,8 @@ def is_rectangle(points: Matrix[np.float32]) -> bool:
 
 
 def rotate_points(points: Vector[np.float32] | Matrix[np.float32],
-                  axis: Vector[np.float32], rotation_angle: float
+                  rotation_angle: float,
+                  axis: Vector[np.float32] = np.array([0.0, 0.0])
                   ) -> Vector[np.float32] | Matrix[np.float32]:
     """
     Rotate a set of 2D points around a specified axis by a given angle.
@@ -266,6 +268,7 @@ def get_boundary_area(points: Matrix[np.float32]) -> float:
         The area of the described region.
 
     """
+
     points_polar = cartesian_to_polar(points)
     t_1, t_2 = points_polar[:, 1]
     dt = get_small_angular_difference(t_1, t_2)
@@ -273,3 +276,79 @@ def get_boundary_area(points: Matrix[np.float32]) -> float:
     triangle_area = 0.5*np.sin(dt)
     area: float = sector_area - triangle_area
     return area
+
+
+def get_line_segment_circle_intersection_points(
+        line_segment: Matrix[np.float32],
+        circle: Circle = Circle([0.0, 0.0], 1.0)) -> Vector[np.float32] | None:
+    """
+    Computes the intersection points between a line segment and a circle.
+
+    Parameters
+    ----------
+        line_segment : ndarray
+            A NumPy array of shape (2,2) representing the two endpoints of the
+            line segment.
+        circle : Circle
+            An instance of the Circle class representing the circle.
+            Default is a unit circle centered at the origin.
+
+    Retruns
+    ----------
+        ndarray:
+            A NumPy array of shape (N,2) representing the N intersection points
+            between the line segment and the circle. If no intersection points
+            are found, returns None.
+    """
+
+    if np.shape(line_segment) != (2, 2):
+        raise ValueError("line_segment should be given as a (2,2) array of "
+                         "points")
+
+    intersection_points = np.empty((0, 2), dtype=np.float32)
+    first_point = line_segment[0]
+    second_point = line_segment[1]
+    line = Line.from_points(first_point, second_point)
+    line_segment_obj = LineSegment(first_point, second_point)
+
+    # Note that scikit spatial raises an error if there is no intersection
+    # thus the try block
+    try:
+        new_intersection_points = circle.intersect_line(line)
+        # Check if intersection points lie in the line segment or not
+        # If yes, add it to the intersection points
+        for point in new_intersection_points:
+            if line_segment_obj.contains_point(point):
+                intersection_points = np.append(intersection_points,
+                                                point.reshape(1, 2), axis=0)
+
+    # No intersections, even for the infinite line
+    except ValueError:
+        return None
+
+    # If intersection_points has length 0, there were intersections, but they
+    # didn't lie on the line segment.
+    if len(intersection_points) == 0:
+        return None
+    else:
+        return intersection_points
+
+
+def get_box_circle_intersection_points(
+        box_points: Matrix[np.float32],
+        circle: Circle = Circle([0.0, 0.0], 1.0)) -> Matrix[np.float32] | None:
+
+    intersection_points = np.empty((0, 2), dtype=np.float32)
+    pairs = get_pairs(box_points, cyclic=True)
+    for line_segment in pairs:
+        new_intersection_points = \
+            get_line_segment_circle_intersection_points(line_segment)
+
+        if new_intersection_points is not None:
+            for point in new_intersection_points:
+                intersection_points = np.append(intersection_points,
+                                                point.reshape(1, 2), axis=0)
+    if len(intersection_points) == 0:
+        return None
+    else:
+        return intersection_points

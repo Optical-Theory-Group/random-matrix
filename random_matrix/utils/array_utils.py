@@ -4,7 +4,7 @@ Module containing utility functions for common array manipulations.
 
 import numpy as np
 from scipy.spatial import cKDTree
-from ._array_types import Vector, Matrix
+from .array_types import Vector, Matrix
 
 
 def remove_duplicate_points(points: Vector[np.float32] | Matrix[np.float32],
@@ -74,3 +74,32 @@ def get_pairs(points: Matrix[np.float32], cyclic: bool = False
     if not cyclic:
         pairs = pairs[:-1]
     return pairs
+
+
+def get_point_index(point: Vector[np.float32],
+                    point_array: Matrix[np.float32]) -> int | None:
+    """
+    Return the index of the first point in `point_array` that is close to the
+    given `point`.
+
+    Parameters
+    ----------
+    point : Vector[np.float32]
+        The point to search for in `point_array`.
+    point_array : Matrix[np.float32]
+        The matrix of points to search through, where each row represents a
+        point.
+
+    Returns
+    -------
+    int or None
+        If a close point is found in `point_array`, return its index
+        (i.e., row number). If no close point is found, return `None`.
+    """
+
+    indices = np.where(np.all(np.isclose(point, point_array), axis=1))[0]
+    if len(indices) == 0:
+        return None
+    else:
+        index: int = indices[0]
+        return index

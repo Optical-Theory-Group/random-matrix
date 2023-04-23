@@ -5,8 +5,8 @@ Module contaniing functions that help with plotting figures.
 import matplotlib.pyplot as plt
 import numpy as np
 from .geometry_utils import points_to_ordered_convex_hull_vertices, circle
-from .array_utils import get_pairs
-from ._array_types import Vector, Matrix
+from .array_utils import get_pairs, get_point_index
+from .array_types import Vector, Matrix
 
 
 def draw_ray(ax: plt.Axes, theta: float = 0, r_min: float = 0,
@@ -108,8 +108,8 @@ def draw_line(ax: plt.Axes, start: Vector[np.float32], end: Vector[np.float32],
 
 
 def draw_vertical_chord(ax: plt.Axes, x: float, radius: float = 1,
-                        color: str = "black", linestyle: str = "-"
-                        ) -> None:
+                        color: str = "black",
+                        linestyle: str = "-") -> None:
     """
     Draw a vertical chord on a circle given its x-coordinate and the radius of
     the circle.
@@ -139,8 +139,8 @@ def draw_vertical_chord(ax: plt.Axes, x: float, radius: float = 1,
 
 
 def draw_horizontal_chord(ax: plt.Axes, y: float, radius: float = 1,
-                          color: str = "black", linestyle: str = "-"
-                          ) -> None:
+                          color: str = "black",
+                          linestyle: str = "-") -> None:
     """
     Draw a horizontal chord on a circle given its y-coordinate and the radius
     of the circle.
@@ -198,6 +198,53 @@ def draw_convex_polygon(ax: plt.Axes, points: Matrix[np.float32],
     for first_point, second_point in pairs:
         draw_line(ax, start=first_point, end=second_point, color=color,
                   linestyle=linestyle)
+
+
+def draw_interior_triangle(ax: plt.Axes, triangle: Matrix[np.float32],
+                           polygon_points: Matrix[np.float32],
+                           color: str = "tab:blue", linestyle: str = "-"
+                           ) -> None:
+    """
+    Draws a triangle inside a given polygon (excluding edges that coincide
+    with the polygon edges).
+
+    Parameters
+    ----------
+    ax : plt.Axes
+        The axes on which the triangle will be drawn.
+    triangle : Matrix[np.float32]
+        A 3x2 matrix representing the three vertices of the triangle to be
+        drawn.
+    polygon_points : Matrix[np.float32]
+        A Nx2 matrix representing the vertices of the polygon in which the
+        triangle is contained.
+    color : str, optional
+        The color of the line that will be used to draw the triangle (default
+        is "tab:blue").
+    linestyle : str, optional
+        The style of the line that will be used to draw the triangle (default
+        is "-").
+
+    Raises
+    ------
+    ValueError
+        If any of the triangle vertices do not coincide with polygon vertices.
+
+    Returns
+    -------
+    None
+    """
+    pairs = get_pairs(triangle, cyclic=True)
+    for first_point, second_point in pairs:
+        first_index = get_point_index(first_point, polygon_points)
+        second_index = get_point_index(second_point, polygon_points)
+        if first_index is None or second_index is None:
+            raise ValueError("Triangle vertices do not coincide with polygon "
+                             "vertices!")
+        index_difference = np.abs(first_index - second_index)
+        if index_difference != 1:
+            draw_line(ax, start=first_point, end=second_point, color=color,
+                      linestyle=linestyle)
 
 
 def set_up_k_space_plot() -> plt.Axes:
