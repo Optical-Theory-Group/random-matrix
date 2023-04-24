@@ -1,19 +1,68 @@
-import numpy as np
+"""This module defines a "ModeGrid" class for use in scattering calculations.
+
+ModeGrid acts as a generator and container for Mode objects.
+"""
+
 from typing import Any
-from .mode import Mode
-from .utils.geometry_utils import (
+
+import numpy as np
+
+from random_matrix.mode import Mode
+from random_matrix.utils.array_utils import get_pairs
+from random_matrix.utils.geometry_utils import (
+    get_polygon_circle_intersection_points,
+    order_points,
     polar_to_cartesian,
     rotate_points,
-    points_to_ordered_convex_hull_vertices,
-    get_box_circle_intersection_points,
 )
-from .utils.plotting_utils import set_up_k_space_plot
-from .utils.array_utils import get_pairs
+from random_matrix.utils.plotting_utils import set_up_k_space_plot
 
 
 class ModeGrid:
+    """
+    A class used to represent a grid of modes.
+
+    Attributes
+    ----------
+    modes_propagating : dict
+        A dictionary containing all of the propagating modes. Note that the
+        keys are the mode indices.
+    modes_evanescent : dict
+        A dictionary containing all of the evanescent modes. Note that the
+        keys are the mode indices.
+    t_offset : float
+        An angle used to rotate the entire grid.
+    grid_type : str
+        Used to generate special grids. Possible values are:
+
+        "cartesian", "polar", "custom".
+
+    grid_wave_type: str
+        The types of modes that are to be generated in the grid. Possible
+        values are:
+
+        "propagating", "evanescent", "all".
+
+    Methods
+    -------
+    """
+
     def __init__(self, grid_data: dict[str, Any] | None = None) -> None:
-        self.modes: list[Mode] = []
+        """
+        Initialises grid of modes.
+
+        Parameters
+        ----------
+        grid_data : dict
+            A dictionary containing data that is used to generate the grid.
+
+        Returns
+        -------
+        None
+        """
+
+        self.modes_propagating: dict[str, Mode] = {}
+        self.modes_evanescent: dict[str, Mode] = {}
 
         if grid_data is None:
             raise ValueError("grid_data not provided")
@@ -41,24 +90,104 @@ class ModeGrid:
                 self.x_lim = x_lim
                 self.y_lim = y_lim
                 self._handle_cartesian_case()
-        """
-            case {"grid_type": "custom", "points_array": points_array}:
-                pass
 
             case _:
-                raise ValueError("Incorrect mode_boundary_data formatting.")
-        """
+                raise ValueError(
+                    "Incorrect mode_boundary_data formatting."
+                    "Please refer to the documentation"
+                )
 
     def __str__(self) -> str:
+        """
+        Gives a helpful summary of the grid.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        output : str
+            A string summarising the grid.
+        """
+
         output = (
-            f"Grid type: {self.grid_type},\nReciprocal: "
-            f"{self.is_reciprocal},\nNumber of modes: "
-            f"{len(self.modes)}, "
-            f"\nTheta offset: {self.t_offset}"
+            f"Grid type: {self.grid_type},\n"
+            f"Reciprocal: {self.is_reciprocal},\n"
+            f"Number of propagating modes: {len(self.modes_propagating)},\n"
+            f"Number of evanescent modes: {len(self.modes_evanescent)},\n"
+            f"Theta offset: {self.t_offset}"
         )
         return output
 
+    def get_mode_by_index(
+        self, index: str | int, mode_wave_type: str = "propagating"
+    ) -> Mode | None:
+        """
+        Gets a mode from the ModeGrid dictionaries according to an input
+        index and wave type.
+
+        Parameters
+        ----------
+        index : str, int
+            The index of the desired mode.
+        mode_wave_type : str
+            The type of mode that is to be collected. This determines which
+            dictionary the mode will be taken from.
+
+        Returns
+        -------
+        mode : Mode
+            The mode with desired index.
+        """
+
+        # Stringify index for consistency
+        index = str(index)
+        if mode_wave_type == "propagating":
+            mode = self.modes_propagating.get(index, None)
+        else:
+            mode = self.modes_evanescent.get(index, None)
+        return mode
+
+    def add_mode(
+        self, mode: Mode, mode_wave_type: str = "propagating"
+    ) -> None:
+        """
+        Adds a new mode to the internal ModeGrid dictionaries for storage.
+
+        Parameters
+        ----------
+        mode : Mode
+            The new mode that is to be added
+        mode_wave_type : str
+            The type of mode that is to be added. This determines which
+            dictionary the mode will be stored in.
+
+        Returns
+        -------
+        None
+        """
+
+        index = str(mode.index)
+        if mode_wave_type == "propagating":
+            self.modes_propagating[index] = mode
+        else:
+            self.modes_evanescent[index] = mode
+        pass
+
     def _handle_polar_case(self) -> None:
+        """
+        Sets up a Polar grid of modes.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+
         t_vals = self.t_vals
         r_vals = self.r_vals
 
@@ -90,7 +219,7 @@ class ModeGrid:
         # Handle central mode
         central_mode_radius = r_vals[1]
         points_cartesian = np.array([[0.0, 0.0], [central_mode_radius, 0.0]])
-        self.modes.append(
+        self.add_mode(
             Mode(index=0, mode_boundary=points_cartesian, is_polar=True)
         )
 
@@ -119,7 +248,7 @@ class ModeGrid:
                     (r_grid.ravel(), t_grid.ravel())
                 )
                 points_cartesian = polar_to_cartesian(points_polar)
-                self.modes.append(
+                self.add_mode(
                     Mode(
                         index=new_mode_index,
                         mode_boundary=points_cartesian,
@@ -128,10 +257,27 @@ class ModeGrid:
                 )
 
     def _handle_cartesian_case(self) -> None:
+        """
+        Sets up a Cartesian grid of modes.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+
+        mode_list_propagating = []
+        mode_list_evanescent = []
+
         dx = self.dx
         dy = self.dy
         x_lim = self.x_lim
         y_lim = self.y_lim
+
+        # Cartesian grids satisfy reciprocity automatically
         self.is_reciprocal = True
 
         # Set up x-y lattice of rectangular box boundaries
@@ -159,7 +305,7 @@ class ModeGrid:
                 )
 
                 # Order box_points cyclically
-                box_points = points_to_ordered_convex_hull_vertices(box_points)
+                box_points = order_points(box_points)
 
                 # Check if the box points are all inside or outside of the
                 # lattice
@@ -188,11 +334,27 @@ class ModeGrid:
                 # modes that incorporate a portion of the circular boundary
                 if box_wave_type == "mixed":
                     # Find intersection of circle with box
-                    # There must be exactly 2 intersection points
-                    circle_points = get_box_circle_intersection_points(
+                    # There must be at least 2 intersection points
+                    circle_points = get_polygon_circle_intersection_points(
                         box_points
                     )
 
+                    # Catch bug
+                    if circle_points is None:
+                        raise ValueError(
+                            "Box considered 'mixed' but does not intersect "
+                            "the circle."
+                        )
+
+                    # If there are more than 2 points, order intersection
+                    # points and take the first and last
+                    if len(circle_points) > 2:
+                        circle_points = order_points(circle_points)
+                        circle_points = np.array(
+                            [circle_points[0], circle_points[-1]]
+                        )
+
+                    # Set up the interior and exterior modes
                     interior_points = box_points[box_r_vals <= 1.0]
                     exterior_points = box_points[box_r_vals >= 1.0]
 
@@ -222,9 +384,9 @@ class ModeGrid:
 
                     # Note that both modes get added in the "all" case
                     if self.grid_wave_type in ["propagating", "all"]:
-                        self.modes.append(interior_mode)
+                        mode_list_propagating.append(interior_mode)
                     if self.grid_wave_type in ["evanescent", "all"]:
-                        self.modes.append(exterior_mode)
+                        mode_list_evanescent.append(exterior_mode)
 
                 else:
                     # If the box wave type is not mixed, we just add the mode
@@ -232,30 +394,81 @@ class ModeGrid:
                     box_points = rotate_points(
                         points=box_points, rotation_angle=self.t_offset
                     )
-                    self.modes.append(
-                        Mode(mode_boundary=box_points, is_polar=False)
-                    )
+                    if box_wave_type == "propagating":
+                        mode_list_propagating.append(
+                            Mode(mode_boundary=box_points, is_polar=False)
+                        )
+                    else:
+                        mode_list_evanescent.append(
+                            Mode(mode_boundary=box_points, is_polar=False)
+                        )
+
+        # Put modes in dictionaries with correct keys
+        # For propagating case the central mode has index 0
+        if self.grid_wave_type in ["propagating", "all"]:
+            num_modes_propagating = len(mode_list_propagating)
+            max_index_propagating = int((num_modes_propagating - 1) / 2)
+            self.max_index_propagating = max_index_propagating
+            indices = np.arange(
+                -max_index_propagating, max_index_propagating + 1
+            )
+            for index, mode in zip(indices, mode_list_propagating):
+                mode.index = index
+                self.add_mode(mode, "propagating")
+
+        # Same but for evanescent waves
+        # Node that indexing is slightly different as there is no evanescent
+        # mode with index 0
+        if self.grid_wave_type in ["evanescent", "all"]:
+            num_modes_evanescent = len(mode_list_evanescent)
+            max_index_evanescent = int(num_modes_evanescent / 2)
+            self.max_index_evanescent = max_index_evanescent
+            indices = np.arange(1, max_index_evanescent + 1)
+            indices = np.concatenate((-indices[::-1], indices))
+            for index, mode in zip(indices, mode_list_evanescent):
+                mode.index = index
+                self.add_mode(mode, "evanescent")
 
     def _handle_custom_case(self) -> None:
         pass
 
-    def get_mode_by_index(self, index: int) -> Mode | None:
-        for mode in self.modes:
-            if mode.index == index:
-                return mode
-        return None
-
     def plot(
         self, show_indices: bool = False, show_triangulation: bool = False
     ) -> None:
+        """
+        Draws the grid of modes.
+
+        Parameters
+        ----------
+        show_indices : bool
+            Will show indices as text on top of modes if True.
+        show_triangulation : bool
+            Will show the triangulation of all modes in the grid if True.
+
+        Returns
+        -------
+        None
+        """
+
         # Draw axes and k-space boundary
         ax = set_up_k_space_plot()
-        for mode in self.modes:
-            mode.plot(
-                ax=ax,
-                is_solo=False,
-                show_guidelines=False,
-                mode_color="tab:red",
-                show_index=show_indices,
-                show_triangulation=show_triangulation,
-            )
+        if len(self.modes_propagating) > 0:
+            for key, mode in self.modes_propagating.items():
+                mode.plot(
+                    ax=ax,
+                    is_solo=False,
+                    show_guidelines=False,
+                    mode_color="tab:red",
+                    show_index=show_indices,
+                    show_triangulation=show_triangulation,
+                )
+        if len(self.modes_evanescent) > 0:
+            for key, mode in self.modes_evanescent.items():
+                mode.plot(
+                    ax=ax,
+                    is_solo=False,
+                    show_guidelines=False,
+                    mode_color="tab:red",
+                    show_index=show_indices,
+                    show_triangulation=show_triangulation,
+                )

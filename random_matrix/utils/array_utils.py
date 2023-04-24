@@ -1,10 +1,10 @@
-"""
-Module containing utility functions for common array manipulations.
+"""This module contains utility functions for frequently used array manipulations.
 """
 
 import numpy as np
 from scipy.spatial import cKDTree
-from .array_types import Vector, Matrix
+
+from random_matrix.types.array_types import Matrix, Vector
 
 
 def remove_duplicate_points(
@@ -31,8 +31,8 @@ def remove_duplicate_points(
         points, where M <= N.
     """
 
-    # In 1D case, artifically add extra axis. Required to make tree happy.
-    # This is later removed with squeeze().
+    # In the 1D case, artifically add extra axis. Required to make scipy's tree
+    # object happy. This is later removed with squeeze().
     if points.ndim == 1:
         points = points[:, np.newaxis]
 
