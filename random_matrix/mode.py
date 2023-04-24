@@ -171,7 +171,10 @@ class Mode:
         output = (
             f"Polar: {self.is_polar},\n"
             f"Wave Type: {self.mode_wave_type},\n"
-            f"Points: {self.points},\n"
+            f"Points: \n"
+            f"{self.points},\n"
+            f"Circle points: \n"
+            f"{self.circle_points},\n"
             f"Weight: {self.weight}"
         )
         return output

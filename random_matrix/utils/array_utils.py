@@ -1,4 +1,5 @@
-"""This module contains utility functions for frequently used array manipulations.
+"""This module contains utility functions for frequently used array
+manipulations.
 """
 
 import numpy as np

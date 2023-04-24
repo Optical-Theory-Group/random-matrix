@@ -5,7 +5,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from random_matrix.utils.array_utils import get_pairs, get_point_index
-from random_matrix.utils.geometry_utils import circle, order_points
+from random_matrix.utils.geometry_utils import (
+    get_circle_coordinate,
+    order_points,
+)
 from random_matrix.types.array_types import Matrix, Vector
 
 
@@ -151,7 +154,7 @@ def draw_vertical_chord(
     --------
     None
     """
-    y_top = circle(x, radius)
+    y_top = get_circle_coordinate(x, radius)
     y_bottom = -y_top
     bottom_point = np.array([x, y_bottom])
     top_point = np.array([x, y_top])
@@ -187,7 +190,7 @@ def draw_horizontal_chord(
     None
     """
 
-    x_right = circle(y, radius)
+    x_right = get_circle_coordinate(y, radius)
     x_left = -x_right
     left_point = np.array([x_left, y])
     right_point = np.array([x_right, y])

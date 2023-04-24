@@ -13,8 +13,8 @@ from random_matrix.utils.array_utils import get_pairs, remove_duplicate_points
 from random_matrix.types.array_types import Matrix, Vector
 
 
-def circle(
-    x: float | Vector[np.float32], r: float
+def get_circle_coordinate(
+    x: float | Vector[np.float32], r: float = 1.0
 ) -> float | Vector[np.float32]:
     """
     Returns the y-coordinate(s) of a point on a circle, given the
@@ -374,11 +374,14 @@ def get_polygon_circle_intersection_points(
             no intersection points.
     """
 
+    # Order points to avoid possible bugs
+    points = order_points(points)
+
     intersection_points = np.empty((0, 2), dtype=np.float32)
     pairs = get_pairs(points, cyclic=True)
     for line_segment in pairs:
         new_intersection_points = get_line_segment_circle_intersection_points(
-            line_segment
+            line_segment, circle
         )
 
         # Add new points if there are any
