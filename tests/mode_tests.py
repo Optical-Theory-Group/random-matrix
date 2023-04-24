@@ -52,6 +52,7 @@ points = np.array([[0.0, 0.0], [0.0, 0.5], [0.5, 0.0], [0.5, 0.5]])
 mode = Mode(mode_boundary=points)
 mode.plot(show_triangulation=False)
 mode.plot(show_triangulation=True)
+print(mode)
 
 # Convexh hull of a lot of points
 points = 0.2 * np.random.randn(10**5, 2)
