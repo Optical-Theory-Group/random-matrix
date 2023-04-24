@@ -4,8 +4,8 @@ checking.
 """
 
 from typing import TypeVar
-import numpy as np
 
+import numpy as np
 
 T = TypeVar("T", bound=np.generic, covariant=True)
 

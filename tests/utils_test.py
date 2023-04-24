@@ -4,9 +4,10 @@ sys.path.append("..")  # add parent directory to sys.path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.spatial import ConvexHull
+
 from random_matrix.utils.geometry_utils import is_rectangle, rotate_points
 from random_matrix.utils.plotting_utils import draw_line
-from scipy.spatial import ConvexHull
 
 np.random.seed(128)
 

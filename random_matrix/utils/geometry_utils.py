@@ -1,10 +1,16 @@
+"""This module contains utility functions that perform various geometric
+calculations.
+"""
+
+from itertools import combinations
+
 import numpy as np
 import numpy.typing as npt
-from skspatial.objects import Line, Circle, LineSegment
-from itertools import combinations
-from .array_utils import remove_duplicate_points, get_pairs
 from scipy.spatial import ConvexHull
-from .array_types import Vector, Matrix
+from skspatial.objects import Circle, Line, LineSegment
+
+from random_matrix.utils.array_utils import get_pairs, remove_duplicate_points
+from random_matrix.types.array_types import Matrix, Vector
 
 
 def circle(
@@ -106,8 +112,9 @@ def polar_to_cartesian(points_polar: Matrix[np.float32]) -> Matrix[np.float32]:
 
 def get_small_angular_difference(t_1: float, t_2: float) -> float:
     """
-    Compute the smallest angular difference between two angles in radians,
-    accounting for periodicity (i.e., angles are treated modulo 2*pi).
+    Compute the smallest (less than PI) angular difference between two angles
+    in radians, accounting for periodicity
+    (i.e., angles are treated modulo 2*pi).
 
     Parameters:
     -----------
@@ -201,12 +208,12 @@ def rotate_points(
     return output
 
 
-def points_to_ordered_convex_hull_vertices(
+def order_points(
     points: Matrix[np.float32],
 ) -> Matrix[np.float32]:
     """
-    Given a set of 2D points, compute the ordered vertices of their convex
-    hull.
+    Given a set of unordered 2D points, compute the ordered vertices of their
+    convex hull.
 
     Parameters:
     ----------
@@ -231,9 +238,12 @@ def points_to_ordered_convex_hull_vertices(
     return new_points
 
 
-def get_convex_hull_area(convex_hull: ConvexHull) -> float:
+def get_convex_polygon_area(
+    convex_hull: ConvexHull | Matrix[np.float32],
+) -> float:
     """
-    Compute the area of a 2D convex hull.
+    Compute the area of a 2D convex polygon. If a non-convex polygon is given,
+    the area of its convex hull will be computed instead.
 
     Parameters:
     ----------
@@ -245,7 +255,7 @@ def get_convex_hull_area(convex_hull: ConvexHull) -> float:
     Returns:
     -------
     area : float
-        The area of the convex hull.
+        The area of the convex polygon.
     """
 
     if isinstance(convex_hull, np.ndarray):
@@ -256,7 +266,7 @@ def get_convex_hull_area(convex_hull: ConvexHull) -> float:
     return area
 
 
-def get_boundary_area(points: Matrix[np.float32]) -> float:
+def get_edge_area(points: Matrix[np.float32]) -> float:
     """
     Compute the area of a small circle segment bounded by a chord connecting
     two points lying on the circle and the arc in between.
@@ -340,18 +350,18 @@ def get_line_segment_circle_intersection_points(
         return intersection_points
 
 
-def get_box_circle_intersection_points(
-    box_points: Matrix[np.float32], circle: Circle = Circle([0.0, 0.0], 1.0)
+def get_polygon_circle_intersection_points(
+    points: Matrix[np.float32], circle: Circle = Circle([0.0, 0.0], 1.0)
 ) -> Matrix[np.float32] | None:
     """
-    Returns a matrix of intersection points between a box defined by its corner
-    points and a circle.
+    Returns a matrix of intersection points between a polygon defined by its
+    boundary points and a circle.
 
     Parameters
     ----------
-        box_points : Matrix[np.float32]
-            A 2D matrix of shape (N, 2) representing N corner points of the
-            box.
+        points : Matrix[np.float32]
+            A 2D matrix of shape (N, 2) representing the vertices of the
+            polygon.
         circle : Circle, optional
             A Circle object representing the circle.
             Defaults to Circle([0.0, 0.0], 1.0).
@@ -360,12 +370,12 @@ def get_box_circle_intersection_points(
     ----------
         Matrix[np.float32] | None
             A 2D matrix of shape (M, 2) representing M intersection points
-            between the box and the circle, or None if there are
+            between the polygon and the circle, or None if there are
             no intersection points.
     """
 
     intersection_points = np.empty((0, 2), dtype=np.float32)
-    pairs = get_pairs(box_points, cyclic=True)
+    pairs = get_pairs(points, cyclic=True)
     for line_segment in pairs:
         new_intersection_points = get_line_segment_circle_intersection_points(
             line_segment

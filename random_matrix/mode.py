@@ -1,42 +1,84 @@
+"""This module defines a "Mode" class for use in scattering calculations.
+
+In this context, a mode is defined as a non-zero, finite region of (k_x, k_y)
+space. A mode thus represents a bundle of wavevectors that light can scatter
+from or into.
 """
-Classes for handling modes contained in the discrete angular spectrum
 
-Author: Niall Francis Byrnes
-https://niallbyrnes.com
-
-"""
-
-import numpy as np
 import matplotlib.pyplot as plt
-from typing import Callable
+import numpy as np
 from scipy.spatial import ConvexHull, Delaunay
-from .utils.array_types import Vector, Matrix
-from .utils.plotting_utils import (
+
+from random_matrix.types.array_types import Matrix, Vector
+from random_matrix.utils.array_utils import remove_duplicate_points
+from random_matrix.utils.geometry_utils import (
+    cartesian_to_polar,
+    get_edge_area,
+    get_convex_polygon_area,
+    get_small_angular_difference,
+    is_rectangle,
+    order_points,
+    polar_to_cartesian,
+)
+from random_matrix.utils.plotting_utils import (
     draw_circle,
-    draw_ray,
-    set_up_k_space_plot,
     draw_convex_polygon,
     draw_interior_triangle,
+    draw_ray,
+    set_up_k_space_plot,
 )
-from .utils.geometry_utils import (
-    cartesian_to_polar,
-    polar_to_cartesian,
-    is_rectangle,
-    get_convex_hull_area,
-    points_to_ordered_convex_hull_vertices,
-    get_small_angular_difference,
-    get_boundary_area,
-)
-from .utils.array_utils import remove_duplicate_points
 
 
 class Mode:
+    """
+    A class used to represent a mode
+
+    Attributes
+    ----------
+    index : int
+        The index of the mode within its container ModeGrid.
+    is_polar : bool
+        A boolean that is True if the mode is polar. Polar modes have curved
+        edges, while others are polygonal in shape.
+    points : np.ndarray
+        A numpy array of size (N,2) where N is the number of points defining
+        the boundary of the mode.
+    circle_points : np.ndarray | None
+        An array of size (2,2) containing a pair of points within the boundary
+        points that also lie on the unit circle. If no such points exist,
+        this will be None.
+    mode_wave_type: str
+        A string describing if the mode is "propagating" or "evanescent"
+
+    Methods
+    -------
+    """
+
     def __init__(
         self,
         index: int = 0,
-        mode_boundary: Matrix[np.float64] | ConvexHull = None,
+        mode_boundary: Matrix[np.float32] | ConvexHull = None,
         is_polar: bool = False,
     ) -> None:
+        """
+        Initialises mode.
+
+        Parameters
+        ----------
+        index : int
+            The mode's index within its containing ModeGrid.
+        mode_boudnary : np.ndarray, ConvexHull
+            The boundary of the mode, defined by an array of 2D points.
+            A ConvexHull object will also be accepted.
+        is_polar : bool
+            A boolean that tells the initialiser whether or not the mode is
+            polar. If it is, it has curved edges and is treated differently.
+
+        Returns
+        -------
+        None
+        """
+
         # Check that index is an integer
         if not isinstance(index, int):
             raise ValueError("index must be given as an integer")
@@ -58,7 +100,7 @@ class Mode:
                 "ConvexHull object or a numpy array of points."
             )
 
-        # Remove duplicate points and order them
+        # Remove duplicate points
         points = remove_duplicate_points(points)
 
         # Check that the number of points is correct
@@ -77,21 +119,19 @@ class Mode:
         # Order the points unless special polar case
         # (makes future calculations simpler)
         if len(points) >= 3:
-            points = points_to_ordered_convex_hull_vertices(points)
+            points = order_points(points)
         self.points = points
 
-        # Check boundary points
+        # Check points lying on the circle
         r_vals = cartesian_to_polar(points)[:, 0]
-        boundary_points = points[np.isclose(r_vals, 1.0)]
-        num_boundary_points = len(boundary_points)
-        if num_boundary_points > 2:
+        circle_points = points[np.isclose(r_vals, 1.0)]
+        num_circle_points = len(circle_points)
+        if num_circle_points > 2:
             raise ValueError(
-                f"A mode must not have more than two boundary "
-                f"points. You have {num_boundary_points}."
+                f"A mode must not have more than two points lying on the "
+                f"circle. You have {num_circle_points}."
             )
-        self.boundary_points = (
-            boundary_points if num_boundary_points > 0 else None
-        )
+        self.circle_points = circle_points if num_circle_points == 2 else None
 
         # Check that a mode does not have points both inside and outside of
         # the circle
@@ -115,14 +155,40 @@ class Mode:
             self._handle_general_case()
 
     def __str__(self) -> str:
+        """
+        Gives a helpful summary of the mode.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        output : str
+            A string summarising the mode.
+        """
+
         output = (
-            f"Polar: {self.is_polar},\nWave Type: "
-            f"{self.mode_wave_type}, "
-            f"\nPoints: {self.points},\nWeight: {self.weight}"
+            f"Polar: {self.is_polar},\n"
+            f"Wave Type: {self.mode_wave_type},\n"
+            f"Points: {self.points},\n"
+            f"Weight: {self.weight}"
         )
         return output
 
     def _handle_polar_case(self) -> None:
+        """
+        Sets up a polar mode.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+
         points_polar = cartesian_to_polar(self.points)
         self.points_polar = points_polar
         num_points = len(points_polar)
@@ -167,15 +233,25 @@ class Mode:
             self.t_max = t_max
 
     def _handle_general_case(self) -> None:
+        """
+        Sets up a non-polar mode.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+
         # Check if is edge case or not
-        self.is_edge = (
-            self.boundary_points is not None and len(self.boundary_points) == 2
-        )
+        self.is_edge = self.circle_points is not None
 
         # Calculate weight based on whether mode is an edge mode or not
-        weight = get_convex_hull_area(self.points)
+        weight = get_convex_polygon_area(self.points)
         if self.is_edge:
-            weight += get_boundary_area(self.boundary_points)
+            weight += get_edge_area(self.circle_points)
         self.weight = weight
 
         # Work out triangulation used for integration
@@ -191,6 +267,31 @@ class Mode:
         show_index: bool = False,
         show_triangulation: bool = False,
     ) -> None:
+        """
+        Draws the mode.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            The axis on which the mode will be drawn.
+        is_solo : bool
+            Creates a new axis object if True. Allows for plotting of indivudal
+            modes. Keep false if plotting from within a ModeGrid.
+        show_guidelines : bool
+            If True, shows rays and circles that illustrate the positioning of
+            a polar mode. Does nothing for general modes.
+        mode_color : str
+            The color of the mode.
+        show_index : bool
+            Shows the mode's index at its center if True.
+        show_triangulation : bool
+            Also draws the mode's triangulation if True
+
+        Returns
+        -------
+        None
+        """
+
         if is_solo:
             ax = set_up_k_space_plot()
 
@@ -206,6 +307,26 @@ class Mode:
         mode_color: str,
         show_index: bool = False,
     ) -> None:
+        """
+        Extension of plot for polar modes.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            The axis on which the mode will be drawn.
+        show_guidelines : bool
+            If True, shows rays and circles that illustrate the positioning of
+            a polar mode. Does nothing for general modes.
+        mode_color : str
+            The color of the mode.
+        show_index : bool
+            Shows the mode's index at its center if True.
+
+        Returns
+        -------
+        None
+        """
+
         if self.is_central_mode:
             # mode is a small circle centred at the origin
             small_circle_radius = self.r_max
@@ -274,6 +395,20 @@ class Mode:
             plt.text(x, y, str(self.index), ha="center", va="center")
 
     def get_mode_center(self) -> Vector[np.float32]:
+        """
+        Find the central coordinates of the mode.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        central_coordinates : np.ndarray
+            An array of length 2 containing the coordinates of the centre of
+            the mode.
+        """
+
         if self.is_polar and self.is_central_mode:
             central_coordinates = self.points[0]
         elif self.is_polar and not self.is_central_mode:
@@ -302,9 +437,43 @@ class Mode:
         show_index: bool = False,
         show_triangulation: bool = False,
     ) -> None:
+        """
+        Extension of plot for non-polar modes.
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            The axis on which the mode will be drawn.
+        show_guidelines : bool
+            If True, shows rays and circles that illustrate the positioning of
+            a polar mode. Does nothing for general modes.
+        mode_color : str
+            The color of the mode.
+        show_index : bool
+            Shows the mode's index at its center if True.
+
+        Returns
+        -------
+        None
+        """
+
         if show_triangulation:
             for triangle in self.triangulation:
                 draw_interior_triangle(
                     ax, triangle, color="tab:blue", polygon_points=self.points
                 )
         draw_convex_polygon(ax, self.points, color="red")
+        if show_index:
+            index_color = (
+                "black" if self.mode_wave_type == "propagating" else "blue"
+            )
+            central_coordinates = self.get_mode_center()
+            x, y = central_coordinates
+            plt.text(
+                x,
+                y,
+                str(self.index),
+                ha="center",
+                va="center",
+                color=index_color,
+            )

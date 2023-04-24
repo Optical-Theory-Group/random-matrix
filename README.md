@@ -15,12 +15,9 @@ $ tests/mode_tests.py
 
 ### Developer notes
 
-- Cartesian grid generation doesn't work for rare cases where small rectangles close to the circle intersect the circle at more than two points. Only seems to happen when dx or dy are very small, so might not be worth fixing.
-- "boundary" is used in several sense, including modes close to the circular boundary as well as a mode's individual boundary, irrespective of whether it is close to the circle or not. Consider renaming the former, e.g. "boundary_points" to "circle_points".
-- Linter is not happy with test files. Clean these up at some point. Test also more rigorously.
 
 ### Code to-do list
-- Add indexing for Cartesian grid generation.
+- Extend polar grid generation to incorporate evanescent modes.
 - Add functionality for checking grid reciprocity (this is automatically enforced by polar or cartesian generation).
 - Add random grid generation.
 - Add integrators.
