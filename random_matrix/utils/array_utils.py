@@ -1,6 +1,7 @@
 """This module contains utility functions for frequently used array
 manipulations.
 """
+from typing import Any
 
 import numpy as np
 from scipy.spatial import cKDTree
@@ -78,6 +79,32 @@ def get_pairs(
     return pairs
 
 
+def is_in_array(val: float, array: Vector[np.float32]) -> np.bool_:
+    in_array = np.any(np.isclose(val, array))
+    return in_array
+
+
+def are_equal(
+    first_array: np.ndarray[Any, Any], second_array: np.ndarray[Any, Any]
+) -> np.bool_:
+    equal = np.all(
+        np.isclose(
+            np.sort(np.ravel(first_array.astype(np.float32))),
+            np.sort(np.ravel(second_array.astype(np.float32))),
+        )
+    )
+    return equal
+
+
+def get_array_index(val, array):
+    index = np.where(np.isclose(array, val))[0][0]
+    return index
+
+
+def swap(x: Any, y: Any) -> tuple[Any, Any]:
+    return y, x
+
+
 def get_point_index(
     point: Vector[np.float32], point_array: Matrix[np.float32]
 ) -> int | None:
@@ -106,3 +133,30 @@ def get_point_index(
     else:
         index: int = indices[0]
         return index
+
+
+def vals_to_box(
+    first_vals: Vector[np.float32], second_vals: Vector[np.float32]
+) -> Matrix[np.float32]:
+    """
+    Given lists of 2 first_vals and 2 second_vals, return a list of points of
+    the corresponding rectangle.
+
+    Parameters
+    ----------
+    first_vals : np.ndarray
+        First array of coordinates.
+    second_vals : np.ndarray
+        Second array of coordiantes.
+
+    Returns
+    -------
+    box_points : np.ndarray
+        Array of points in the resultant rectangle.
+    """
+
+    box_first_grid, box_second_grid = np.meshgrid(first_vals, second_vals)
+    box_points = np.column_stack(
+        (box_first_grid.ravel(), box_second_grid.ravel())
+    )
+    return box_points

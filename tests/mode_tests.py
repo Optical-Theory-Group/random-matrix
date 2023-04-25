@@ -11,88 +11,86 @@ from random_matrix.utils.geometry_utils import (
 )
 from random_matrix.utils.plotting_utils import draw_convex_polygon
 
-np.random.seed(128)
+np.random.seed(1)
 
 #####################
 # Mode module tests #
 #####################
 
-# Random individual mode
-r_vals = np.random.random(2)
-t_vals = np.random.random(2) * 2 * np.pi
-r_grid, t_grid = np.meshgrid(r_vals, t_vals)
-points_polar = np.column_stack((r_grid.ravel(), t_grid.ravel()))
-points_cartesian = polar_to_cartesian(points_polar)
-my_mode = Mode(mode_boundary=points_cartesian, is_polar=True)
-my_mode.plot()
-
-# Polar grid of modes
-num_r = 8
-num_t = 8
-r_vals = np.linspace(0.0, 1.0, num_r + 1)
-t_vals = np.linspace(0.0, 2 * np.pi, num_t + 1)
-grid_data = {"r_vals": r_vals, "t_vals": t_vals, "grid_type": "polar"}
-modes = ModeGrid(grid_data=grid_data)
-modes.plot(show_indices=True)
-
-# Rotated polar grid (0.1 radians)
-grid_data["t_offset"] = 0.1
-modes = ModeGrid(grid_data=grid_data)
-modes.plot(show_indices=True)
-
-# Weird non reciprocal case
-r_vals = np.array([0.2, 0.6, 0.7])
-t_vals = np.array([0.5, 1.0, 1.4, 2.0, 3.0, 4.5, 5.0, 6.1])
-grid_data = {"r_vals": r_vals, "t_vals": t_vals, "grid_type": "polar"}
-modes = ModeGrid(grid_data=grid_data)
-modes.plot(show_indices=True)
-
-# Individual quadrilateral mode
-points = np.array([[0.0, 0.0], [0.0, 0.5], [0.5, 0.0], [0.5, 0.5]])
-mode = Mode(mode_boundary=points)
-mode.plot(show_triangulation=False)
-mode.plot(show_triangulation=True)
-print(mode)
-
-# Convexh hull of a lot of points
-points = 0.2 * np.random.randn(10**5, 2)
-mode = Mode(mode_boundary=points)
-mode.plot(show_triangulation=False)
-mode.plot(show_triangulation=True)
-
-# Cartesian grid
+# Cartesian test from dx, dy
 grid_data = {
-    "dx": 0.2,
-    "dy": 0.2,
-    "grid_type": "cartesian",
     "t_offset": 0.0,
+    "grid_type": "cartesian",
     "grid_wave_type": "propagating",
 }
-modes = ModeGrid(grid_data=grid_data)
-modes.plot(show_indices=True)
+dx = 0.2
+dy = 0.2
+my_grid = ModeGrid.from_dx_dy(dx=dx, dy=dy, grid_data=grid_data)
+my_grid.plot(show_indices=True)
+print("Standard grid with propagating modes")
+print(my_grid)
+print("------------")
 
-# Cartesian grid with larger limit and just evanescent modes
+# Cartesian test from dx, dy
+# Only evanescent modes and rotated
 grid_data = {
-    "dx": 0.2,
-    "dy": 0.2,
-    "x_lim": 1.5,
-    "y_lim": 1.5,
+    "t_offset": 0.1,
     "grid_type": "cartesian",
-    "t_offset": 0.0,
     "grid_wave_type": "evanescent",
 }
-modes = ModeGrid(grid_data=grid_data)
-modes.plot(show_indices=True)
+dx = 0.2
+dy = 0.2
+my_grid = ModeGrid.from_dx_dy(dx=dx, dy=dy, grid_data=grid_data)
+my_grid.plot(show_indices=True)
+print("Standard grid with evanescent modes, rotated")
+print(my_grid)
+print("------------")
 
-# Cartesian grid with larger limit and all modes
+# Cartesian test from dx, dy
+# Both types of modes and rotated
 grid_data = {
-    "dx": 0.25,
-    "dy": 0.25,
-    "x_lim": 1.5,
-    "y_lim": 1.5,
+    "t_offset": 1.1,
     "grid_type": "cartesian",
-    "t_offset": 0.0,
     "grid_wave_type": "all",
 }
-modes = ModeGrid(grid_data=grid_data)
-modes.plot(show_indices=True)
+dx = 0.3
+dy = 0.3
+my_grid = ModeGrid.from_dx_dy(dx=dx, dy=dy, grid_data=grid_data)
+my_grid.plot(show_indices=True)
+print("Standard grid with all modes, rotated")
+print(my_grid)
+print("------------")
+
+
+# Slightly shifted cartesian grid
+# Not recirpcoal
+grid_data = {
+    "t_offset": 0.0,
+    "grid_type": "cartesian",
+    "grid_wave_type": "propagating",
+}
+
+x_vals = np.linspace(-1.0, 1.1, 10)
+y_vals = np.linspace(-1.0, 1.0, 10)
+my_grid = ModeGrid.from_xy_vals(
+    x_vals=x_vals, y_vals=y_vals, grid_data=grid_data
+)
+my_grid.plot(show_indices=True)
+print("Slightly shifted non-reciprocal grid")
+print(my_grid)
+print("------------")
+
+# Wild Cartesian grid from random x and y values
+grid_data = {
+    "t_offset": 0.0,
+    "grid_type": "cartesian",
+    "grid_wave_type": "all",
+}
+x_vals = np.random.randn(7)
+y_vals = np.random.randn(7)
+my_grid = ModeGrid.from_xy_vals(
+    x_vals=x_vals, y_vals=y_vals, grid_data=grid_data
+)
+my_grid.plot(show_indices=True)
+print("Wild grid with random x and y values")
+print(my_grid)

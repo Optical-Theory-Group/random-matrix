@@ -10,7 +10,7 @@ import numpy as np
 from scipy.spatial import ConvexHull, Delaunay
 
 from random_matrix.types.array_types import Matrix, Vector
-from random_matrix.utils.array_utils import remove_duplicate_points
+from random_matrix.utils.array_utils import remove_duplicate_points, are_equal
 from random_matrix.utils.geometry_utils import (
     cartesian_to_polar,
     get_edge_area,
@@ -54,6 +54,9 @@ class Mode:
     -------
     """
 
+    circle_rtol = 1e-8
+    generic_rtol = 1e-8
+
     def __init__(
         self,
         index: int = 0,
@@ -73,6 +76,8 @@ class Mode:
         is_polar : bool
             A boolean that tells the initialiser whether or not the mode is
             polar. If it is, it has curved edges and is treated differently.
+        is_central_mode : bool
+            True if the mode is centrosymmetric about the origin.
 
         Returns
         -------
@@ -124,7 +129,7 @@ class Mode:
 
         # Check points lying on the circle
         r_vals = cartesian_to_polar(points)[:, 0]
-        circle_points = points[np.isclose(r_vals, 1.0)]
+        circle_points = points[np.isclose(r_vals, 1.0, rtol=self.circle_rtol)]
         num_circle_points = len(circle_points)
         if num_circle_points > 2:
             raise ValueError(
@@ -135,7 +140,9 @@ class Mode:
 
         # Check that a mode does not have points both inside and outside of
         # the circle
-        circle_points_excluded = r_vals[~np.isclose(r_vals, 1.0)]
+        circle_points_excluded = r_vals[
+            ~np.isclose(r_vals, 1.0, rtol=self.circle_rtol)
+        ]
         all_interior_points = np.all(circle_points_excluded <= 1.0)
         all_exterior_points = np.all(circle_points_excluded >= 1.0)
         if all_interior_points:
@@ -205,7 +212,7 @@ class Mode:
             # If only two points are given, it must be the central mode
             is_correctly_defined_central_mode = np.isclose(
                 r_min, 0.0
-            ) and not np.isclose(r_min, r_max)
+            ) and not np.isclose(r_min, r_max, rtol=self.generic_rtol)
             if not is_correctly_defined_central_mode:
                 raise ValueError(
                     "Central mode incorrectly specified. Please "
@@ -214,7 +221,7 @@ class Mode:
                 )
             small_circle_radius = r_max
             self.weight = np.pi * small_circle_radius**2
-            self.is_central_mode = True
+            self.is_central_mode = np.bool_(True)
 
         else:
             # If four points are given, the mode should be a non-central mode
@@ -231,7 +238,7 @@ class Mode:
             sector_angle = get_small_angular_difference(t_min, t_max)
 
             self.weight = 0.5 * sector_angle * (r_max**2 - r_min**2)
-            self.is_central_mode = False
+            self.is_central_mode = np.bool_(False)
             self.t_min = t_min
             self.t_max = t_max
 
@@ -247,6 +254,11 @@ class Mode:
         -------
         None
         """
+
+        # Check if mode is a central mode or not
+        points = self.points
+        inverted_points = -points
+        self.is_central_mode = are_equal(points, inverted_points)
 
         # Check if is edge case or not
         self.is_edge = self.circle_points is not None
@@ -420,7 +432,7 @@ class Mode:
             # Handle funny t cases where the angle wraps around 2PI
             t_min, t_max = self.t_min, self.t_max
             dt = get_small_angular_difference(t_min, t_max)
-            if np.isclose(t_max, t_min + dt):
+            if np.isclose(t_max, t_min + dt, rtol=self.generic_rtol):
                 t_mean = 0.5 * (t_min + t_max)
             else:
                 t_mean = t_max + dt / 2
@@ -465,7 +477,9 @@ class Mode:
                 draw_interior_triangle(
                     ax, triangle, color="tab:blue", polygon_points=self.points
                 )
-        draw_convex_polygon(ax, self.points, color="red")
+        draw_convex_polygon(
+            ax, self.points, color="red", circle_points=self.circle_points
+        )
         if show_index:
             index_color = (
                 "black" if self.mode_wave_type == "propagating" else "blue"
