@@ -3,14 +3,14 @@
 A conda environment containing all packages used in development can be installed with the following commands from the base repository folder:
 
 ```
-$ conda env create -f conda/environment.yml
-$ conda activate random_matrix
+conda env create -f conda/environment.yml
+conda activate random_matrix
 ```
 
 ### Testing
 Latest functionality is, for now, usually tested in 
 ```
-$ tests/mode_tests.py
+tests/mode_tests.py
 ```
 
 ### Developer notes
