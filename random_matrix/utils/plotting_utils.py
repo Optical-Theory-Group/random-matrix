@@ -4,10 +4,16 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from random_matrix.utils.array_utils import get_pairs, get_point_index
+from random_matrix.utils.array_utils import (
+    get_pairs,
+    get_point_index,
+    are_equal,
+    swap,
+)
 from random_matrix.utils.geometry_utils import (
     get_circle_coordinate,
     order_points,
+    cartesian_to_polar,
 )
 from random_matrix.types.array_types import Matrix, Vector
 
@@ -87,7 +93,6 @@ def draw_circle(
     -----------
         None
     """
-
     t = np.linspace(t_min, t_max)
     x = r * np.cos(t)
     y = r * np.sin(t)
@@ -202,6 +207,7 @@ def draw_convex_polygon(
     points: Matrix[np.float32],
     color: str = "black",
     linestyle: str = "-",
+    circle_points: Matrix[np.float32] | None = None,
 ) -> None:
     """
     Draws a convex polygon on the given `Axes` object.
@@ -227,13 +233,27 @@ def draw_convex_polygon(
     ordered_points = order_points(points)
     pairs = get_pairs(ordered_points, cyclic=True)
     for first_point, second_point in pairs:
-        draw_line(
-            ax,
-            start=first_point,
-            end=second_point,
-            color=color,
-            linestyle=linestyle,
-        )
+        # Draw edge sections as circular arcs
+        if circle_points is not None and are_equal(
+            np.array([first_point, second_point]), circle_points
+        ):
+            thetas = cartesian_to_polar(circle_points)[:, 1]
+            t_min = np.min(thetas)
+            t_max = np.max(thetas)
+
+            if t_max - t_min >= np.pi:
+                t_max = t_max - 2 * np.pi
+                t_min, t_max = swap(t_min, t_max)
+
+            draw_circle(ax, t_min=t_min, t_max=t_max, color="red")
+        else:
+            draw_line(
+                ax,
+                start=first_point,
+                end=second_point,
+                color=color,
+                linestyle=linestyle,
+            )
 
 
 def draw_interior_triangle(

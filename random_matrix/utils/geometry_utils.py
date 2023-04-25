@@ -9,7 +9,11 @@ import numpy.typing as npt
 from scipy.spatial import ConvexHull
 from skspatial.objects import Circle, Line, LineSegment
 
-from random_matrix.utils.array_utils import get_pairs, remove_duplicate_points
+from random_matrix.utils.array_utils import (
+    get_pairs,
+    remove_duplicate_points,
+    get_array_index,
+)
 from random_matrix.types.array_types import Matrix, Vector
 
 
@@ -71,6 +75,9 @@ def cartesian_to_polar(
     r = np.linalg.norm(points_cartesian, axis=1)
     t = np.mod(np.arctan2(y, x), 2 * np.pi)
     points_polar = np.column_stack((r, t))
+    nx, ny = np.shape(points_polar)
+    if nx == 1:
+        return points_polar[0]
     return points_polar
 
 
@@ -107,6 +114,11 @@ def polar_to_cartesian(points_polar: Matrix[np.float32]) -> Matrix[np.float32]:
     x = r * np.cos(t)
     y = r * np.sin(t)
     points_cartesian = np.column_stack((x, y))
+    nx, ny = np.shape(points_cartesian)
+    if nx == 1:
+        return points_cartesian[0]
+    return points_polar
+
     return points_cartesian
 
 
@@ -135,7 +147,7 @@ def get_small_angular_difference(t_1: float, t_2: float) -> float:
     return dt
 
 
-def is_rectangle(points: Matrix[np.float32]) -> bool:
+def is_rectangle(points: Matrix[np.float32]) -> np.bool_:
     """
     Determines if a set of 4 2D points form a rectangle.
 
@@ -153,7 +165,7 @@ def is_rectangle(points: Matrix[np.float32]) -> bool:
 
     # Must be four points
     if len(points) != 4:
-        return False
+        return np.bool_(False)
 
     # Find all 6 possible lengths between different pairs of points
     pairs = np.array([pair for pair in combinations(points, 2)])
@@ -164,7 +176,7 @@ def is_rectangle(points: Matrix[np.float32]) -> bool:
     # 2 in the case of a square (side length + diagonal)
     # 3 in the case of a rectangle (2 side lenghts + diagonal)
     if len(unique_side_lengths) not in [2, 3]:
-        return False
+        return np.bool_(False)
 
     sorted_lengths = np.sort(unique_side_lengths)
     if len(sorted_lengths) == 2:
@@ -172,7 +184,7 @@ def is_rectangle(points: Matrix[np.float32]) -> bool:
     a, b, c = sorted_lengths
 
     # Check that the two non-diagonal sides meet at right angles
-    is_close: bool = np.isclose(a**2 + b**2, c**2)
+    is_close = np.isclose(a**2 + b**2, c**2)
 
     return is_close
 
@@ -395,3 +407,54 @@ def get_polygon_circle_intersection_points(
         return None
     else:
         return intersection_points
+
+
+def get_angularly_separated_edge_points(circle_points):
+    if len(circle_points) < 3:
+        raise ValueError(
+            "Must be at least two circle points for "
+            "get_angularly_separated_edge_points to work."
+        )
+
+    original_points = np.copy(circle_points)
+
+    # Get points that are in the upper semi-circle
+    positive_points_indices = circle_points[:, 1] >= 0.0
+    positive_points = circle_points[positive_points_indices]
+    if len(positive_points) != 0:
+        # There is at least one positive point
+        # We will try to rotate the points so that they are all negative
+        min_x_val = np.min(positive_points[:, 0])
+        max_x_val = np.max(positive_points[:, 0])
+        left_positive_point = np.array(
+            [min_x_val, get_circle_coordinate(min_x_val)]
+        )
+        right_positive_point = np.array(
+            [max_x_val, get_circle_coordinate(max_x_val)]
+        )
+
+        theta_left = cartesian_to_polar(left_positive_point)[1]
+        theta_right = cartesian_to_polar(right_positive_point)[1]
+        # Try rotating anti-clockwise by PI - theta_right
+        rotated_points = rotate_points(circle_points, np.pi - theta_right)
+
+        # Are these now all negative?
+        max_y_val_rotated = np.max(rotated_points[:, 1])
+        all_negative = np.isclose(max_y_val_rotated, 0)
+        if all_negative:
+            circle_points = rotated_points
+        else:
+            # In this case we must instead rotate points clockwise by
+            # theta_left
+            rotated_points = rotate_points(circle_points, -theta_left)
+            circle_points = rotated_points
+
+    # By this point, all of circle points have negative y value
+    # We now need the indices of the points in circle_points that have extreme
+    # x values
+    min_x_val = np.min(circle_points[:, 0])
+    max_x_val = np.max(circle_points[:, 0])
+    min_index = get_array_index(min_x_val, circle_points)
+    max_index = get_array_index(max_x_val, circle_points)
+    output = np.array([original_points[min_index], original_points[max_index]])
+    return output
