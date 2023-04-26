@@ -10,7 +10,13 @@ import numpy as np
 from scipy.spatial import ConvexHull, Delaunay
 
 from random_matrix.types.array_types import Matrix, Vector
-from random_matrix.utils.array_utils import remove_duplicate_points, are_equal
+from random_matrix.utils.array_utils import (
+    remove_duplicate_points,
+    is_equal_array,
+    is_in_array,
+    get_array_index,
+    remove_element_by_index,
+)
 from random_matrix.utils.geometry_utils import (
     cartesian_to_polar,
     get_edge_area,
@@ -110,10 +116,10 @@ class Mode:
 
         # Check that the number of points is correct
         self.is_polar = is_polar
-        if is_polar and len(points) not in [2, 4]:
+        if is_polar and len(points) not in [3, 4]:
             raise ValueError(
-                "A polar region must be constructed from 2 "
-                "(central) or 4 points."
+                f"A polar region must be constructed from 3 "
+                f"(central) or 4 points. {len(points)} were given."
             )
         if not is_polar and len(points) < 3:
             raise ValueError(
@@ -208,39 +214,59 @@ class Mode:
         self.r_min = r_min
         self.r_max = r_max
 
-        if num_points == 2:
-            # If only two points are given, it must be the central mode
-            is_correctly_defined_central_mode = np.isclose(
+        if num_points == 3:
+            is_correctly_defined_mode = np.isclose(
                 r_min, 0.0
-            ) and not np.isclose(r_min, r_max, rtol=self.generic_rtol)
-            if not is_correctly_defined_central_mode:
-                raise ValueError(
-                    "Central mode incorrectly specified. Please "
-                    "include (0,0) and one other point not "
-                    "located at the origin."
-                )
-            small_circle_radius = r_max
-            self.weight = np.pi * small_circle_radius**2
-            self.is_central_mode = np.bool_(True)
+            ) and not np.isclose(r_max, 0.0)
 
-        else:
-            # If four points are given, the mode should be a non-central mode
-            # Check that points properly align
-            is_correctly_defined_central_mode = is_rectangle(points_polar)
-            if not is_correctly_defined_central_mode:
+            if not is_correctly_defined_mode:
                 raise ValueError(
-                    "Non-central mode incorrectly specified. "
-                    "Please include 4 points with 2 unique "
-                    "values of r and theta."
+                    "Polar mode incorrectly specified. Please "
+                    "refer to the documentation."
                 )
 
-            # Ensure smaller angle is taken
+            # Ignore first point in t_vals, which is the point at the origin
+            r_vals = points_polar[:, 0]
+            t_vals = points_polar[:, 1]
+            zero_index = get_array_index(0.0, r_vals)
+            t_vals = remove_element_by_index(t_vals, zero_index)
+
+            t_min, t_max = np.min(t_vals), np.max(t_vals)
             sector_angle = get_small_angular_difference(t_min, t_max)
-
-            self.weight = 0.5 * sector_angle * (r_max**2 - r_min**2)
+            self.weight = 0.5 * sector_angle * r_max
             self.is_central_mode = np.bool_(False)
             self.t_min = t_min
             self.t_max = t_max
+
+        else:
+            # Check that the mode has been properly defined
+            is_correctly_defined_central_mode = np.isclose(
+                r_min, r_max
+            ) and np.isclose(r_min, r_max)
+            is_correctly_defined_non_central_mode = is_rectangle(points_polar)
+
+            if (
+                not is_correctly_defined_central_mode
+                and not is_correctly_defined_non_central_mode
+            ):
+                raise ValueError(
+                    "Polar mode incorrectly specified. Please refer to the "
+                    "documentation."
+                )
+
+            # Central mode case
+            if is_correctly_defined_central_mode:
+                small_circle_radius = r_max
+                self.weight = np.pi * small_circle_radius**2
+                self.is_central_mode = np.bool_(True)
+
+            # Non-central mode case
+            elif is_correctly_defined_non_central_mode:
+                sector_angle = get_small_angular_difference(t_min, t_max)
+                self.weight = 0.5 * sector_angle * (r_max**2 - r_min**2)
+                self.is_central_mode = np.bool_(False)
+                self.t_min = t_min
+                self.t_max = t_max
 
     def _handle_general_case(self) -> None:
         """
@@ -258,7 +284,7 @@ class Mode:
         # Check if mode is a central mode or not
         points = self.points
         inverted_points = -points
-        self.is_central_mode = are_equal(points, inverted_points)
+        self.is_central_mode = is_equal_array(points, inverted_points)
 
         # Check if is edge case or not
         self.is_edge = self.circle_points is not None
@@ -405,9 +431,20 @@ class Mode:
             )
 
         if show_index:
+            index_color = (
+                "black" if self.mode_wave_type == "propagating" else "blue"
+            )
+
             central_coordinates = self.get_mode_center()
             x, y = central_coordinates
-            plt.text(x, y, str(self.index), ha="center", va="center")
+            plt.text(
+                x,
+                y,
+                str(self.index),
+                ha="center",
+                va="center",
+                color=index_color,
+            )
 
     def get_mode_center(self) -> Vector[np.float32]:
         """
@@ -425,7 +462,7 @@ class Mode:
         """
 
         if self.is_polar and self.is_central_mode:
-            central_coordinates = self.points[0]
+            central_coordinates = np.array([0.0, 0.0])
         elif self.is_polar and not self.is_central_mode:
             r_mean = np.mean(self.points_polar[:, 0])
 
@@ -438,12 +475,10 @@ class Mode:
                 t_mean = t_max + dt / 2
 
             central_coordinates_polar = np.array([r_mean, t_mean])
-            central_coordinates = polar_to_cartesian(
-                central_coordinates_polar
-            )[0]
+            central_coordinates = polar_to_cartesian(central_coordinates_polar)
         else:
             central_coordinates = np.mean(self.points, axis=0)
-        return central_coordinates  # type: ignore
+        return central_coordinates
 
     def _plot_general(
         self,

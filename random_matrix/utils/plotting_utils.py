@@ -7,8 +7,7 @@ import numpy as np
 from random_matrix.utils.array_utils import (
     get_pairs,
     get_point_index,
-    are_equal,
-    swap,
+    is_equal_array,
 )
 from random_matrix.utils.geometry_utils import (
     get_circle_coordinate,
@@ -234,7 +233,7 @@ def draw_convex_polygon(
     pairs = get_pairs(ordered_points, cyclic=True)
     for first_point, second_point in pairs:
         # Draw edge sections as circular arcs
-        if circle_points is not None and are_equal(
+        if circle_points is not None and is_equal_array(
             np.array([first_point, second_point]), circle_points
         ):
             thetas = cartesian_to_polar(circle_points)[:, 1]
@@ -243,7 +242,7 @@ def draw_convex_polygon(
 
             if t_max - t_min >= np.pi:
                 t_max = t_max - 2 * np.pi
-                t_min, t_max = swap(t_min, t_max)
+                t_min, t_max = t_max, t_min
 
             draw_circle(ax, t_min=t_min, t_max=t_max, color="red")
         else:
@@ -328,9 +327,9 @@ def set_up_k_space_plot() -> plt.Axes:
     """
 
     fig, ax = plt.subplots()
-    draw_ray(ax, r_min=-1, theta=0, linestyle="-", color="black", alpha=0.4)
+    draw_ray(ax, r_min=-1, theta=0, linestyle="-", color="black", alpha=0.5)
     draw_ray(
-        ax, r_min=-1, theta=np.pi / 2, linestyle="-", color="black", alpha=0.4
+        ax, r_min=-1, theta=np.pi / 2, linestyle="-", color="black", alpha=0.5
     )
     ax.set_aspect("equal")
     draw_circle(ax)
