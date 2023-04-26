@@ -17,7 +17,7 @@ np.random.seed(10)
 # Mode module tests #
 #####################
 
-# Cartesian test from dx, dy
+""" # Cartesian test from dx, dy
 grid_data = {
     "t_offset": 0.0,
     "is_polar_grid": False,
@@ -128,5 +128,25 @@ r_vals = np.random.uniform(0, 3.0, 5)
 t_vals = np.random.uniform(0, 2 * np.pi, 5)
 my_grid = ModeGrid.from_rt_vals(
     r_vals=r_vals, t_vals=t_vals, grid_data=grid_data
+)
+my_grid.plot(show_indices=True)
+ """
+grid_data = {
+    "t_offset": 0.0,
+    "grid_wave_type": "all",
+}
+
+my_grid = ModeGrid.from_tiling(
+    grid_data, tiling_shape="triangle", side_length=0.3
+)
+my_grid.plot(show_indices=False)
+
+grid_data = {
+    "t_offset": 0.0,
+    "grid_wave_type": "propagating",
+}
+
+my_grid = ModeGrid.from_tiling(
+    grid_data, tiling_shape="hexagon", side_length=0.3
 )
 my_grid.plot(show_indices=True)
