@@ -243,24 +243,9 @@ class ModeGrid:
         y_vals = np.sort(y_vals)
 
         # list in which the boundaries of all the modes will all be stored
-        mode_boundary_list = []
-
-        num_x = len(x_vals)
-        num_y = len(y_vals)
-
-        for i in range(num_x - 1):
-            for j in range(num_y - 1):
-                # Find points that form a box within the lattice
-                box_x_vals = x_vals[i : i + 2]
-                box_y_vals = y_vals[j : j + 2]
-                box_points = vals_to_box(
-                    first_vals=box_x_vals, second_vals=box_y_vals
-                )
-
-                # Order box_points cyclically
-                box_points = order_points(box_points)
-
-                mode_boundary_list.append(box_points)
+        mode_boundary_list = cls.generate_rectangles(
+            x_vals=x_vals, y_vals=y_vals
+        )
 
         return cls(grid_data=grid_data, mode_boundary_list=mode_boundary_list)
 
@@ -320,20 +305,128 @@ class ModeGrid:
         return cls(grid_data=grid_data, r_vals=r_vals, t_vals=t_vals)
 
     @classmethod
-    def from_tiling(cls, tiling_shape, side_length):
-        pass
+    def from_tiling(cls, grid_data, tiling_shape="triangle", side_length=0.4):
+        grid_data["is_polar_grid"] = False
+
+        match tiling_shape:
+            case "triangle":
+                mode_boundary_list = cls.generate_triangles(
+                    side_length=side_length, x_lim=1.5, y_lim=1.5
+                )
+            case "hexagon":
+                print("hi")
+                mode_boundary_list = cls.generate_hexagons(
+                    side_length=side_length, x_lim=1.5, y_lim=1.5
+                )
+
+        return cls(grid_data=grid_data, mode_boundary_list=mode_boundary_list)
 
     def generate_polar_regions(self, r_vals, y_vals, r_lim):
         pass
 
-    def generate_rectangles(self, x_vals, y_vals, x_lim, y_lim):
-        pass
+    @staticmethod
+    def generate_rectangles(x_vals, y_vals):
+        num_x = len(x_vals)
+        num_y = len(y_vals)
+        for i in range(num_x - 1):
+            for j in range(num_y - 1):
+                # Find points that form a box within the lattice
+                box_x_vals = x_vals[i : i + 2]
+                box_y_vals = y_vals[j : j + 2]
+                box_points = vals_to_box(
+                    first_vals=box_x_vals, second_vals=box_y_vals
+                )
+                # Order box_points cyclically
+                box_points = order_points(box_points)
+                yield box_points
 
-    def generate_triangles(self, side_length, x_lim, y_lim):
-        pass
+    @staticmethod
+    def generate_triangles(side_length, x_lim, y_lim):
+        # The repeating unit for our triangular lattice is
+        #
+        #   _____
+        #   \  / \
+        #    \/___\  <--- center at mid-point on left
+        #    /\   /
+        #   /__\_/
+        #
+        #
+        # The "center" is at the midpoint of the base of the pair of
+        # triangles in the middle row of sides.
 
-    def generate_hexagons(self, side_length, x_lim, y_lim):
-        pass
+        # s is the side length and h is the vertical height of a triangle
+        s = side_length
+        h = s * np.sqrt(3) / 2
+
+        # Set up cartesian lattice for centers
+        dx = s
+        dy = 2 * h
+
+        x_vals = np.arange(0.0, x_lim + dx, dx)
+        x_vals = np.concatenate((-x_vals[1:][::-1], x_vals))
+        y_vals = np.arange(0.0, y_lim + dy, dy)
+        y_vals = np.concatenate((-y_vals[1:][::-1], y_vals))
+
+        for x in x_vals:
+            for y in y_vals:
+                yield np.array(
+                    [[x - s / 2, y + h], [x, y], [x + s / 2, y + h]]
+                )
+                yield np.array([[x + s / 2, y + h], [x, y], [x + s, y]])
+                yield np.array(
+                    [[x - s / 2, y - h], [x, y], [x + s / 2, y - h]]
+                )
+                yield np.array([[x, y], [x + s / 2, y - h], [x + s, y]])
+
+    @staticmethod
+    def generate_hexagons(side_length, x_lim, y_lim):
+        # The repeating unit for our triangular lattice is
+        #
+        #    ____
+        #   /    \
+        #  /      \____  <--- center at mid-point of first hexagon
+        #  \      /    \
+        #   \____/      \
+        #        \      /
+        #         \____/
+        #
+        # The "center" is at the midpoint of the left hexagon
+
+        # s is the side length and h is the vertical height of a hexagon
+        s = side_length
+        h = s * np.sqrt(3) / 2
+
+        # Set up cartesian lattice for centers
+        dx = 3 * s
+        dy = 2 * h
+
+        x_vals = np.arange(0.0, x_lim + dx, dx)
+        x_vals = np.concatenate((-x_vals[1:][::-1], x_vals))
+        y_vals = np.arange(0.0, y_lim + dy, dy)
+        y_vals = np.concatenate((-y_vals[1:][::-1], y_vals))
+
+        for x in x_vals:
+            for y in y_vals:
+                yield np.array(
+                    [
+                        [x - s, y],
+                        [x - s / 2, y + h],
+                        [x + s / 2, y + h],
+                        [x + s, y],
+                        [x + s / 2, y - h],
+                        [x - s / 2, y - h],
+                    ]
+                )
+                yield np.array(
+                    [
+                        [x + s / 2, y - h],
+                        [x + s, y],
+                        [x + 2 * s, y],
+                        [x + 5 / 2 * s, y - h],
+                        [x + 2 * s, y - 2 * h],
+                        [x + s, y - 2 * h],
+                    ]
+                )
 
     @staticmethod
     def _validate_input_vals(
