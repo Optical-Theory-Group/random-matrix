@@ -11,7 +11,7 @@ from random_matrix.utils.geometry_utils import (
 )
 from random_matrix.utils.plotting_utils import draw_convex_polygon
 
-np.random.seed(1)
+np.random.seed(10)
 
 #####################
 # Mode module tests #
@@ -20,53 +20,44 @@ np.random.seed(1)
 # Cartesian test from dx, dy
 grid_data = {
     "t_offset": 0.0,
-    "grid_type": "cartesian",
+    "is_polar_grid": False,
     "grid_wave_type": "propagating",
 }
-dx = 0.2
-dy = 0.2
+dx = 0.25
+dy = 0.25
 my_grid = ModeGrid.from_dx_dy(dx=dx, dy=dy, grid_data=grid_data)
 my_grid.plot(show_indices=True)
-print("Standard grid with propagating modes")
-print(my_grid)
-print("------------")
 
 # Cartesian test from dx, dy
 # Only evanescent modes and rotated
 grid_data = {
     "t_offset": 0.1,
-    "grid_type": "cartesian",
+    "is_polar_grid": False,
     "grid_wave_type": "evanescent",
 }
-dx = 0.2
-dy = 0.2
+dx = 0.25
+dy = 0.25
 my_grid = ModeGrid.from_dx_dy(dx=dx, dy=dy, grid_data=grid_data)
 my_grid.plot(show_indices=True)
-print("Standard grid with evanescent modes, rotated")
-print(my_grid)
-print("------------")
 
 # Cartesian test from dx, dy
 # Both types of modes and rotated
 grid_data = {
     "t_offset": 1.1,
-    "grid_type": "cartesian",
+    "is_polar_grid": False,
     "grid_wave_type": "all",
 }
 dx = 0.3
 dy = 0.3
 my_grid = ModeGrid.from_dx_dy(dx=dx, dy=dy, grid_data=grid_data)
 my_grid.plot(show_indices=True)
-print("Standard grid with all modes, rotated")
-print(my_grid)
-print("------------")
 
 
 # Slightly shifted cartesian grid
 # Not recirpcoal
 grid_data = {
     "t_offset": 0.0,
-    "grid_type": "cartesian",
+    "is_polar_grid": False,
     "grid_wave_type": "propagating",
 }
 
@@ -76,14 +67,11 @@ my_grid = ModeGrid.from_xy_vals(
     x_vals=x_vals, y_vals=y_vals, grid_data=grid_data
 )
 my_grid.plot(show_indices=True)
-print("Slightly shifted non-reciprocal grid")
-print(my_grid)
-print("------------")
 
 # Wild Cartesian grid from random x and y values
 grid_data = {
     "t_offset": 0.0,
-    "grid_type": "cartesian",
+    "is_polar_grid": False,
     "grid_wave_type": "all",
 }
 x_vals = np.random.randn(7)
@@ -92,5 +80,53 @@ my_grid = ModeGrid.from_xy_vals(
     x_vals=x_vals, y_vals=y_vals, grid_data=grid_data
 )
 my_grid.plot(show_indices=True)
-print("Wild grid with random x and y values")
-print(my_grid)
+
+# Polar from dr dt
+grid_data = {
+    "t_offset": 0.0,
+    "is_polar_grid": True,
+    "grid_wave_type": "propagating",
+    "include_central_mode": True,
+}
+dr = 0.2
+dt = 2 * np.pi / 6
+my_grid = ModeGrid.from_dr_dt(dr=dr, dt=dt, r_lim=2.0, grid_data=grid_data)
+my_grid.plot(show_indices=True)
+
+# Polar from dr dt, not including middle and roatated
+grid_data = {
+    "t_offset": 1.5,
+    "is_polar_grid": True,
+    "grid_wave_type": "all",
+    "include_central_mode": True,
+}
+dr = 0.25
+dt = 2 * np.pi / 8
+my_grid = ModeGrid.from_dr_dt(dr=dr, dt=dt, r_lim=2.0, grid_data=grid_data)
+my_grid.plot(show_indices=True)
+
+# Polar from dr dt, not including middle and roatated
+grid_data = {
+    "t_offset": 2.5,
+    "is_polar_grid": True,
+    "grid_wave_type": "all",
+    "include_central_mode": False,
+}
+dr = 0.25
+dt = 2 * np.pi / 8
+my_grid = ModeGrid.from_dr_dt(dr=dr, dt=dt, r_lim=1.25, grid_data=grid_data)
+my_grid.plot(show_indices=True)
+
+# Polar from dr dt, not including middle and roatated
+grid_data = {
+    "t_offset": 0.0,
+    "is_polar_grid": True,
+    "grid_wave_type": "all",
+    "include_central_mode": False,
+}
+r_vals = np.random.uniform(0, 3.0, 5)
+t_vals = np.random.uniform(0, 2 * np.pi, 5)
+my_grid = ModeGrid.from_rt_vals(
+    r_vals=r_vals, t_vals=t_vals, grid_data=grid_data
+)
+my_grid.plot(show_indices=True)

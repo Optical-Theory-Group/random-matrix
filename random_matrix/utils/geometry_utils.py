@@ -117,8 +117,6 @@ def polar_to_cartesian(points_polar: Matrix[np.float32]) -> Matrix[np.float32]:
     nx, ny = np.shape(points_cartesian)
     if nx == 1:
         return points_cartesian[0]
-    return points_polar
-
     return points_cartesian
 
 
@@ -409,7 +407,9 @@ def get_polygon_circle_intersection_points(
         return intersection_points
 
 
-def get_angularly_separated_edge_points(circle_points):
+def get_angularly_separated_edge_points(
+    circle_points: Matrix[np.float32],
+) -> Matrix[np.float32]:
     if len(circle_points) < 3:
         raise ValueError(
             "Must be at least two circle points for "
