@@ -4,24 +4,24 @@
 
 import sys
 
-
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial import ConvexHull
+
 from random_matrix.utils.array_utils import vals_to_box
 from random_matrix.utils.geometry_utils import (
-    get_circle_coordinate,
-    polar_to_cartesian,
     cartesian_to_polar,
-    is_rectangle,
-    rotate_points,
-    get_small_angular_difference,
-    order_points,
+    get_angularly_separated_edge_points,
+    get_circle_coordinate,
     get_convex_polygon_area,
     get_edge_area,
     get_line_segment_circle_intersection_points,
     get_polygon_circle_intersection_points,
-    get_angularly_separated_edge_points,
+    get_small_angular_difference,
+    is_rectangle,
+    order_points,
+    polar_to_cartesian,
+    rotate_points,
 )
 from random_matrix.utils.plotting_utils import draw_line, set_up_k_space_plot
 

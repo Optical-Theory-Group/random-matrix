@@ -3,18 +3,10 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 
-from random_matrix.utils.array_utils import (
-    get_pairs,
-    get_point_index,
-    is_equal_array,
-)
-from random_matrix.utils.geometry_utils import (
-    get_circle_coordinate,
-    order_points,
-    cartesian_to_polar,
-)
-from random_matrix.types.array_types import Matrix, Vector
+from random_matrix.utils import array_utils, geometry_utils
+from random_matrix.utils.typevars import Numeric
 
 
 def draw_ray(
@@ -26,9 +18,8 @@ def draw_ray(
     linestyle: str = "--",
     alpha: float = 1.0,
 ) -> None:
-    """
-    Draws a straight line segment on the given Axes object representing a ray
-    extending from the origin in the direction of the given angle.
+    """Draws a straight line segment on the given Axes object representing a
+    ray extending from the origin in the direction of the given angle.
 
     Parameters:
     -----------
@@ -67,9 +58,8 @@ def draw_circle(
     color: str = "black",
     linestyle: str = "-",
 ) -> None:
-    """
-    Draws a circle of the given radius centered at the origin on the specified
-    Axes object.
+    """Draws a circle of the given radius centered at the origin on the
+    specified Axes object.
 
     Parameters:
     -----------
@@ -100,30 +90,29 @@ def draw_circle(
 
 def draw_line(
     ax: plt.Axes,
-    start: Vector[np.float32],
-    end: Vector[np.float32],
+    start: npt.NDArray[Numeric],
+    end: npt.NDArray[Numeric],
     color: str = "black",
     linestyle: str = "-",
 ) -> None:
-    """
-    Draw a line on the given Matplotlib axis object from `start` to `end`.
+    """Draw a line on the given Matplotlib axis object from `start` to `end`.
 
     Parameters
     ----------
-    ax : matplotlib.axes.Axes
-        The Matplotlib axis object to draw the line on.
-    start : numpy.ndarray
-        The starting point of the line as a 2D vector of the form [x, y].
-    end : numpy.ndarray
-        The end point of the line as a 2D vector of the form [x, y].
-    color : str, optional
-        The color of the line. Defaults to "black".
-    linestyle : str, optional
-        The line style to use. Defaults to "-".
+        ax : matplotlib.axes.Axes
+            The Matplotlib axis object to draw the line on.
+        start : numpy.ndarray
+            The starting point of the line as a 2D vector of the form [x, y].
+        end : numpy.ndarray
+            The end point of the line as a 2D vector of the form [x, y].
+        color : str, optional
+            The color of the line. Defaults to "black".
+        linestyle : str, optional
+            The line style to use. Defaults to "-".
 
     Returns
     -------
-    None
+        None
     """
     xs = np.array([start[0], end[0]])
     ys = np.array([start[1], end[1]])
@@ -137,28 +126,27 @@ def draw_vertical_chord(
     color: str = "black",
     linestyle: str = "-",
 ) -> None:
-    """
-    Draw a vertical chord on a circle given its x-coordinate and the radius of
-    the circle.
+    """Draw a vertical chord on a circle given its x-coordinate and the radius
+    of the circle.
 
     Parameters:
     -----------
-    ax : matplotlib.axes.Axes
-        The axes on which to draw the chord.
-    x : float
-        The x-coordinate of the chord.
-    radius : float, optional
-        The radius of the circle. Default is 1.
-    color : str, optional
-        The color of the chord. Default is "black".
-    linestyle : str, optional
-        The line style of the chord. Default is "-".
+        ax : matplotlib.axes.Axes
+            The axes on which to draw the chord.
+        x : float
+            The x-coordinate of the chord.
+        radius : float, optional
+            The radius of the circle. Default is 1.
+        color : str, optional
+            The color of the chord. Default is "black".
+        linestyle : str, optional
+            The line style of the chord. Default is "-".
 
     Returns:
     --------
-    None
+        None
     """
-    y_top = get_circle_coordinate(x, radius)
+    y_top = geometry_utils.get_circle_coordinate(x, radius)  # type: ignore
     y_bottom = -y_top
     bottom_point = np.array([x, y_bottom])
     top_point = np.array([x, y_top])
@@ -172,29 +160,28 @@ def draw_horizontal_chord(
     color: str = "black",
     linestyle: str = "-",
 ) -> None:
-    """
-    Draw a horizontal chord on a circle given its y-coordinate and the radius
-    of the circle.
+    """Draw a horizontal chord on a circle given its y-coordinate and the
+    radius of the circle.
 
     Parameters:
     -----------
-    ax : matplotlib.axes.Axes
-        The axes on which to draw the chord.
-    y : float
-        The y-coordinate of the chord.
-    radius : float, optional
-        The radius of the circle. Default is 1.
-    color : str, optional
-        The color of the chord. Default is "black".
-    linestyle : str, optional
-        The line style of the chord. Default is "-".
+        ax : matplotlib.axes.Axes
+            The axes on which to draw the chord.
+        y : float
+            The y-coordinate of the chord.
+        radius : float, optional
+            The radius of the circle. Default is 1.
+        color : str, optional
+            The color of the chord. Default is "black".
+        linestyle : str, optional
+            The line style of the chord. Default is "-".
 
     Returns:
     --------
-    None
+        None
     """
 
-    x_right = get_circle_coordinate(y, radius)
+    x_right = geometry_utils.get_circle_coordinate(y, radius)  # type: ignore
     x_left = -x_right
     left_point = np.array([x_left, y])
     right_point = np.array([x_right, y])
@@ -203,40 +190,41 @@ def draw_horizontal_chord(
 
 def draw_convex_polygon(
     ax: plt.Axes,
-    points: Matrix[np.float32],
+    points: npt.NDArray[Numeric],
     color: str = "black",
     linestyle: str = "-",
-    circle_points: Matrix[np.float32] | None = None,
+    circle_points: npt.NDArray[Numeric] | None = None,
 ) -> None:
-    """
-    Draws a convex polygon on the given `Axes` object.
+    """Draws a convex polygon on the given `Axes` object.
 
     Parameters
     ----------
-    ax : plt.Axes
-        The `Axes` object to draw the polygon on.
-    points : Matrix[np.float32]
-        A 2D numpy array containing the vertices of the polygon. The array
-        should have shape (n, 2), where n is the number of vertices. Each row
-        should contain the x and y coordinates of a vertex, respectively.
-    color : str, optional
-        The color of the lines used to draw the polygon. Defaults to "black".
-    linestyle : str, optional
-        The style of the lines used to draw the polygon. Defaults to "-".
+        ax : plt.Axes
+            The `Axes` object to draw the polygon on.
+        points : Matrix[np.float32]
+            A 2D numpy array containing the vertices of the polygon. The array
+            should have shape (n, 2), where n is the number of vertices. Each
+            row should contain the x and y coordinates of a vertex,
+            respectively.
+        color : str, optional
+            The color of the lines used to draw the polygon. Defaults to
+            "black".
+        linestyle : str, optional
+            The style of the lines used to draw the polygon. Defaults to "-".
 
     Returns
     -------
-    None
+        None
     """
 
-    ordered_points = order_points(points)
-    pairs = get_pairs(ordered_points, cyclic=True)
+    ordered_points = geometry_utils.order_points(points)
+    pairs = array_utils.get_pairs(ordered_points, cyclic=True)
     for first_point, second_point in pairs:
         # Draw edge sections as circular arcs
-        if circle_points is not None and is_equal_array(
+        if circle_points is not None and array_utils.is_equal_array(
             np.array([first_point, second_point]), circle_points
         ):
-            thetas = cartesian_to_polar(circle_points)[:, 1]
+            thetas = geometry_utils.cartesian_to_polar(circle_points)[:, 1]
             t_min = np.min(thetas)
             t_max = np.max(thetas)
 
@@ -257,45 +245,41 @@ def draw_convex_polygon(
 
 def draw_interior_triangle(
     ax: plt.Axes,
-    triangle: Matrix[np.float32],
-    polygon_points: Matrix[np.float32],
+    triangle: npt.NDArray[Numeric],
+    polygon_points: npt.NDArray[Numeric],
     color: str = "tab:blue",
     linestyle: str = "-",
 ) -> None:
-    """
-    Draws a triangle inside a given polygon (excluding edges that coincide
+    """Draws a triangle inside a given polygon (excluding edges that coincide
     with the polygon edges).
 
     Parameters
     ----------
-    ax : plt.Axes
-        The axes on which the triangle will be drawn.
-    triangle : Matrix[np.float32]
-        A 3x2 matrix representing the three vertices of the triangle to be
-        drawn.
-    polygon_points : Matrix[np.float32]
-        A Nx2 matrix representing the vertices of the polygon in which the
-        triangle is contained.
-    color : str, optional
-        The color of the line that will be used to draw the triangle (default
-        is "tab:blue").
-    linestyle : str, optional
-        The style of the line that will be used to draw the triangle (default
-        is "-").
-
-    Raises
-    ------
-    ValueError
-        If any of the triangle vertices do not coincide with polygon vertices.
+        ax : plt.Axes
+            The axes on which the triangle will be drawn.
+        triangle : Matrix[np.float32]
+            A 3x2 matrix representing the three vertices of the triangle to be
+            drawn.
+        polygon_points : Matrix[np.float32]
+            A Nx2 matrix representing the vertices of the polygon in which the
+            triangle is contained.
+        color : str, optional
+            The color of the line that will be used to draw the triangle
+            (default is "tab:blue").
+        linestyle : str, optional
+            The style of the line that will be used to draw the triangle
+            (default is "-").
 
     Returns
     -------
-    None
+        None
     """
-    pairs = get_pairs(triangle, cyclic=True)
+    pairs = array_utils.get_pairs(triangle, cyclic=True)
     for first_point, second_point in pairs:
-        first_index = get_point_index(first_point, polygon_points)
-        second_index = get_point_index(second_point, polygon_points)
+        first_index = array_utils.get_point_index(first_point, polygon_points)
+        second_index = array_utils.get_point_index(
+            second_point, polygon_points
+        )
         if first_index is None or second_index is None:
             raise ValueError(
                 "Triangle vertices do not coincide with polygon vertices!"
@@ -312,18 +296,17 @@ def draw_interior_triangle(
 
 
 def set_up_k_space_plot() -> plt.Axes:
-    """
-    Create a new Matplotlib figure and axis and set them up to display the
+    """Create a new Matplotlib figure and axis and set them up to display the
     k-space.
 
     Parameters
     ----------
-    None
+        None
 
     Returns:
     --------
-    ax : matplotlib.axes.Axes
-        The axis object for the k-space plot.
+        ax : matplotlib.axes.Axes
+            The axis object for the k-space plot.
     """
 
     fig, ax = plt.subplots()
