@@ -9,15 +9,17 @@ See https://doi.org/10.1016/j.jqsrt.2014.11.009 for details.
 
 """
 
+import itertools
+import sys
+from math import factorial
+
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sp
-from scipy.special import lpmv, jv, hankel1
-from scipy.special.orthogonal import p_roots
-from math import factorial
-import itertools
-import matplotlib.pyplot as plt
 from PhysicalConstants import physical_constants
-import sys
+from scipy.special import hankel1, jv, lpmv
+from scipy.special.orthogonal import p_roots
+
 
 class AmatrixGenerator:
     def __init__(self,):

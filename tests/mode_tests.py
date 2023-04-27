@@ -1,15 +1,8 @@
 import numpy as np
-from skspatial.objects import Circle, Line
 
-from random_matrix.mode import Mode
-from random_matrix.mode_grid import ModeGrid
-from random_matrix.utils.geometry_utils import (
-    cartesian_to_polar,
-    is_rectangle,
-    polar_to_cartesian,
-    rotate_points,
-)
-from random_matrix.utils.plotting_utils import draw_convex_polygon
+
+from random_matrix.mode_grid_generator import ModeGridGenerator
+
 
 np.random.seed(10)
 
@@ -131,22 +124,25 @@ my_grid = ModeGrid.from_rt_vals(
 )
 my_grid.plot(show_indices=True)
  """
-grid_data = {
-    "t_offset": 0.0,
-    "grid_wave_type": "all",
-}
 
-my_grid = ModeGrid.from_tiling(
-    grid_data, tiling_shape="triangle", side_length=0.3
+
+""" grid_params = {"is_polar_grid": False, "grid_wave_type": "all"}
+my_grid = ModeGridGenerator.from_tiling(
+    tiling_type="triangles",
+    side_length=0.3,
+    r_lim=2.0,
+    grid_params=grid_params,
 )
 my_grid.plot(show_indices=False)
-
-grid_data = {
-    "t_offset": 0.0,
-    "grid_wave_type": "propagating",
-}
-
-my_grid = ModeGrid.from_tiling(
-    grid_data, tiling_shape="hexagon", side_length=0.3
+ """
+grid_params = {"is_polar_grid": False, "grid_wave_type": "all"}
+my_grid = ModeGridGenerator.from_tiling(
+    tiling_type="hexagons",
+    side_length=0.201,
+    r_lim=2.0,
+    grid_params=grid_params,
+    rotation_angle=0.0,
+    translation_vector=np.array([0.0,0.0])
 )
-my_grid.plot(show_indices=True)
+my_grid.plot(show_indices=False)
+ 

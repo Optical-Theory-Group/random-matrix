@@ -6,20 +6,21 @@ Created on Wed Jul 20 17:46:35 2022
 @author: mforeman
 """
 
-import numpy as np
-import scipy as sp
-from scipy.special import lpmv, jv, hankel1
-from scipy.special.orthogonal import p_roots
-from math import factorial
 import itertools
-import matplotlib.pyplot as plt
-from PhysicalConstants import physical_constants
 import sys
-from anisotropic_tmatrix import AmatrixGenerator
-
 
 #%% --------------- testing/debugging ------------
 import warnings
+from math import factorial
+
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy as sp
+from anisotropic_tmatrix import AmatrixGenerator
+from PhysicalConstants import physical_constants
+from scipy.special import hankel1, jv, lpmv
+from scipy.special.orthogonal import p_roots
+
 plt.close('all')
 warnings.filterwarnings("ignore", message="divide by zero encountered in *")
 warnings.filterwarnings("ignore", message="invalid value encountered in *")

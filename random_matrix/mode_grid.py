@@ -3,28 +3,15 @@
 ModeGrid acts as a generator and container for Mode objects.
 """
 
-from typing import Any, Self
+from typing import Any, Iterable, Self
 
 import numpy as np
+import numpy.typing as npt
+import skspatial.objects
 
-from random_matrix.types.array_types import Vector, Matrix
 from random_matrix.mode import Mode
-from random_matrix.utils.array_utils import (
-    get_pairs,
-    vals_to_box,
-    is_in_array,
-    remove_duplicate_points,
-    is_equal_array,
-    sort_by_reference_list,
-)
-from random_matrix.utils.geometry_utils import (
-    get_polygon_circle_intersection_points,
-    order_points,
-    polar_to_cartesian,
-    rotate_points,
-    get_angularly_separated_edge_points,
-)
-from random_matrix.utils.plotting_utils import set_up_k_space_plot
+from random_matrix.utils import array_utils, geometry_utils, plotting_utils
+from random_matrix.utils.typevars import Numeric
 
 
 class ModeGrid:
@@ -65,7 +52,11 @@ class ModeGrid:
     """
 
     def __init__(
-        self, grid_data: dict[str, Any] | None = None, **kwargs: Any
+        self,
+        grid_params: dict[str, Any],
+        r_lim: float = 1.0,
+        mode_boundary_list: Iterable[npt.NDArray[Numeric]] | None = None,
+        **kwargs: Any,
     ) -> None:
         """
         Initialises grid of modes. Please use class methods outlined above to
@@ -73,42 +64,54 @@ class ModeGrid:
 
         Parameters
         ----------
-        grid_data : dict
-            A dictionary containing data that is used to generate the grid.
-            This should contain the following three key-value pairs:
 
-            "t_offset"
-                Angle that rotates the entire grid.
-            "grid_type"
-                Type of constructer to be used. Options are
-                "polar", "cartesian"
-            "grid_wave_type"
-                Type of modes to be included in the grid. Options are
-                "propagating", "evanescent"
+            mode_boundary_list : numpy.array (generator)
+                A list containing the bounary points for each mode in the grid.
+                Generated from the ModeGridGenerator class.
+            grid_params : dict
+                A dictionary containing data that is used to generate the grid.
+                This should contain the following three key-value pairs:
+
+                "t_offset"
+                    Angle that rotates the entire grid.
+                "grid_type"
+                    Type of constructer to be used. Options are
+                    "polar", "cartesian"
+                "grid_wave_type"
+                    Type of modes to be included in the grid. Options are
+                    "propagating", "evanescent"
 
         Returns
         -------
         None
         """
 
-        if grid_data is None:
-            raise ValueError("grid_data not provided")
+        # Ensure that mode_boundary_list has been provided
+        if mode_boundary_list is None:
+            raise ValueError("mode_boundary_list not provided.")
 
-        # Parse global grid parameters contained in grid_data
-        t_offset = grid_data.get("t_offset", 0.0)
-        is_polar_grid = grid_data.get("is_polar_grid", False)
-        grid_wave_type = grid_data.get("grid_wave_type", "propagating")
-        self.t_offset = t_offset
+        # Make sure that r_lim is greater than 1.0
+        if r_lim < 1.0:
+            raise ValueError(
+                f"Given r_lim value of {r_lim} must be at least 1.0."
+            )
+        self.r_lim = r_lim
+
+        # Parse global grid parameters contained in grid_params
+        is_polar_grid = grid_params.get("is_polar_grid", False)
+        grid_wave_type = grid_params.get("grid_wave_type", "propagating")
         self.is_polar_grid = is_polar_grid
         self.grid_wave_type = grid_wave_type
 
-        # Parse specialised parameters in grid_data
+        # Handle polar case separately
         if is_polar_grid:
             # Polar grids may not be reciprocal. It depends on the theta
             # values.
             r_vals = kwargs.get("r_vals", None)
             t_vals = kwargs.get("t_vals", None)
-            include_central_mode = grid_data.get("include_central_mode", True)
+            include_central_mode = grid_params.get(
+                "include_central_mode", True
+            )
 
             (
                 mode_list_propagating,
@@ -118,8 +121,6 @@ class ModeGrid:
         else:
             # Cartesian grids with no translational offset from the origin
             # are necessarily reciprocal
-            mode_boundary_list = kwargs.get("mode_boundary_list", None)
-
             (
                 mode_list_propagating,
                 mode_list_evanescent,
@@ -163,7 +164,7 @@ class ModeGrid:
         cls,
         dx: float,
         dy: float,
-        grid_data: dict[str, Any],
+        grid_params: dict[str, Any],
         x_lim: float = 1.2,
         y_lim: float = 1.2,
     ) -> Self:
@@ -176,7 +177,7 @@ class ModeGrid:
             Spacing in the kx direction.
         dy : float
             Spacing in the ky direction.
-        grid_data : dict
+        grid_params : dict
             As in __init__
         x_lim : float
             Upper limit for the x values in the grid. The grid will be
@@ -202,15 +203,15 @@ class ModeGrid:
         y_vals = y_vals[np.abs(y_vals) <= y_lim]
 
         return cls.from_xy_vals(
-            x_vals=x_vals, y_vals=y_vals, grid_data=grid_data
+            x_vals=x_vals, y_vals=y_vals, grid_params=grid_params
         )
 
     @classmethod
     def from_xy_vals(
         cls,
-        x_vals: Vector[np.float32],
-        y_vals: Vector[np.float32],
-        grid_data: dict[str, Any],
+        x_vals: npt.NDArray[Numeric],
+        y_vals: npt.NDArray[Numeric],
+        grid_params: dict[str, Any],
     ) -> Self:
         """
         Initialises Cartesian grid from grids of x and y values.
@@ -222,7 +223,7 @@ class ModeGrid:
             rectangles in the lattice.
         y_vals : np.ndarray
             Same, but for y coordinates.
-        grid_data : dict
+        grid_params : dict
             As in __init__
 
         Returns
@@ -234,11 +235,11 @@ class ModeGrid:
         cls._validate_input_vals(first_vals=x_vals, second_vals=y_vals)
 
         # Force grid_type to be cartesian
-        grid_data["is_polar_grid"] = False
+        grid_params["is_polar_grid"] = False
 
         # Remove duplicates and ensure arrays are properly sorted
-        x_vals = remove_duplicate_points(x_vals)
-        y_vals = remove_duplicate_points(y_vals)
+        x_vals = array_utils.remove_duplicate_points(x_vals)
+        y_vals = array_utils.remove_duplicate_points(y_vals)
         x_vals = np.sort(x_vals)
         y_vals = np.sort(y_vals)
 
@@ -247,14 +248,16 @@ class ModeGrid:
             x_vals=x_vals, y_vals=y_vals
         )
 
-        return cls(grid_data=grid_data, mode_boundary_list=mode_boundary_list)
+        return cls(
+            grid_params=grid_params, mode_boundary_list=mode_boundary_list
+        )
 
     @classmethod
     def from_dr_dt(
         cls,
         dr: float,
         dt: float,
-        grid_data: dict[str, Any],
+        grid_params: dict[str, Any],
         r_lim: float = 1.0,
     ) -> Self:
         # Set up r and t value arrays
@@ -265,173 +268,49 @@ class ModeGrid:
         r_vals = r_vals[np.abs(r_vals) <= r_lim]
 
         return cls.from_rt_vals(
-            r_vals=r_vals, t_vals=t_vals, grid_data=grid_data
+            r_vals=r_vals, t_vals=t_vals, grid_params=grid_params
         )
 
     @classmethod
     def from_rt_vals(
         cls,
-        r_vals: Vector[np.float32],
-        t_vals: Vector[np.float32],
-        grid_data: dict[str, Any],
+        r_vals: npt.NDArray[Numeric],
+        t_vals: npt.NDArray[Numeric],
+        grid_params: dict[str, Any],
     ) -> Self:
         # Check that arrays have been properly given
         cls._validate_input_vals(first_vals=r_vals, second_vals=t_vals)
 
         # Force grid_type to be polar
-        grid_data["is_polar_grid"] = True
+        grid_params["is_polar_grid"] = True
 
         # Reduce t values moduli 2PI for consistency
         t_vals = np.mod(t_vals, 2 * np.pi)
 
         # Check that 0.0 and 1.0 are in r_vals. If not, add them
-        if not is_in_array(0.0, r_vals):
+        if not array_utils.is_in_array(0.0, r_vals):
             r_vals = np.concatenate(([0.0], r_vals))
-        if not is_in_array(1.0, r_vals):
+        if not array_utils.is_in_array(1.0, r_vals):
             r_vals = np.concatenate((r_vals, [1.0]))
 
         # Check that 0.0 and 2PI are in t_vals. If not, add them
-        if not is_in_array(0.0, t_vals):
+        if not array_utils.is_in_array(0.0, t_vals):
             t_vals = np.concatenate(([0.0], t_vals))
-        if not is_in_array(2 * np.pi, t_vals):
+        if not array_utils.is_in_array(2 * np.pi, t_vals):
             t_vals = np.concatenate((t_vals, [2 * np.pi]))
 
         # Remove duplicates and sort
-        r_vals = remove_duplicate_points(r_vals)
-        t_vals = remove_duplicate_points(t_vals)
+        r_vals = array_utils.remove_duplicate_points(r_vals)
+        t_vals = array_utils.remove_duplicate_points(t_vals)
         r_vals = np.sort(r_vals)
         t_vals = np.sort(t_vals)
 
-        return cls(grid_data=grid_data, r_vals=r_vals, t_vals=t_vals)
-
-    @classmethod
-    def from_tiling(cls, grid_data, tiling_shape="triangle", side_length=0.4):
-        grid_data["is_polar_grid"] = False
-
-        match tiling_shape:
-            case "triangle":
-                mode_boundary_list = cls.generate_triangles(
-                    side_length=side_length, x_lim=1.5, y_lim=1.5
-                )
-            case "hexagon":
-                print("hi")
-                mode_boundary_list = cls.generate_hexagons(
-                    side_length=side_length, x_lim=1.5, y_lim=1.5
-                )
-
-        return cls(grid_data=grid_data, mode_boundary_list=mode_boundary_list)
-
-    def generate_polar_regions(self, r_vals, y_vals, r_lim):
-        pass
-
-    @staticmethod
-    def generate_rectangles(x_vals, y_vals):
-        num_x = len(x_vals)
-        num_y = len(y_vals)
-        for i in range(num_x - 1):
-            for j in range(num_y - 1):
-                # Find points that form a box within the lattice
-                box_x_vals = x_vals[i : i + 2]
-                box_y_vals = y_vals[j : j + 2]
-                box_points = vals_to_box(
-                    first_vals=box_x_vals, second_vals=box_y_vals
-                )
-                # Order box_points cyclically
-                box_points = order_points(box_points)
-                yield box_points
-
-    @staticmethod
-    def generate_triangles(side_length, x_lim, y_lim):
-        # The repeating unit for our triangular lattice is
-        #
-        #   _____
-        #   \  / \
-        #    \/___\  <--- center at mid-point on left
-        #    /\   /
-        #   /__\_/
-        #
-        #
-        # The "center" is at the midpoint of the base of the pair of
-        # triangles in the middle row of sides.
-
-        # s is the side length and h is the vertical height of a triangle
-        s = side_length
-        h = s * np.sqrt(3) / 2
-
-        # Set up cartesian lattice for centers
-        dx = s
-        dy = 2 * h
-
-        x_vals = np.arange(0.0, x_lim + dx, dx)
-        x_vals = np.concatenate((-x_vals[1:][::-1], x_vals))
-        y_vals = np.arange(0.0, y_lim + dy, dy)
-        y_vals = np.concatenate((-y_vals[1:][::-1], y_vals))
-
-        for x in x_vals:
-            for y in y_vals:
-                yield np.array(
-                    [[x - s / 2, y + h], [x, y], [x + s / 2, y + h]]
-                )
-                yield np.array([[x + s / 2, y + h], [x, y], [x + s, y]])
-                yield np.array(
-                    [[x - s / 2, y - h], [x, y], [x + s / 2, y - h]]
-                )
-                yield np.array([[x, y], [x + s / 2, y - h], [x + s, y]])
-
-    @staticmethod
-    def generate_hexagons(side_length, x_lim, y_lim):
-        # The repeating unit for our triangular lattice is
-        #
-        #    ____
-        #   /    \
-        #  /      \____  <--- center at mid-point of first hexagon
-        #  \      /    \
-        #   \____/      \
-        #        \      /
-        #         \____/
-        #
-        # The "center" is at the midpoint of the left hexagon
-
-        # s is the side length and h is the vertical height of a hexagon
-        s = side_length
-        h = s * np.sqrt(3) / 2
-
-        # Set up cartesian lattice for centers
-        dx = 3 * s
-        dy = 2 * h
-
-        x_vals = np.arange(0.0, x_lim + dx, dx)
-        x_vals = np.concatenate((-x_vals[1:][::-1], x_vals))
-        y_vals = np.arange(0.0, y_lim + dy, dy)
-        y_vals = np.concatenate((-y_vals[1:][::-1], y_vals))
-
-        for x in x_vals:
-            for y in y_vals:
-                yield np.array(
-                    [
-                        [x - s, y],
-                        [x - s / 2, y + h],
-                        [x + s / 2, y + h],
-                        [x + s, y],
-                        [x + s / 2, y - h],
-                        [x - s / 2, y - h],
-                    ]
-                )
-                yield np.array(
-                    [
-                        [x + s / 2, y - h],
-                        [x + s, y],
-                        [x + 2 * s, y],
-                        [x + 5 / 2 * s, y - h],
-                        [x + 2 * s, y - 2 * h],
-                        [x + s, y - 2 * h],
-                    ]
-                )
+        return cls(grid_params=grid_params, r_vals=r_vals, t_vals=t_vals)
 
     @staticmethod
     def _validate_input_vals(
-        first_vals: Vector[np.float32],
-        second_vals: Vector[np.float32],
+        first_vals: npt.NDArray[Numeric],
+        second_vals: npt.NDArray[Numeric],
     ) -> None:
         # Generic checks
         if first_vals is None or second_vals is None:
@@ -465,7 +344,7 @@ class ModeGrid:
             f"Reciprocal: {self.is_reciprocal},\n"
             f"Number of propagating modes: {len(self.modes_propagating)},\n"
             f"Number of evanescent modes: {len(self.modes_evanescent)},\n"
-            f"Theta offset: {self.t_offset}"
+            f"Maximum |kappa|: {self.r_lim}.\n"
         )
         return output
 
@@ -490,7 +369,8 @@ class ModeGrid:
             The mode with desired index.
         """
 
-        # Stringify index for consistency
+        # Stringify index for consistency. Means that the user can give an int
+        # if they want
         index = str(index)
         if mode_wave_type == "propagating":
             mode = self.modes_propagating.get(index, None)
@@ -535,7 +415,7 @@ class ModeGrid:
 
         inverted_points_array = -np.copy(points_array)
 
-        is_reciprocal = is_equal_array(
+        is_reciprocal = array_utils.is_equal_array(
             first_array=points_array, second_array=inverted_points_array
         )
 
@@ -550,8 +430,8 @@ class ModeGrid:
 
     def _handle_polar_case(
         self,
-        r_vals: Vector[np.float32],
-        t_vals: Vector[np.float32],
+        r_vals: npt.NDArray[Numeric],
+        t_vals: npt.NDArray[Numeric],
         include_central_mode: bool = True,
     ) -> tuple[list[Mode], list[Mode]]:
         """
@@ -584,7 +464,7 @@ class ModeGrid:
             )
 
             # Rotate points
-            points_cartesian = rotate_points(
+            points_cartesian = geometry_utils.rotate_points(
                 points=points_cartesian,
                 rotation_angle=self.t_offset,
             )
@@ -598,15 +478,17 @@ class ModeGrid:
             # polar modes about the origin
             r = r_vals[1]
 
-            pairs = get_pairs(t_vals)
+            pairs = array_utils.get_pairs(t_vals)
             for first_t, second_t in pairs:
                 points_polar = np.array(
                     [[0.0, 0.0], [r, first_t], [r, second_t]]
                 )
-                points_cartesian = polar_to_cartesian(points_polar)
+                points_cartesian = geometry_utils.polar_to_cartesian(
+                    points_polar
+                )
 
                 # Rotate points
-                points_cartesian = rotate_points(
+                points_cartesian = geometry_utils.rotate_points(
                     points=points_cartesian,
                     rotation_angle=self.t_offset,
                 )
@@ -631,13 +513,15 @@ class ModeGrid:
                 # Find points that form a "polar box" within the lattice
                 box_r_vals = r_vals[i : i + 2]
                 box_t_vals = t_vals[j : j + 2]
-                points_polar = vals_to_box(
+                points_polar = array_utils.vals_to_box(
                     first_vals=box_r_vals, second_vals=box_t_vals
                 )
 
-                points_cartesian = polar_to_cartesian(points_polar)
+                points_cartesian = geometry_utils.polar_to_cartesian(
+                    points_polar
+                )
                 # Rotate points
-                points_cartesian = rotate_points(
+                points_cartesian = geometry_utils.rotate_points(
                     points=points_cartesian,
                     rotation_angle=self.t_offset,
                 )
@@ -654,7 +538,7 @@ class ModeGrid:
         return mode_list_propagating, mode_list_evanescent
 
     def _handle_general_case(
-        self, mode_boundary_list: list[Matrix[np.float32]]
+        self, mode_boundary_list: Iterable[npt.NDArray[Numeric]]
     ) -> tuple[list[Mode], list[Mode]]:
         """
         Sets up a Cartesian grid of modes.
@@ -668,107 +552,233 @@ class ModeGrid:
         None
         """
 
+        r_lim = self.r_lim
+
         # Lists for storing modes
         # Will later be converted into dictionaries
         mode_list_propagating = []
         mode_list_evanescent = []
 
         for boundary_points in mode_boundary_list:
-            # Check if the box points are all inside or outside of the
-            # lattice
             boundary_r_vals = np.linalg.norm(boundary_points, axis=1)
-            if np.all(boundary_r_vals >= 1.0):
-                mode_wave_type = "evanescent"
-            elif np.all(boundary_r_vals <= 1.0):
-                mode_wave_type = "propagating"
-            else:
-                mode_wave_type = "mixed"
 
-            # Handle cases separately
-            # First determine if new mode is to be added depending on the
-            # values of box_wave_type and grid_wave_type
-            add_new_mode = (
-                self.grid_wave_type == "all"
-                or mode_wave_type == "mixed"
-                or mode_wave_type == self.grid_wave_type
-            )
+            # These points exclude those lying on the circles
+            interior_points = boundary_points[boundary_r_vals < 1.0]
 
-            # Move to next box if add_new_move evaluates to false
-            if not add_new_mode:
-                continue
+            exterior_points = boundary_points[boundary_r_vals > 1.0]
+            temp_r_vals = np.linalg.norm(exterior_points, axis=1)
+            exterior_points = exterior_points[temp_r_vals < r_lim]
 
-            # For a mixed box, handle weird edge cases and add
-            # modes that incorporate a portion of the circular boundary
-            if mode_wave_type == "mixed":
-                # Find intersection of circle with box
-                # There must be at least 2 intersection points
-                circle_points = get_polygon_circle_intersection_points(
-                    boundary_points
-                )
+            # Find out where the mode crosses the circles of radii
+            # r = 1.0 and r = r_lim
+            (
+                mode_wave_type,
+                inner_circle_crossings,
+                outer_circle_crossings,
+            ) = self._get_circle_crossings(boundary_points)
 
-                # Catch bug
-                if circle_points is None:
-                    raise ValueError(
-                        "Box considered 'mixed' but does not intersect "
-                        "the circle."
+            # Clean up circle crossings to remove unnecessary points
+            if (
+                inner_circle_crossings is not None
+                and len(inner_circle_crossings) > 2
+            ):
+                inner_circle_crossings = (
+                    geometry_utils.get_angularly_separated_edge_points(
+                        inner_circle_crossings
                     )
-
-                # If there are more than 2 points, order intersection
-                # points and take the first and last
-                if len(circle_points) > 2:
-                    circle_points = get_angularly_separated_edge_points(
-                        circle_points
+                )
+            if (
+                outer_circle_crossings is not None
+                and len(outer_circle_crossings) > 2
+            ):
+                outer_circle_crossings = (
+                    geometry_utils.get_angularly_separated_edge_points(
+                        outer_circle_crossings
                     )
-                # Set up the interior and exterior modes
-                interior_points = boundary_points[boundary_r_vals <= 1.0]
-                exterior_points = boundary_points[boundary_r_vals >= 1.0]
-
-                interior_mode_points = np.append(
-                    interior_points, circle_points, axis=0
-                )
-                exterior_mode_points = np.append(
-                    exterior_points, circle_points, axis=0
                 )
 
-                # Rotate points
-                interior_mode_points = rotate_points(
-                    points=interior_mode_points,
-                    rotation_angle=self.t_offset,
-                )
-                exterior_mode_points = rotate_points(
-                    points=exterior_mode_points,
-                    rotation_angle=self.t_offset,
-                )
+            # There are four possible cases
+            is_interior_mode = False
+            is_exterior_mode = False
 
+            match (mode_wave_type):
+                case {
+                    "crosses_inner_circle": True,
+                    "crosses_outer_circle": True,
+                }:
+                    # In this case we make two modes and include the exterior
+                    # circle points
+                    interior_mode_points = np.append(
+                        interior_points, inner_circle_crossings, axis=0
+                    )
+                    exterior_mode_points = np.append(
+                        np.append(
+                            exterior_points, inner_circle_crossings, axis=0
+                        ),
+                        outer_circle_crossings,
+                        axis=0,
+                    )
+                    is_interior_mode = True
+                    is_exterior_mode = True
+
+                case {
+                    "crosses_inner_circle": True,
+                    "crosses_outer_circle": False,
+                }:
+                    # In this case we make two modes, but don't include the
+                    # exterior circle points
+                    interior_mode_points = np.append(
+                        interior_points, inner_circle_crossings, axis=0
+                    )
+                    exterior_mode_points = np.append(
+                        exterior_points, inner_circle_crossings, axis=0
+                    )
+                    is_interior_mode = True
+                    is_exterior_mode = True
+
+                case {
+                    "crosses_inner_circle": False,
+                    "crosses_outer_circle": True,
+                }:
+                    # In this case we make one evanescent mode, including
+                    # the outer circle points
+                    exterior_mode_points = np.append(
+                        exterior_points, outer_circle_crossings, axis=0
+                    )
+                    is_exterior_mode = True
+
+                case {
+                    "crosses_inner_circle": False,
+                    "crosses_outer_circle": False,
+                }:
+                    # In this case we only make at most one mode, but it
+                    # depends on where the shape is. This can be determined by
+                    # any of the r_vals
+                    if boundary_r_vals[0] < 1.0:
+                        interior_mode_points = interior_points
+                        is_interior_mode = True
+
+                    elif (
+                        boundary_r_vals[0] > 1.0 and boundary_r_vals[0] < r_lim
+                    ):
+                        exterior_mode_points = exterior_points
+                        is_exterior_mode = True
+                    else:
+                        # Mode is completely outside of r_lim
+                        continue
+
+            # Make the mode and add it to the lists
+            # Note that both modes get added in the "all" case
+            if is_interior_mode and self.grid_wave_type in [
+                "propagating",
+                "all",
+            ]:
                 interior_mode = Mode(
                     mode_boundary=interior_mode_points, is_polar=False
                 )
+                mode_list_propagating.append(interior_mode)
+
+            if is_exterior_mode and self.grid_wave_type in [
+                "evanescent",
+                "all",
+            ]:
                 exterior_mode = Mode(
                     mode_boundary=exterior_mode_points, is_polar=False
                 )
-
-                # Note that both modes get added in the "all" case
-                if self.grid_wave_type in ["propagating", "all"]:
-                    mode_list_propagating.append(interior_mode)
-                if self.grid_wave_type in ["evanescent", "all"]:
-                    mode_list_evanescent.append(exterior_mode)
-
-            else:
-                # If the box wave type is not mixed, we just add the mode
-                # constructed from the original box points
-                boundary_points = rotate_points(
-                    points=boundary_points, rotation_angle=self.t_offset
-                )
-                if mode_wave_type == "propagating":
-                    mode_list_propagating.append(
-                        Mode(mode_boundary=boundary_points, is_polar=False)
-                    )
-                else:
-                    mode_list_evanescent.append(
-                        Mode(mode_boundary=boundary_points, is_polar=False)
-                    )
+                mode_list_evanescent.append(exterior_mode)
 
         return mode_list_propagating, mode_list_evanescent
+
+    def _get_circle_crossings(self, boundary_points):
+        r_lim = self.r_lim
+
+        inner_circle_crossings = (
+            geometry_utils.get_polygon_circle_intersection_points(
+                boundary_points, skspatial.objects.Circle([0.0, 0.0], 1.0)
+            )
+        )
+
+        outer_circle_crossings = (
+            geometry_utils.get_polygon_circle_intersection_points(
+                boundary_points, skspatial.objects.Circle([0.0, 0.0], r_lim)
+            )
+        )
+
+        mode_wave_type = {
+            "crosses_inner_circle": False,
+            "crosses_outer_circle": False,
+        }
+
+        if inner_circle_crossings is not None:
+            mode_wave_type["crosses_inner_circle"] = True
+        if outer_circle_crossings is not None:
+            mode_wave_type["crosses_outer_circle"] = True
+
+        return mode_wave_type, inner_circle_crossings, outer_circle_crossings
+
+    def _get_mode_wave_type(self, boundary_points):
+        mode_wave_type = {
+            "crosses_inner_circle": False,
+            "crosses_outer_circle": False,
+            "pure_wave_mode_type": None,
+        }
+        r_lim = self.r_lim
+        boundary_r_vals = np.linalg.norm(boundary_points, axis=1)
+
+        # There are 5 possible cases for the r values in boundary_r_vals
+        # 1: r < 1.0            in the interior of the unit circle
+        # 2: r = 1.0            on the unit circle
+        # 3: 1.0 < r < r_lim    in the propagating-evanescent annulus
+        # 4: r = r_lim          on the circle of radius r_lim
+        # 5: r > r_lim          in the exterior of the outer circle
+
+        boundary_point_cases = []
+        for r_val in boundary_r_vals:
+            if r_val < 1.0:
+                boundary_point_cases.append("1")
+            elif np.isclose(r_val, 1.0):
+                boundary_point_cases.append("2")
+            elif r_val > 1.0 and r_val < r_lim:
+                boundary_point_cases.append("3")
+            elif np.isclose(r_val, r_lim):
+                boundary_point_cases.append("4")
+            else:
+                boundary_point_cases.append("5")
+
+        # Check which circles the mode has crossed
+        # We have crossed the inner circle if "1" is present and any of
+        # "3", "4" or "5" are present
+
+        crosses_inner_circle = "1" in boundary_point_cases and set(
+            ["3", "4", "5"]
+        ).intersection(set(boundary_r_vals))
+        # Similarly, we have crossed the outer circle if "5" is present and any of
+        # "1", "2" or "3" are present
+
+        crosses_outer_circle = "5" in boundary_point_cases and set(
+            ["1", "2", "3"]
+        ).intersection(set(boundary_r_vals))
+
+        if crosses_inner_circle:
+            mode_wave_type["crosses_inner_circle"] = True
+        if crosses_outer_circle:
+            mode_wave_type["crosses_outer_circle"] = True
+
+        # If we have crossed neither circle, we must be a pure mode
+        is_pure_propagating = (
+            not crosses_inner_circle and not crosses_outer_circle
+        ) and (set(boundary_point_cases).intersection(set(["1", "2"])))
+
+        is_pure_evanescent = (
+            not crosses_inner_circle and not crosses_outer_circle
+        ) and (set(boundary_point_cases).intersection(set(["2", "3", "4"])))
+
+        if is_pure_propagating:
+            mode_wave_type["pure_wave_mode_type"] = "propagating"
+        if is_pure_evanescent:
+            mode_wave_type["pure_wave_mode_type"] = "evanescent"
+
+        return mode_wave_type
 
     def _set_up_mode_dictionary(
         self,
@@ -839,7 +849,7 @@ class ModeGrid:
 
                 running_index += 1
 
-        reciprocal_indices = sort_by_reference_list(
+        reciprocal_indices = array_utils.sort_by_reference_list(
             reciprocal_indices, already_handled_modes
         )
         return reciprocal_indices
@@ -862,7 +872,7 @@ class ModeGrid:
             if np.shape(points) != np.shape(other_points):
                 continue
 
-            if is_equal_array(points, -other_points):
+            if array_utils.is_equal_array(points, -other_points):
                 return index
 
         return None
@@ -889,7 +899,7 @@ class ModeGrid:
         """
 
         # Draw axes and k-space boundary
-        ax = set_up_k_space_plot()
+        ax = plotting_utils.set_up_k_space_plot()
         if len(self.modes_propagating) > 0:
             for key, mode in self.modes_propagating.items():
                 mode.plot(
