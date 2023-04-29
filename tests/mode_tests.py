@@ -135,14 +135,26 @@ my_grid = ModeGridGenerator.from_tiling(
 )
 my_grid.plot(show_indices=False)
  """
-grid_params = {"is_polar_grid": False, "grid_wave_type": "all"}
+
+grid_params = {
+    "is_polar_grid": True,
+    "grid_wave_type": "all",
+}
+
+r_lim = 1.2
 my_grid = ModeGridGenerator.from_tiling(
-    tiling_type="hexagons",
-    side_length=0.201,
-    r_lim=2.0,
+    tiling_type="rectangles",
+    side_length=(0.2, 0.2),
+    r_lim=r_lim,
     grid_params=grid_params,
     rotation_angle=0.0,
-    translation_vector=np.array([0.0,0.0])
 )
-my_grid.plot(show_indices=False)
- 
+my_grid.plot(show_indices=True)
+
+s = 0
+for mode in my_grid.modes_propagating.values():
+    s += mode.weight
+for mode in my_grid.modes_evanescent.values():
+    s += mode.weight
+
+print(np.isclose(s, np.pi * r_lim**2))

@@ -193,7 +193,8 @@ def draw_convex_polygon(
     points: npt.NDArray[Numeric],
     color: str = "black",
     linestyle: str = "-",
-    circle_points: npt.NDArray[Numeric] | None = None,
+    inner_circle_crossings: npt.NDArray[Numeric] | None = None,
+    outer_circle_crossings: npt.NDArray[Numeric] | None = None,
 ) -> None:
     """Draws a convex polygon on the given `Axes` object.
 
@@ -221,10 +222,12 @@ def draw_convex_polygon(
     pairs = array_utils.get_pairs(ordered_points, cyclic=True)
     for first_point, second_point in pairs:
         # Draw edge sections as circular arcs
-        if circle_points is not None and array_utils.is_equal_array(
-            np.array([first_point, second_point]), circle_points
+        if inner_circle_crossings is not None and array_utils.is_equal_array(
+            np.array([first_point, second_point]), inner_circle_crossings
         ):
-            thetas = geometry_utils.cartesian_to_polar(circle_points)[:, 1]
+            thetas = geometry_utils.cartesian_to_polar(inner_circle_crossings)[
+                :, 1
+            ]
             t_min = np.min(thetas)
             t_max = np.max(thetas)
 
@@ -232,7 +235,24 @@ def draw_convex_polygon(
                 t_max = t_max - 2 * np.pi
                 t_min, t_max = t_max, t_min
 
-            draw_circle(ax, t_min=t_min, t_max=t_max, color="red")
+            draw_circle(ax, t_min=t_min, t_max=t_max, color="tab:red")
+
+        elif outer_circle_crossings is not None and array_utils.is_equal_array(
+            np.array([first_point, second_point]), outer_circle_crossings
+        ):
+            thetas = geometry_utils.cartesian_to_polar(outer_circle_crossings)[
+                :, 1
+            ]
+            t_min = np.min(thetas)
+            t_max = np.max(thetas)
+
+            if t_max - t_min >= np.pi:
+                t_max = t_max - 2 * np.pi
+                t_min, t_max = t_max, t_min
+
+            r = np.linalg.norm(outer_circle_crossings, axis=1)[0]
+            draw_circle(ax, r=r, t_min=t_min, t_max=t_max, color="tab:blue")
+
         else:
             draw_line(
                 ax,
@@ -293,27 +313,3 @@ def draw_interior_triangle(
                 color=color,
                 linestyle=linestyle,
             )
-
-
-def set_up_k_space_plot() -> plt.Axes:
-    """Create a new Matplotlib figure and axis and set them up to display the
-    k-space.
-
-    Parameters
-    ----------
-        None
-
-    Returns:
-    --------
-        ax : matplotlib.axes.Axes
-            The axis object for the k-space plot.
-    """
-
-    fig, ax = plt.subplots()
-    draw_ray(ax, r_min=-1, theta=0, linestyle="-", color="black", alpha=0.5)
-    draw_ray(
-        ax, r_min=-1, theta=np.pi / 2, linestyle="-", color="black", alpha=0.5
-    )
-    ax.set_aspect("equal")
-    draw_circle(ax)
-    return ax
