@@ -307,7 +307,7 @@ def get_convex_polygon_area(
     return area
 
 
-def get_edge_area(points: npt.NDArray[Numeric]) -> float:
+def get_edge_area(points: npt.NDArray[Numeric], radius: float = 1.0) -> float:
     """Compute the area of a small circle segment bounded by a chord connecting
     two points lying on the circle and the arc in between.
 
@@ -326,8 +326,8 @@ def get_edge_area(points: npt.NDArray[Numeric]) -> float:
     points_polar = cartesian_to_polar(points)
     t_1, t_2 = points_polar[:, 1]
     dt = get_small_angular_difference(t_1, t_2)
-    sector_area = 0.5 * dt
-    triangle_area = 0.5 * np.sin(dt)
+    sector_area = 0.5 * dt * radius**2
+    triangle_area = 0.5 * np.sin(dt) * radius**2
     area: float = sector_area - triangle_area
     return area
 
@@ -375,7 +375,9 @@ def get_line_segment_circle_intersection_points(
         # Check if intersection points lie in the line segment or not
         # If yes, add it to the intersection points
         for point in new_intersection_points:
-            if line_segment_obj.contains_point(point):
+            # Handle weird cases where edge points don't trigger contains_point
+            is_on_line_seg = line_segment_obj.contains_point(point)
+            if is_on_line_seg:
                 intersection_points = np.append(
                     intersection_points, point.reshape(1, 2), axis=0
                 )
@@ -422,27 +424,37 @@ def get_polygon_circle_intersection_points(
     points = order_points(points)
 
     intersection_points = np.empty((0, 2), dtype=np.float32)
+
+    # First, check if vertices lie on the circle. If so add them.
+    # The intersection method doesn't always capture these.
+    r_vals = np.linalg.norm(points, axis=1)
+    circle_points = points[np.isclose(r_vals, circle.radius)]
+    intersection_points = np.vstack((intersection_points, circle_points))
+
+    # Find intersections between line segments and the circle
     pairs = array_utils.get_pairs(points, cyclic=True)
     for line_segment in pairs:
         new_intersection_points = get_line_segment_circle_intersection_points(
             line_segment, circle
         )
-
         # Add new points if there are any
         if new_intersection_points is not None:
-            for point in new_intersection_points:
-                intersection_points = np.append(
-                    intersection_points, point.reshape(1, 2), axis=0
-                )
+            intersection_points = np.vstack(
+                (intersection_points, new_intersection_points)
+            )
 
     if len(intersection_points) == 0:
         return None
     else:
+        # Remove possible duplicates
+        intersection_points = array_utils.remove_duplicate_points(
+            intersection_points
+        )
         return intersection_points  # type: ignore
 
 
 def get_angularly_separated_edge_points(
-    circle_points: npt.NDArray[Numeric],
+    circle_points: npt.NDArray[Numeric], radius: float = 1.0
 ) -> npt.NDArray[Numeric]:
     if len(circle_points) < 3:
         raise ValueError(
@@ -451,7 +463,6 @@ def get_angularly_separated_edge_points(
         )
 
     original_points = np.copy(circle_points)
-
     # Get points that are in the upper semi-circle
     positive_points_indices = circle_points[:, 1] >= 0.0  # type: ignore
     positive_points = circle_points[positive_points_indices]
@@ -461,17 +472,15 @@ def get_angularly_separated_edge_points(
         min_x_val = np.min(positive_points[:, 0])
         max_x_val = np.max(positive_points[:, 0])
         left_positive_point = np.array(
-            [min_x_val, get_circle_coordinate(min_x_val)]
+            [min_x_val, get_circle_coordinate(min_x_val, r=radius)]
         )
         right_positive_point = np.array(
-            [max_x_val, get_circle_coordinate(max_x_val)]
+            [max_x_val, get_circle_coordinate(max_x_val, r=radius)]
         )
-
         theta_left = cartesian_to_polar(left_positive_point)[1]
         theta_right = cartesian_to_polar(right_positive_point)[1]
         # Try rotating anti-clockwise by PI - theta_right
         rotated_points = rotate_points(circle_points, np.pi - theta_right)
-
         # Are these now all negative?
         max_y_val_rotated = np.max(rotated_points[:, 1])
         all_negative = np.isclose(max_y_val_rotated, 0)
@@ -482,7 +491,6 @@ def get_angularly_separated_edge_points(
             # theta_left
             rotated_points = rotate_points(circle_points, -theta_left)
             circle_points = rotated_points
-
     # By this point, all of circle points have negative y value
     # We now need the indices of the points in circle_points that have extreme
     # x values
