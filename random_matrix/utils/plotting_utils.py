@@ -193,8 +193,7 @@ def draw_convex_polygon(
     points: npt.NDArray[Numeric],
     color: str = "black",
     linestyle: str = "-",
-    inner_circle_crossings: npt.NDArray[Numeric] | None = None,
-    outer_circle_crossings: npt.NDArray[Numeric] | None = None,
+    arc_points_list: list[npt.NDArray[Numeric]] = [],
 ) -> None:
     """Draws a convex polygon on the given `Axes` object.
 
@@ -218,16 +217,22 @@ def draw_convex_polygon(
         None
     """
 
-    ordered_points = geometry_utils.order_points(points)
-    pairs = array_utils.get_pairs(ordered_points, cyclic=True)
+    pairs = array_utils.get_pairs(points, cyclic=True)
+
     for first_point, second_point in pairs:
-        # Draw edge sections as circular arcs
-        if inner_circle_crossings is not None and array_utils.is_equal_array(
-            np.array([first_point, second_point]), inner_circle_crossings
-        ):
-            thetas = geometry_utils.cartesian_to_polar(inner_circle_crossings)[
-                :, 1
-            ]
+        connection = np.array([first_point, second_point])
+
+        # Check if connection is equal to any of the arc points
+        is_arc = False
+        for arc_points in arc_points_list:
+            if array_utils.is_equal_array(connection, arc_points):
+                is_arc = True
+                break
+
+        # If it's an arc, we draw it as one
+        if is_arc:
+            radius = np.linalg.norm(connection[0])
+            thetas = geometry_utils.cartesian_to_polar(connection)[:, 1]
             t_min = np.min(thetas)
             t_max = np.max(thetas)
 
@@ -235,23 +240,13 @@ def draw_convex_polygon(
                 t_max = t_max - 2 * np.pi
                 t_min, t_max = t_max, t_min
 
-            draw_circle(ax, t_min=t_min, t_max=t_max, color="tab:red")
-
-        elif outer_circle_crossings is not None and array_utils.is_equal_array(
-            np.array([first_point, second_point]), outer_circle_crossings
-        ):
-            thetas = geometry_utils.cartesian_to_polar(outer_circle_crossings)[
-                :, 1
-            ]
-            t_min = np.min(thetas)
-            t_max = np.max(thetas)
-
-            if t_max - t_min >= np.pi:
-                t_max = t_max - 2 * np.pi
-                t_min, t_max = t_max, t_min
-
-            r = np.linalg.norm(outer_circle_crossings, axis=1)[0]
-            draw_circle(ax, r=r, t_min=t_min, t_max=t_max, color="tab:blue")
+            draw_circle(
+                ax,
+                t_min=t_min,
+                t_max=t_max,
+                color=color,
+                r=radius,
+            )
 
         else:
             draw_line(

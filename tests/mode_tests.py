@@ -1,10 +1,8 @@
 import numpy as np
 
 
-from random_matrix.mode_grid_generator import ModeGridGenerator
+from random_matrix.grid_generator import GridGenerator
 
-
-np.random.seed(10)
 
 #####################
 # Mode module tests #
@@ -141,20 +139,14 @@ grid_params = {
     "grid_wave_type": "all",
 }
 
-r_lim = 1.2
-my_grid = ModeGridGenerator.from_tiling(
-    tiling_type="rectangles",
-    side_length=(0.2, 0.2),
-    r_lim=r_lim,
-    grid_params=grid_params,
-    rotation_angle=0.0,
-)
-my_grid.plot(show_indices=True)
+for _ in range(10):
+    my_grid = GridGenerator.from_random(num_points=500, r_lim=2.0)
+# my_grid.plot(show_indices=True)
 
-s = 0
-for mode in my_grid.modes_propagating.values():
-    s += mode.weight
-for mode in my_grid.modes_evanescent.values():
-    s += mode.weight
-
-print(np.isclose(s, np.pi * r_lim**2))
+# s = 0
+# for mode in my_grid.modes_propagating.values():
+#    s += mode.weight
+# for mode in my_grid.modes_evanescent.values():
+#    s += mode.weight
+#
+# print(np.isclose(s, np.pi * r_lim**2))

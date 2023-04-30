@@ -49,11 +49,10 @@ class Mode:
     def __init__(
         self,
         index: int = 0,
-        mode_boundary: npt.NDArray[Numeric] | None = None,
-        inner_circle_crossings: npt.NDArray[Numeric] | None = None,
-        outer_circle_crossings: npt.NDArray[Numeric] | None = None,
-        r_lim: float = 1.5,
-        is_polar: bool = False,
+        mode_boundary_dict: dict[
+            str, npt.NDArray[Numeric] | list[npt.NDArray[Numeric]]
+        ]
+        | None = None,
     ) -> None:
         """
         Initialises mode.
@@ -77,61 +76,48 @@ class Mode:
         """
 
         # Validate and clean up mode_boundary
-        mode_boundary = self._validate_boundary_data(
-            mode_boundary=mode_boundary, is_polar=is_polar
+        mode_boundary_dict = self._validate_boundary_dict(
+            mode_boundary_dict=mode_boundary_dict
         )
+
+        mode_boundary = mode_boundary_dict["mode_boundary"]
+        arc_points_list = mode_boundary_dict["arc_points_list"]
 
         self.index = index
         self.boundary = mode_boundary
-        self.inner_circle_crossings = inner_circle_crossings
-        self.outer_circle_crossings = outer_circle_crossings
-        self.is_polar = is_polar
-        self.r_lim = r_lim
+        self.arc_points_list = arc_points_list
 
         # Check if mode is a centro-symmetric or not
-        inverted_boundary = -mode_boundary
+        inverted_boundary = -mode_boundary  # type: ignore
         self.is_central = array_utils.is_equal_array(
-            mode_boundary, inverted_boundary
+            mode_boundary, inverted_boundary  # type: ignore
         )
 
-        self.wave_type = self._get_mode_wave_type(mode_boundary)
+        self.wave_type = self._get_mode_wave_type(mode_boundary)  # type: ignore
 
-        # Handle special cases separately
-        if is_polar:
-            polar_points = geometry_utils.cartesian_to_polar(mode_boundary)
-            r_vals = polar_points[:, 0]
-            t_vals = polar_points[:, 1]
-
-            # Discard t=0 for origin point in wedge case
-            if len(mode_boundary) == 3:
-                t_vals = t_vals[~np.isclose(r_vals, 0.0)]
-
-            r_min, r_max = np.min(r_vals), np.max(r_vals)
-            t_min, t_max = np.min(t_vals), np.max(t_vals)
-            self.t_min = t_min
-            self.t_max = t_max
-            self.r_min = r_min
-            self.r_max = r_max
-
-            dt = geometry_utils.get_small_angular_difference(t_min, t_max)
-            self.dt = dt
-
-        # Non-polar case
-        else:
-            triangulation = scipy.spatial.Delaunay(self.boundary)
-            self.triangulation = self.boundary[triangulation.simplices]
+        # triangulation = scipy.spatial.Delaunay(self.boundary)
+        # self.triangulation = self.boundary[triangulation.simplices]
 
         # Weight
-        self.weight = self._get_weight(is_polar=is_polar)
+        self.weight = self._get_weight()
 
     # --------------------------------------------------------------------------
     # Input validation and processing
     # --------------------------------------------------------------------------
 
     @staticmethod
-    def _validate_boundary_data(
-        mode_boundary: npt.NDArray[Numeric] | None, is_polar: bool
-    ) -> npt.NDArray[Numeric]:
+    def _validate_boundary_dict(
+        mode_boundary_dict: dict[
+            str, npt.NDArray[Numeric] | list[npt.NDArray[Numeric]]
+        ]
+        | None,
+    ) -> dict[str, npt.NDArray[Numeric] | list[npt.NDArray[Numeric]]]:
+        if mode_boundary_dict is None:
+            raise ValueError("No data provided to construct mode.")
+
+        mode_boundary = mode_boundary_dict["mode_boundary"]
+        arc_points_list = mode_boundary_dict["arc_points_list"]
+
         # Check that either a numpy array of points has been
         # provided and ensure that dimensions are correct
         if isinstance(mode_boundary, np.ndarray):
@@ -149,62 +135,24 @@ class Mode:
         # Remove duplicate points and order them cyclically
         mode_boundary = array_utils.remove_duplicate_points(mode_boundary)
         mode_boundary = geometry_utils.order_points(mode_boundary)
+        mode_boundary_dict["mode_boundary"] = mode_boundary
 
         num_points = len(mode_boundary)
+        num_arc_points = len(arc_points_list)
         # Check that the number of points in mode_boundary is correct
-        # Polar case
-        if is_polar:
-            points_polar = geometry_utils.cartesian_to_polar(mode_boundary)
-            r_vals = points_polar[:, 0]
-            t_vals = points_polar[:, 1]
-            r_min, r_max = np.min(r_vals), np.max(r_vals)
-            t_min, t_max = np.min(t_vals), np.max(t_vals)
 
-            # Wedge case
-            if num_points == 3:
-                is_correctly_defined_mode = np.isclose(
-                    r_min, 0.0
-                ) and not np.isclose(r_max, 0.0)
-
-                if not is_correctly_defined_mode:
-                    raise ValueError(
-                        f"Polar mode with three points must have\n"
-                        f"r_min = 0.0 and r_max > 0.0.\n"
-                        f"You have\n"
-                        f"r_min = {r_min}\n"
-                        f"r_max = {r_max}\n"
-                    )
-
-            elif num_points == 4:
-                # General polar case
-                if not np.isclose(r_min, r_max):
-                    # Check that t vals are distinct
-                    is_correctly_defined_mode = not np.isclose(t_min, t_max)
-                    if not is_correctly_defined_mode:
-                        raise ValueError(
-                            f"Non-central polar mode with four points must\n"
-                            f"have distinct t_min and t_max.\n"
-                            f"You have\n"
-                            f"t_min = {t_min}\n"
-                            f"t_max = {t_max}\n"
-                        )
-
-            # Mode is supposedly polar but not made from 3 or 4 points
-            else:
-                raise ValueError(
-                    f"A polar region must be constructed from 3\n"
-                    f"(central) or 4 points. You have {num_points}"
-                    f"points.\n"
-                )
-
-        # Genaral non-polar case
-        if not is_polar and len(mode_boundary) < 3:
+        if num_points == 2 and num_arc_points == 0:
             raise ValueError(
-                f"A non-polar region requires at least 3 points\n"
-                f"to be defined. You have {len(mode_boundary)} points.\n"
+                "A mode containing only two points must be "
+                "have arc points too. You have 0."
+            )
+        if num_points < 2:
+            raise ValueError(
+                "At least two boundary points are required to "
+                "define a mode."
             )
 
-        return mode_boundary
+        return mode_boundary_dict
 
     @staticmethod
     def _get_mode_wave_type(mode_boundary: npt.NDArray[Numeric]) -> str:
@@ -223,52 +171,56 @@ class Mode:
                 "evanescent regions of k-space. This is not allowed.\n"
             )
 
-    def _get_weight(self, is_polar: bool) -> float:
-        if is_polar:
-            num_points = len(self.boundary)
-            dt = self.dt
-            r_min = self.r_min
-            r_max = self.r_max
+    def _get_weight(self) -> float:
+        boundary_points = self.boundary
+        num_points = len(boundary_points)
+        arc_points_list = self.arc_points_list
+        num_arcs = len(arc_points_list)
 
-            if num_points == 3:
-                # Wedge case
-                weight = 0.5 * dt * r_max**2
+        base_polygon_area = 0.0
 
-            elif num_points == 4:
-                # Central circle case
-                if np.isclose(r_min, r_max):
-                    weight = np.pi * r_max**2
-                # Truncated sector (general) case
-                else:
-                    weight = 0.5 * dt * (r_max**2 - r_min**2)
-
-        else:
-            base_polygon_area = geometry_utils.get_convex_polygon_area(
-                self.boundary
+        if num_points > 2:
+            base_polygon_area += geometry_utils.get_convex_polygon_area(
+                boundary_points
             )
 
-            # Areas where polygons meet the circle
-            inner_edge_area = 0.0
-            outer_edge_area = 0.0
+        # Check if there are any arc points. If not, we're done
+        if num_arcs == 0:
+            return base_polygon_area
 
-            if self.inner_circle_crossings is not None:
-                inner_edge_area = geometry_utils.get_edge_area(
-                    points=self.inner_circle_crossings, radius=1.0
-                )
-            if self.outer_circle_crossings is not None:
-                outer_edge_area = geometry_utils.get_edge_area(
-                    points=self.outer_circle_crossings, radius=self.r_lim
-                )
+        # Sort inner and outer crossings
+        inner_crossing_list = []
+        outer_crossing_list = []
+        for arc_points in arc_points_list:
+            r_val = np.linalg.norm(arc_points[0])
+            if np.isclose(r_val, 1.0):
+                inner_crossing_list.append(arc_points)
+            else:
+                outer_crossing_list.append(arc_points)
 
-            extra_area = 0.0
+        # Areas where polygons meet the circle
+        inner_edge_area = 0.0
+        outer_edge_area = 0.0
 
-            if self.wave_type == "propagating":
-                extra_area += inner_edge_area
-            elif self.wave_type == "evanescent":
-                extra_area += outer_edge_area
-                extra_area -= inner_edge_area
+        for inner_crossing in inner_crossing_list:
+            inner_edge_area += geometry_utils.get_edge_area(
+                points=inner_crossing, radius=1.0
+            )
+        for outer_crossing in outer_crossing_list:
+            outer_edge_area += geometry_utils.get_edge_area(
+                points=outer_crossing,
+                radius=np.linalg.norm(outer_crossing[0]),  # type: ignore
+            )
 
-            weight = base_polygon_area + extra_area
+        extra_area = 0.0
+
+        if self.wave_type == "propagating":
+            extra_area += inner_edge_area
+        elif self.wave_type == "evanescent":
+            extra_area += outer_edge_area
+            extra_area -= inner_edge_area
+
+        weight = base_polygon_area + extra_area
 
         return weight  # type: ignore
 
@@ -293,12 +245,9 @@ class Mode:
         output = (
             f"Boundary vertices: \n"
             f"{self.boundary},\n"
-            f"Inner circle crossings: \n"
-            f"{self.inner_circle_crossings},\n"
-            f"Outer circle crossings: \n"
-            f"{self.outer_circle_crossings},\n"
-            f"Weight: {self.weight}"
-            f"Polar: {self.is_polar},\n"
+            f"Arc points: \n"
+            f"{self.arc_points_list}\n"
+            # f"Weight: {self.weight}\n"
             f"Wave Type: {self.wave_type},\n"
         )
         return output
@@ -337,22 +286,14 @@ class Mode:
         None
         """
 
-        if self.is_polar:
-            self._plot_polar(
-                ax=ax,
-                boundary_color=boundary_color,
-                index_color=index_color,
-                show_index=show_index,
-            )
-        else:
-            self._plot_general(
-                ax=ax,
-                boundary_color=boundary_color,
-                triangulation_color=triangulation_color,
-                index_color=index_color,
-                show_index=show_index,
-                show_triangulation=show_triangulation,
-            )
+        self._plot_general(
+            ax=ax,
+            boundary_color=boundary_color,
+            triangulation_color=triangulation_color,
+            index_color=index_color,
+            show_index=show_index,
+            show_triangulation=show_triangulation,
+        )
 
     def _plot_polar(
         self,
@@ -470,6 +411,10 @@ class Mode:
         -------
         None
         """
+        if self.wave_type == "propagating":
+            boundary_color = "red"
+        else:
+            boundary_color = "blue"
 
         if show_triangulation:
             for triangle in self.triangulation:
@@ -479,13 +424,14 @@ class Mode:
                     color=triangulation_color,
                     polygon_points=self.boundary,
                 )
+
         plotting_utils.draw_convex_polygon(
             ax,
             self.boundary,
             color=boundary_color,
-            inner_circle_crossings=self.inner_circle_crossings,
-            outer_circle_crossings=self.outer_circle_crossings,
+            arc_points_list=self.arc_points_list,
         )
+
         if show_index:
             central_coordinates = self.get_center()  # type: ignore
             x, y = central_coordinates
@@ -495,7 +441,7 @@ class Mode:
                 str(self.index),
                 ha="center",
                 va="center",
-                color=index_color,
+                color=boundary_color,
             )
 
     # -------------------------------------------------------------------------
@@ -522,30 +468,6 @@ class Mode:
         # Centro-symmetric mode. The center is just the origin.
         if self.is_central:
             center = np.array([0.0, 0.0])
-
-        # Polar case
-        elif self.is_polar:
-            r_min, r_max = self.r_min, self.r_max
-
-            # Firt get the mean t value. This requires handling funny
-            # cases where the angle wraps around 2 PI
-            t_min, t_max = self.t_min, self.t_max
-            dt = self.dt
-            if np.isclose(t_max, t_min + dt):
-                t_mean = 0.5 * (t_min + t_max)
-            else:
-                t_mean = t_max + dt / 2
-            # There are 2 cases for r, either the mode is a wedge near the
-            # origin, or it's a truncated sector.
-
-            # Wedge case
-            if len(boundary) == 3:
-                r_mean = 2 / 3 * r_max
-            elif len(boundary) == 4:
-                r_mean = 0.5 * (r_min + r_max)
-
-            center_polar = np.array([r_mean, t_mean])
-            center = geometry_utils.polar_to_cartesian(center_polar)
         else:
             center = np.mean(self.boundary, axis=0)  # type:ignore
         return center
