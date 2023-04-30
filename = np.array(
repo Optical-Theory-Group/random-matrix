@@ -1,0 +1,176 @@
+[33mcommit 432e6942c51ab0f61a355637e4f8e9d600b14810[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;32mgrid[m[33m)[m
+Author: Niall <niall081@gmail.com>
+Date:   Sun Apr 30 14:12:59 2023 +0800
+
+    fix grid generation
+
+[33mcommit ca93c04de1eb2c07a9580620cf5bad161fbd013f[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: Niall <niall081@gmail.com>
+Date:   Sat Apr 29 13:19:22 2023 +0800
+
+    Finish grid v1.0
+
+[33mcommit 270b02eb36f327d23fbb74baf738a970ae7c0780[m
+Author: Niall <niall081@gmail.com>
+Date:   Thu Apr 27 19:45:06 2023 +0800
+
+    add mode_grid_generator class. Bound modes by outer circle.
+
+[33mcommit 431379034094d79b563961bc0dbfd8627efd4929[m
+Author: Niall <niall081@gmail.com>
+Date:   Wed Apr 26 20:30:14 2023 +0800
+
+    add triangle and hexagonal tiling
+
+[33mcommit fef3d8be98291e78523003c21c87580020c8678f[m
+Author: Niall <niall081@gmail.com>
+Date:   Wed Apr 26 17:28:06 2023 +0800
+
+    test
+
+[33mcommit d3caf4411fa3a8416de948846e26edad108db5c9[m
+Author: Niall <niall081@gmail.com>
+Date:   Wed Apr 26 17:26:01 2023 +0800
+
+    add cartesian and polar generators. refactor to prepare for other shapes.
+
+[33mcommit 015b84711df9aecacbe40ebe8b2e5ad53d06a8ec[m
+Author: Niall <niall081@gmail.com>
+Date:   Tue Apr 25 18:03:03 2023 +0800
+
+    remove dollars in readme... not helpful!
+
+[33mcommit 87e0248cfb3ee199be31cb2441e196a31a08e093[m
+Author: Niall <niall081@gmail.com>
+Date:   Tue Apr 25 18:02:18 2023 +0800
+
+    refactor mode_grid constructors. Fixed bug with edge cases
+
+[33mcommit ce6a8252240d5ed25e9daa2f3d198ad92b1c00e4[m
+Author: Niall <niall081@gmail.com>
+Date:   Mon Apr 24 18:48:19 2023 +0800
+
+    Add T-Matrix code to repo in amplitude_matrix folder
+
+[33mcommit c56d1c3653fed223b7b9f644c1206ea81af2b9f2[m
+Author: Niall <niall081@gmail.com>
+Date:   Mon Apr 24 16:55:40 2023 +0800
+
+    Improve documentation. Update environment.yml. Add correct indexing for cartesian grid.
+
+[33mcommit 6b904df3da1f9324823cd1a663e9f0733af0721a[m
+Author: Niall <niall081@gmail.com>
+Date:   Sun Apr 23 15:35:56 2023 +0800
+
+    Add black formatting.
+
+[33mcommit df7215866e2dd670feee813335a96d080cdaabe1[m
+Author: Niall <niall081@gmail.com>
+Date:   Sun Apr 23 13:36:39 2023 +0800
+
+    Update environment.yml
+
+[33mcommit fd2aafd81d39557647923d4444781fbd74b1ce6d[m
+Author: Niall <niall081@gmail.com>
+Date:   Sun Apr 23 13:18:48 2023 +0800
+
+    Finish Cartesian grid generation. Improve documentation and code formatting.
+
+[33mcommit d0c3a0568ce4081e76d9c7e52022c37a21c387b4[m
+Author: Niall <niall081@gmail.com>
+Date:   Sat Apr 22 14:26:19 2023 +0800
+
+    Improve code formatting and documentation.
+
+[33mcommit 90d707e3589161d53d65ac6926abf799e48ba146[m
+Author: Niall <niall081@gmail.com>
+Date:   Fri Apr 21 17:58:17 2023 +0800
+
+    Add proper indexing for reciprocal polar grids
+
+[33mcommit cc3239c5a0bb2f52583137462c7bd037f91c9c53[m
+Author: Niall <niall081@gmail.com>
+Date:   Thu Apr 20 11:21:08 2023 +0800
+
+    remove dependencies from environments.yml
+
+[33mcommit ba6217d8b09af0e39ea1c4c3af116c67eebe2bc5[m
+Author: Niall <niall081@gmail.com>
+Date:   Wed Apr 19 17:55:30 2023 +0800
+
+    fix import issues
+
+[33mcommit 927caf60516997869c74cd2336130ae2736f05e9[m
+Author: Niall <niall081@gmail.com>
+Date:   Wed Apr 19 17:37:57 2023 +0800
+
+    Add rotated rectangle example
+
+[33mcommit a1ce45d8f3e8fff2f5b7b06c9b9a92ee6290e271[m
+Author: Niall <niall081@gmail.com>
+Date:   Wed Apr 19 16:54:13 2023 +0800
+
+    Update readme
+
+[33mcommit 3b70c1ddbb115f612486a38fa0396368c59c2369[m
+Author: Niall <niall081@gmail.com>
+Date:   Wed Apr 19 16:49:04 2023 +0800
+
+    Reorganize repository. Improve plotting functionality.
+
+[33mcommit aa2179af773128a88e4f4f6e17b7dafc899f6c77[m
+Author: Niall <niall081@gmail.com>
+Date:   Wed Apr 19 11:36:21 2023 +0800
+
+    Rename "Modes" to "ModeGrid"
+    Add t_offset to rotate mode grid
+
+[33mcommit 2456aff5ab8368b660856f27edee3f94824c4f62[m
+Author: Niall <niall081@gmail.com>
+Date:   Wed Apr 19 11:30:22 2023 +0800
+
+    Remove pycache
+
+[33mcommit 3da65baf0076bc2592ce76156a160dae60b9ca79[m
+Author: Niall <niall081@gmail.com>
+Date:   Wed Apr 19 11:25:20 2023 +0800
+
+    Optimise utility functions
+    Add polar grid generation from r_vals and t_vals arrays
+    Add polar grid plot function
+
+[33mcommit 854c2f88c0823188fadde7d19f3d60ce3ea2a2de[m
+Author: Niall <niall081@gmail.com>
+Date:   Mon Apr 17 17:36:37 2023 +0800
+
+    fix polar mode angle wrapping
+
+[33mcommit 286590ec70cf467f5ea5426bb9b292c327563ba8[m
+Author: Niall Byrnes <104827879+niall081@users.noreply.github.com>
+Date:   Mon Apr 17 11:32:34 2023 +0800
+
+    Update README.md
+
+[33mcommit ee38fb5184a5359fba628da86c5e1647a9eac171[m
+Author: Niall Byrnes <104827879+niall081@users.noreply.github.com>
+Date:   Mon Apr 17 11:27:56 2023 +0800
+
+    Update README.md
+
+[33mcommit abf4f47a1b22172bf1fc73d1ab5b95b86820a780[m
+Author: Niall <niall081@gmail.com>
+Date:   Mon Apr 17 11:23:57 2023 +0800
+
+    add installation guide
+
+[33mcommit 53341f74b50691980d3074f41eabcbe4f1af212e[m
+Author: Niall <niall081@gmail.com>
+Date:   Mon Apr 17 10:46:00 2023 +0800
+
+    add files
+
+[33mcommit 92c5a7279c5a607dd1f3af633cd985fe0764081a[m
+Author: Niall <niall081@gmail.com>
+Date:   Mon Apr 17 10:39:50 2023 +0800
+
+    first commit

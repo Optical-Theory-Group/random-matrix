@@ -4,7 +4,7 @@ In this context, a mode is defined as a non-zero, finite region of (k_x, k_y)
 space. A mode thus represents a bundle of wavevectors that light can scatter
 from or into.
 """
-
+from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -48,11 +48,8 @@ class Mode:
 
     def __init__(
         self,
+        mode_boundary_dict: dict[str, Any],
         index: int = 0,
-        mode_boundary_dict: dict[
-            str, npt.NDArray[Numeric] | list[npt.NDArray[Numeric]]
-        ]
-        | None = None,
     ) -> None:
         """
         Initialises mode.
