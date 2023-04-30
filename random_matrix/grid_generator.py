@@ -63,7 +63,7 @@ class GridGenerator:
     """
 
     # -------------------------------------------------------------------------
-    # Constructor methods
+    # Public constructor methods
     # -------------------------------------------------------------------------
 
     @classmethod
@@ -71,18 +71,61 @@ class GridGenerator:
         cls,
         tiling_type: str,
         side_length: float | tuple[float, float],
-        r_lim: float = 1.1,
+        r_lim: float = 1.2,
         rotation_angle: float = 0.0,
         translation_vector: npt.NDArray[Numeric] = np.array([0.0, 0.0]),
         grid_wave_type: str = "all",
     ) -> ModeGrid:
-        base_lattice = cls.generate_base_lattice(
+        """Generate ModeGrid from a tiling.
+
+        Creates a ModeGrid object from a periodic planar tiling.
+
+        Parameters
+        ----------
+            tiling_type : str
+                The type of tiling. Possible options are:
+
+                "triangles"
+                "rectangles"
+                "hexagons"
+
+            side_length : float or (float, float)
+                The side length of the polygons in the tiling unit cell.
+                Tiling polygons are assumed to be regular. In the case of
+                rectangles, however, a tuple describing the height and width
+                of the rectangles can be specified. If a float is given,
+                the rectangles will be squares
+            r_lim : float
+                The radial extent of the tiling pattern.
+            rotation_angle : float
+                Angle by which the grid is rotated relative to their standard
+                definitions.
+            translation_vector: numpy.array
+                Vector by which the grid will be translated relative to its
+                standard definition.
+            grid_wave_type : str
+                Determines what types of modes will be included in the grid.
+                Possible options are
+
+                "propagating"
+                "evanescent"
+                "all"
+
+        Returns
+        -------
+            ModeGrid
+                The ModeGrid object.
+        """
+
+        base_lattice: Iterator[
+            npt.NDArray[Numeric]
+        ] = cls._generate_base_lattice(
             side_length=side_length,
             tiling_type=tiling_type,
             r_lim=r_lim,
         )
 
-        mode_boundary_list = cls.generate_tiling_mode_boundary_list(
+        mode_boundary_list = cls._generate_tiling_mode_boundary_list(
             side_length=side_length,
             base_lattice=base_lattice,
             tiling_type=tiling_type,
@@ -91,9 +134,10 @@ class GridGenerator:
             translation_vector=translation_vector,
         )
 
-        return ModeGrid(
+        return cls._get_mode_grid(
             mode_boundary_list=mode_boundary_list,
             r_lim=r_lim,
+            grid_wave_type=grid_wave_type,
         )
 
     @classmethod
@@ -101,21 +145,55 @@ class GridGenerator:
         cls,
         dr: float,
         dt: float,
-        r_lim: float = 1.5,
+        r_lim: float = 1.2,
         include_central_mode: bool = True,
         rotation_angle: float = 0.0,
-        grid_params: dict[str, Any] = {},
+        translation_vector: npt.NDArray[Numeric] = np.array([0.0, 0.0]),
+        grid_wave_type: str = "all",
     ) -> ModeGrid:
+        """Generate polar grid from dr and dt.
+
+        Parameters
+        ----------
+            dr : float
+                Spacing in the radial direction.
+            dt : float
+                Spacing in the angular direction.
+            r_lim : float
+                The radial extent of the tiling pattern.
+            include_central_mode : bool
+                If True, a circle of radius dr will included at the origin.
+            rotation_angle : float
+                Angle by which the grid is rotated relative to their standard
+                definitions.
+            translation_vector: numpy.array
+                Vector by which the grid will be translated relative to its
+                standard definition.
+            grid_wave_type : str
+                Determines what types of modes will be included in the grid.
+                Possible options are
+
+                "propagating"
+                "evanescent"
+                "all"
+
+        Returns
+        -------
+            ModeGrid
+                The ModeGrid object.
+        """
+
         r_vals = np.arange(0, r_lim, dr)
         r_vals = np.append(r_vals, r_lim)
         t_vals = np.arange(0, 2 * np.pi, dt)
+
         return cls.from_rt_vals(
             r_vals=r_vals,
             t_vals=t_vals,
             include_central_mode=include_central_mode,
             rotation_angle=rotation_angle,
-            grid_params=grid_params,
-        )
+            translation_vector=translation_vector,
+        )  # type: ignore
 
     @classmethod
     def from_rt_vals(
@@ -124,45 +202,144 @@ class GridGenerator:
         t_vals: npt.NDArray[Numeric],
         include_central_mode: bool = True,
         rotation_angle: float = 0.0,
-        grid_params: dict[str, Any] = {},
+        translation_vector: npt.NDArray[Numeric] = np.array([0.0, 0.0]),
+        grid_wave_type: str = "all",
     ) -> ModeGrid:
+        """Generate polar grid from arrays of r and t values.
+
+        Parameters
+        ----------
+            r_vals : numpy.array
+                Array of radial values.
+            t_vals : numpy.array
+                Array of angular values.
+            include_central_mode : bool
+                If True, a circle of radius dr will included at the origin.
+            rotation_angle : float
+                Angle by which the grid is rotated relative to their standard
+                definitions.
+            translation_vector: numpy.array
+                Vector by which the grid will be translated relative to its
+                standard definition.
+            grid_wave_type : str
+                Determines what types of modes will be included in the grid.
+                Possible options are
+
+                "propagating"
+                "evanescent"
+                "all"
+
+        Returns
+        -------
+            ModeGrid
+                The ModeGrid object.
+        """
         # Force grid_type to be polar
-        grid_params["is_polar_grid"] = True
         r_lim = r_vals[-1]
 
-        mode_boundary_list = cls.generate_polar_mode_boundary_list(
+        mode_boundary_list = cls._generate_polar_mode_boundary_list(
             r_vals=r_vals,
             t_vals=t_vals,
             rotation_angle=rotation_angle,
             include_central_mode=include_central_mode,
         )
 
-        return ModeGrid(
-            grid_params=grid_params,
+        return cls._get_mode_grid(
             mode_boundary_list=mode_boundary_list,
             r_lim=r_lim,
+            grid_wave_type=grid_wave_type,
         )
 
     @classmethod
-    def from_dx_dy(cls):
+    def from_dx_dy(cls) -> None:
         pass
 
     @classmethod
-    def from_xy_vals(cls):
+    def from_xy_vals(cls) -> None:
         pass
 
     @classmethod
     def from_random(
         cls,
         num_points: int = 100,
-        r_lim: float = 1.5,
+        r_lim: float = 1.2,
         random_type: str = "delaunay",
         grid_wave_type: str = "all",
-    ):
+    ) -> ModeGrid:
+        """Generate ModeGrid from randomly generated modes.
+
+        Parameters
+        ----------
+            num_points : int
+                Number of randomly generated points.
+            r_lim : float
+                The radial extent of the tiling pattern.
+            random_type : str
+                The method by which the modes are randomly generated.
+                Possible options are:
+
+                "delaunay"
+
+            grid_wave_type : str
+                Determines what types of modes will be included in the grid.
+                Possible options are
+
+                "propagating"
+                "evanescent"
+                "all"
+
+        Returns
+        -------
+            ModeGrid
+                The ModeGrid object.
+        """
+
         # Get a list of mode_boundaries
-        mode_boundary_list = cls.generate_random_mode_boundary_list(
+        mode_boundary_list = cls._generate_random_mode_boundary_list(
             num_points=num_points, r_lim=r_lim, random_type=random_type
         )  # type: ignore
+
+        return cls._get_mode_grid(
+            mode_boundary_list=mode_boundary_list,
+            r_lim=r_lim,
+            grid_wave_type=grid_wave_type,
+        )
+
+    # -------------------------------------------------------------------------
+    # Private constructor methods
+    # -------------------------------------------------------------------------
+
+    @classmethod
+    def _get_mode_grid(
+        cls,
+        mode_boundary_list: Iterator[npt.NDArray[Numeric]],
+        r_lim: float,
+        grid_wave_type: str,
+    ) -> ModeGrid:
+        """Intermediate function for generating ModeGrid.
+
+        Should not be run directly. This method is used automatically
+        by the other constructor methods.
+
+        Parameters
+        ----------
+            mode_boundary_list : list[numpy.array]
+                List of arrays describing the boundaries of the modes.
+            r_lim : float
+                The radial extent of the tiling pattern.
+            grid_wave_type : str
+                Determines what types of modes will be included in the grid.
+                Possible options are
+
+                "propagating"
+                "evanescent"
+                "all"
+
+        Returns
+        -------
+            ModeGrid
+                The ModeGrid object.
+        """
 
         # Initialise mode_boundary dictionaries.
         mode_boundary_dict_list = (
@@ -173,50 +350,79 @@ class GridGenerator:
             for mode_boundary in mode_boundary_list
         )
 
-        # Check where modes cut the circles and split into separate modes.
-        mode_boundary_dict_list = cls.cut_and_filter(
+        # Check where modes cut the circles and split into
+        # separate modes.
+        mode_boundary_dict_list = cls._cut_and_filter(
             mode_boundary_dict_list=mode_boundary_dict_list,
             r_lim=r_lim,
             grid_wave_type=grid_wave_type,
-        )
+        )  # type:ignore
 
-        return cls._get_mode_grid(mode_boundary_dict_list)
-
-    @classmethod
-    def _get_mode_grid(cls, mode_boundary_dict_list):
+        # Construct mode objects from dictionary list
         mode_list = cls._get_mode_list(mode_boundary_dict_list)
-        # return ModeGrid(mode_list=mode_list)
 
-    def _get_mode_list(mode_boundary_dict_list):
-        fig, ax = plt.subplots()
-        ax.set_aspect("equal")
+        return ModeGrid(mode_list=mode_list, r_lim=r_lim)
 
-        s = 0
-        for i, mode_boundary_dict in enumerate(mode_boundary_dict_list):
-            new_mode = Mode(index=i, mode_boundary_dict=mode_boundary_dict)
-            s += new_mode.weight
-            new_mode.plot(
-                ax,
-                boundary_color="red",
-                triangulation_color="blue",
-                index_color="black",
-                show_index=False,
-            )
-            # yield new_mode
+    def _get_mode_list(
+        mode_boundary_dict_list: Iterator[dict[str, Any]]
+    ) -> Iterator[Mode]:
+        """Intermediate function for generating ModeGrid.
 
-        print(s)
-        print(np.pi * 2**2)
+        Should not be run directly. This method is used automatically
+        by the other constructor methods.
+
+        Parameters
+        ----------
+            mode_boundary_dict_list : list[dict[numpy.array]]
+                List of dictionaries describing mode boundaries as well
+                as arc_points
+
+        Returns
+        -------
+            Mode
+                A Mode object generated from the dictionaries.
+        """
+
+        for mode_boundary_dict in mode_boundary_dict_list:
+            new_mode = Mode(mode_boundary_dict=mode_boundary_dict)
+            yield new_mode
 
     # -------------------------------------------------------------------------
     # Lattice methods
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def generate_base_lattice(
+    def _generate_base_lattice(
         side_length: float | tuple[float, float],
-        tiling_type: str = "",
-        r_lim: float = 1.0,
+        tiling_type: str,
+        r_lim: float,
     ) -> Iterator[npt.NDArray[Numeric]]:
+        """Generates base lattice used in grid generation from tiling.
+
+        The base grid gives a lattice of points at which the unit cell
+        is repeated.
+
+        Parameters
+        ----------
+            mode_boundary_dict_list : list[dict[numpy.array]]
+                List of dictionaries describing mode boundaries as well
+                as arc_points
+            tiling_type : str
+                The type of tiling. Possible options are:
+
+                "triangles"
+                "rectangles"
+                "hexagons"
+
+            r_lim : float
+                The radial extent of the tiling pattern.
+
+        Returns
+        -------
+            list[numpy.array]
+                The aforementioned base lattice.
+        """
+
         s = side_length
 
         # Work out base lattice spacing based on the tiling_type
@@ -255,7 +461,7 @@ class GridGenerator:
                 yield point
 
     @classmethod
-    def generate_tiling_mode_boundary_list(
+    def _generate_tiling_mode_boundary_list(
         cls,
         side_length: float | tuple[float, float],
         base_lattice: Iterator[npt.NDArray[Numeric]],
@@ -264,9 +470,46 @@ class GridGenerator:
         rotation_angle: float,
         translation_vector: npt.NDArray[Numeric],
     ) -> Iterator[npt.NDArray[Numeric]]:
+        """Generates mode_boundaries for generation from tiling.
+
+        Given the base lattice and tiling type, this method generates
+        the list of boundaries for each individual mode.
+
+        Parameters
+        ----------
+            side_length : float or (float, float)
+                The side length of the polygons in the tiling unit cell.
+                Tiling polygons are assumed to be regular. In the case of
+                rectangles, however, a tuple describing the height and width
+                of the rectangles can be specified. If a float is given,
+                the rectangles will be squares
+            base_lattice : numpy.array
+                Lattice of points at which the unit cell is repeated.
+            tiling_type : str
+                The type of tiling. Possible options are:
+
+                "triangles"
+                "rectangles"
+                "hexagons"
+
+            r_lim : float
+                The radial extent of the tiling pattern.
+            rotation_angle : float
+                Angle by which the grid is rotated relative to their standard
+                definitions.
+            translation_vector: numpy.array
+                Vector by which the grid will be translated relative to its
+                standard definition.
+
+        Returns
+        -------
+            list[numpy.array]
+                List of mode boundaries.
+        """
+
         # Get unit cells at points in base lattice
         for point in base_lattice:
-            unit_cell = cls.generate_unit_cell(
+            unit_cell = cls._generate_unit_cell(
                 center=point, tiling_type=tiling_type, side_length=side_length
             )
 
@@ -291,25 +534,55 @@ class GridGenerator:
                 yield mode_boundary
 
     @classmethod
-    def generate_unit_cell(
+    def _generate_unit_cell(
         cls,
         center: npt.NDArray[Numeric],
         tiling_type: str,
         side_length: float | tuple[float, float],
     ) -> Iterator[npt.NDArray[Numeric]]:
+        """Generates unit cells for generation from tiling.
+
+        Generates unit cells based on the tyling type. These are then
+        reapeated at points in the base lattice.
+
+        Parameters
+        ----------
+            center : numpy.array
+                The coordinates of the center of the unit cell. These
+                values come from the base lattice.
+            tiling_type : str
+                The type of tiling. Possible options are:
+
+                "triangles"
+                "rectangles"
+                "hexagons"
+
+            side_length : float or (float, float)
+                The side length of the polygons in the tiling unit cell.
+                Tiling polygons are assumed to be regular. In the case of
+                rectangles, however, a tuple describing the height and width
+                of the rectangles can be specified. If a float is given,
+                the rectangles will be squares
+
+        Returns
+        -------
+            list[numpy.array]
+                Array containing vertices of the unit cell.
+        """
+
         match tiling_type:
             case "triangles":
-                yield from cls.generate_triangles(
+                yield from cls._generate_triangles(
                     center=center, side_length=side_length  # type: ignore
                 )
 
             case "rectangles":
-                yield from cls.generate_rectangles(
+                yield from cls._generate_rectangles(
                     center=center, side_length=side_length
                 )
 
             case "hexagons":
-                yield from cls.generate_hexagons(
+                yield from cls._generate_hexagons(
                     center=center, side_length=side_length  # type: ignore
                 )
 
@@ -317,12 +590,32 @@ class GridGenerator:
                 pass
 
     @staticmethod
-    def generate_polar_mode_boundary_list(
+    def _generate_polar_mode_boundary_list(
         r_vals: npt.NDArray[Numeric],
         t_vals: npt.NDArray[Numeric],
         include_central_mode: bool,
         rotation_angle: float,
     ) -> Iterator[npt.NDArray[Numeric]]:
+        """Generates polar mode boundaries for polar grids.
+
+        Parameters
+        ----------
+            r_vals : numpy.array
+                Array of radial values.
+            t_vals : numpy.array
+                Array of angular values.
+            include_central_mode : bool
+                If True, a circle of radius dr will included at the origin.
+            rotation_angle : float
+                Angle by which the grid is rotated relative to their standard
+                definitions.
+
+        Returns
+        -------
+            list[numpy.array]
+                Array containing vertices of the polar modes.
+        """
+
         # Reduce t values moduli 2PI for consistency
         t_vals = np.mod(t_vals, 2 * np.pi)
 
@@ -392,9 +685,29 @@ class GridGenerator:
                 yield mode_boundary
 
     @staticmethod
-    def generate_random_mode_boundary_list(
+    def _generate_random_mode_boundary_list(
         num_points: int, r_lim: float, random_type: str
     ) -> Iterator[npt.NDArray[Numeric]]:
+        """Generate mode boundaries for randomly generated grids.
+
+        Parameters
+        ----------
+            num_points : int
+                Number of randomly generated points.
+            r_lim : float
+                The radial extent of the tiling pattern.
+            random_type : str
+                The method by which the modes are randomly generated.
+                Possible options are:
+
+                "delaunay"
+
+        Returns
+        -------
+            ModeGrid
+                The vertices of the randomly generated modes.
+        """
+
         factor = 1.1
         points = np.random.uniform(
             -factor * r_lim, factor * r_lim, (num_points, 2)
@@ -421,23 +734,42 @@ class GridGenerator:
     # -------------------------------------------------------------------------
 
     @classmethod
-    def cut_and_filter(
+    def _cut_and_filter(
         cls,
-        mode_boundary_dict_list: Iterator[
-            dict[str, list[npt.NDArray[Numeric]] | npt.NDArray[Numeric]]
-        ],
+        mode_boundary_dict_list: Iterator[dict[str, Any]],
         r_lim: float,
         grid_wave_type: str,
-    ) -> Iterator[
-        dict[str, list[npt.NDArray[Numeric]] | npt.NDArray[Numeric]]
-    ]:
+    ) -> Iterator[dict[str, Any]]:
+        """Separates modes across circular boundaries and filter modes lying
+        beyond r_lim.
+
+        Parameters
+        ----------
+            mode_boundary_dict_list : list[dict]
+                List containing dictionaries for each mode.
+            r_lim : float
+                Limit beyond which modes will be filtered
+            grid_wave_type : str
+                Determines what types of modes will be included in the grid.
+                Possible options are
+
+                "propagating"
+                "evanescent"
+                "all"
+
+        Returns
+        -------
+            list[dict]
+                List of the filtered mode dictionaries.
+        """
+
         # Cut across propagating-evanescent mode boundary
-        mode_boundary_dict_list = cls.cut_by_circle(
+        mode_boundary_dict_list = cls._cut_by_circle(
             mode_boundary_dict_list, radius=1.0
         )
 
         # Cut across maximum evanescent mode radial boundary
-        mode_boundary_dict_list = cls.cut_by_circle(
+        mode_boundary_dict_list = cls._cut_by_circle(
             mode_boundary_dict_list, radius=r_lim
         )
 
@@ -462,16 +794,32 @@ class GridGenerator:
         yield from mode_boundary_dict_list
 
     @classmethod
-    def cut_by_circle(
+    def _cut_by_circle(
         cls,
-        mode_boundary_dict_list: Iterator[
-            dict[str, list[npt.NDArray[Numeric]] | npt.NDArray[Numeric]]
-        ],
+        mode_boundary_dict_list: Iterator[dict[str, Any]],
         radius: float,
-    ) -> Iterator[
-        dict[str, list[npt.NDArray[Numeric]] | npt.NDArray[Numeric]]
-    ]:
-        for z, mode_boundary_dict in enumerate(mode_boundary_dict_list):
+    ) -> Iterator[dict[str, Any]]:
+        """Core method for splitting modes across circular rings.
+
+        For a given input mode, a collection of modes that are separated by
+        a circle of r=radius are returned. Furthermore, the points at which
+        the boundary of a mode is a circular arc is recorded in the
+        arc_points_list value in the dictionaries.
+
+        Parameters
+        ----------
+            mode_boundary_dict_list : list[dict]
+                List containing initial dictionaries for each uncut mode.
+            radius : float
+                radius of the circle through which the mode will be split.
+
+        Returns
+        -------
+            list[dict]
+                Updated list of dictionaries of split modes.
+        """
+
+        for mode_boundary_dict in mode_boundary_dict_list:
             boundary_points = mode_boundary_dict["mode_boundary"]
             arc_points_list = mode_boundary_dict["arc_points_list"]
 
@@ -485,7 +833,7 @@ class GridGenerator:
             # Just return the original boundary_points. Also, there are no new
             # arcs
             if len(boundary_r_vals[boundary_r_vals > radius]) == 0:
-                yield mode_boundary_dict  # type:ignore
+                yield mode_boundary_dict
                 continue
 
             # Find all intersection points between boundary_points and the
@@ -499,7 +847,7 @@ class GridGenerator:
 
             # If there are no intersections, we also don't need to cut
             if intersection_points is None:
-                yield mode_boundary_dict  # type:ignore
+                yield mode_boundary_dict
                 continue
 
             # Combine the original points with the intersection points
@@ -532,7 +880,13 @@ class GridGenerator:
             intersection_types = cls._get_intersection_types(
                 augmented_boundary_points, radius
             )
+
             arc_indices = cls._get_circular_arc_indices(intersection_types)
+
+            # Only deflection points. No need to cut
+            if arc_indices is None:
+                yield mode_boundary_dict
+                continue
 
             # Leftover points are required to determine the left-over mode
             # once we've taken all the cut up pieces.
@@ -597,10 +951,13 @@ class GridGenerator:
             # No leftover points left. So the mode just consists of the arc
             # points
             if len(leftover_points) == 0:
-                new_mode = np.vstack(leftover_mode_arc_array)
+                new_mode = np.vstack(leftover_mode_arc_array)  # type:ignore
             else:
                 new_mode = np.vstack(
-                    (np.vstack(leftover_mode_arc_array), leftover_points)
+                    (
+                        np.vstack(leftover_mode_arc_array),  # type:ignore
+                        leftover_points,
+                    )
                 )
 
             new_mode = array_utils.remove_duplicate_points(new_mode)
@@ -614,9 +971,45 @@ class GridGenerator:
             yield new_dict
 
     @staticmethod
-    def _get_intersection_types(points, radius):
+    def _get_intersection_types(
+        points: npt.NDArray[Numeric], radius: float
+    ) -> list[str]:
+        """Intermediate method used in splitting modes across circles.
+
+        This method returns a list of strings that describe what type of
+        intersection with the circle occurs for each vertex in the
+        augmented boundary of the mode (union of original mode boundary and
+        all intersection points with the circle).
+
+        The options for the entries of this list are
+
+        "0"     No intersection at this vertex
+        "D"     Deflect: vertex lies on the boundary, but the next segment
+                moves away from the circle.
+        "C"     Cross: boundary crosses the circle at this vertex.
+        "T"     Tangent: segment is tangent to the circle at this vertex.
+
+        Parameters
+        ----------
+            points : numpy.array
+                Points in the augmented mode boundary.
+            radius : float
+                radius of the circle through which the mode will be split.
+
+        Returns
+        -------
+            list[str]
+                List containing strings as described.
+        """
+
         intersection_types = []
-        vectors = np.vstack((points[1:] - points[:-1], points[0] - points[-1]))
+        vectors = np.vstack(
+            (
+                points[1:] - points[:-1],  # type:ignore
+                points[0] - points[-1],
+            )
+        )
+
         for i, (point, vector) in enumerate(zip(points, vectors)):
             if not np.isclose(np.linalg.norm(point), radius):
                 # This point is not an inersection point
@@ -653,7 +1046,26 @@ class GridGenerator:
     @staticmethod
     def _get_circular_arc_indices(
         intersection_types: list[str],
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int]] | None:
+        """Intermediate method used in splitting modes across circles.
+
+        This method returns a list of tuples describing pairs of indices
+        for which the cut mode boundary is an arc, rather than a line segment.
+        Thus, when we later have a mode whose boundary is defined by an array
+        of 2D points, we will know which should be line segments and which
+        should be circular arcs.
+
+        Parameters
+        ----------
+            intersection_types : list[str]
+                Return of the _get_intersection_types methods.
+
+        Returns
+        -------
+            list[tuple]
+                List containing tuples as described.
+        """
+
         ignore_list = ["0", "D"]
         completed_list = []
         arc_indices = []
@@ -667,10 +1079,7 @@ class GridGenerator:
                 found = True
                 break
         if not found:
-            raise RuntimeError(
-                "WARNING: Strange edge case encountered."
-                "Please change your grid."
-            )
+            return None
 
         for j, type_last in reversed(list(enumerate(intersection_types))):
             if type_last == "C" or type_last == "T":
@@ -703,7 +1112,31 @@ class GridGenerator:
 
         return arc_indices
 
-    def _filter_by_radius(mode_boundary_dict_list, r_min, r_max):
+    def _filter_by_radius(
+        mode_boundary_dict_list: Iterator[dict[str, Any]],
+        r_min: float,
+        r_max: float,
+    ) -> Iterator[dict[str, Any]]:
+        """Method for filtering modes that lie beyond given radial limits.
+
+        Modes fully contained in the regions r < r_min and r > r_max will
+        be discarded by this method.
+
+        Parameters
+        ----------
+            mode_boundary_dict_list : list[dict]
+                List containing initial dictionaries for each uncut mode.
+            r_min : float
+                Lower limit for accepting modes.
+            r_max : float
+                Upper limit for accepting modes.
+
+        Returns
+        -------
+            list[dict]
+                Updated list of dictionaries of filtered modes.
+        """
+
         for mode_boundary_dict in mode_boundary_dict_list:
             mode_boundary = mode_boundary_dict["mode_boundary"]
             r_vals = np.linalg.norm(mode_boundary, axis=1)
@@ -731,7 +1164,7 @@ class GridGenerator:
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def generate_triangles(
+    def _generate_triangles(
         center: npt.NDArray[Numeric],
         side_length: float,
     ) -> Iterator[npt.NDArray[Numeric]]:
@@ -777,7 +1210,7 @@ class GridGenerator:
         yield np.array([[x, y], [x - s / 2, y - h], [x + s / 2, y - h]])
 
     @staticmethod
-    def generate_rectangles(
+    def _generate_rectangles(
         center: npt.NDArray[Numeric],
         side_length: float | tuple[float, float],
     ) -> Iterator[npt.NDArray[Numeric]]:
@@ -822,7 +1255,7 @@ class GridGenerator:
         )
 
     @staticmethod
-    def generate_hexagons(
+    def _generate_hexagons(
         center: npt.NDArray[Numeric],
         side_length: float,
     ) -> Iterator[npt.NDArray[Numeric]]:

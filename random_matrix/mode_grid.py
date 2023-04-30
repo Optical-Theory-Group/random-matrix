@@ -3,7 +3,7 @@
 ModeGrid acts as a generator and container for Mode objects.
 """
 
-from typing import Any, Iterable, Self
+from typing import Any, Iterator, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -58,9 +58,8 @@ class ModeGrid:
 
     def __init__(
         self,
-        grid_params: dict[str, Any],
-        r_lim: float = 1.1,
-        mode_boundary_dict_list: Iterable[npt.NDArray[Numeric]] | None = None,
+        r_lim: float,
+        mode_list: Iterator[Mode] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -90,43 +89,33 @@ class ModeGrid:
         -------
         None
         """
-        # Ensure that mode_boundary_list has been provided
-        # if mode_boundary_list is None:
-        #    raise ValueError("mode_boundary_list not provided.")
 
-        # Make sure that r_lim is greater than 1.0
-        if r_lim < 1.0:
-            raise ValueError(
-                f"Given r_lim value of {r_lim} must be at least 1.0."
-            )
+        if mode_list is None:
+            raise ValueError("Mode list not provided.")
+        
         self.r_lim = r_lim
 
-        # Parse global grid parameters contained in grid_params
-        is_polar_grid = grid_params.get("is_polar_grid", False)
-        grid_wave_type = grid_params.get("grid_wave_type", "propagating")
-        self.is_polar_grid = is_polar_grid
-        self.grid_wave_type = grid_wave_type
+        mode_list_propagating = []
+        mode_list_evanescent = []
 
-        # Handle polar case separately
-        if is_polar_grid:
-            # Polar grids may not be reciprocal. It depends on the theta
-            # values.
-            (
-                mode_list_propagating,
-                mode_list_evanescent,
-            ) = self._handle_polar_case(mode_boundary_list)
+        for mode in mode_list:
+            if mode.wave_type == "propagating":
+                mode_list_propagating.append(mode)
+            else:
+                mode_list_evanescent.append(mode)
 
+        num_modes_propagating = len(mode_list_propagating)
+        num_modes_evanescent = len(mode_list_evanescent)
+        
+        if num_modes_propagating > 0 and num_modes_evanescent > 0:
+            self.grid_wave_type = "all"
+        elif num_modes_propagating > 0:
+            self.grid_wave_type = "propagating"
         else:
-            # Cartesian grids with no translational offset from the origin
-            # are necessarily reciprocal
-            (
-                mode_list_propagating,
-                mode_list_evanescent,
-            ) = self._handle_general_case_two(mode_boundary_dict_list)
-
-        combined_modes = mode_list_propagating + mode_list_evanescent
+            self.grid_wave_type = "evanescent"
 
         # Check if resultant grid is reciprocal or not
+        combined_modes = mode_list_propagating + mode_list_evanescent
         is_reciprocal_grid = self._is_reciprocal_mode_list(combined_modes)
         self.is_reciprocal = is_reciprocal_grid
 
@@ -160,279 +149,6 @@ class ModeGrid:
     # --------------------------------------------------------------------------
     # Input validation and processing
     # --------------------------------------------------------------------------
-
-    def _handle_polar_case(
-        self, mode_boundary_list: Iterable[npt.NDArray[Numeric]]
-    ) -> tuple[list[Mode], list[Mode]]:
-        """
-        Sets up a Polar grid of modes.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
-
-        r_lim = self.r_lim
-        # Lists for storing modes
-        # Will later be converted into dictionaries
-        mode_list_propagating = []
-        mode_list_evanescent = []
-
-        for boundary_points in mode_boundary_list:
-            boundary_r_vals = np.linalg.norm(boundary_points, axis=1)
-            r_min, r_max = np.min(boundary_r_vals), np.max(boundary_r_vals)
-
-            # The mode will be propagating or evanescent depending on the
-            # values of r_min and r_max
-            is_propagating_mode = r_max < 1.0 or np.isclose(r_max, 1.0)
-            is_evanescent_mode = r_min > 1.0 or np.isclose(r_min, 1.0)
-
-            if is_propagating_mode and self.grid_wave_type in [
-                "propagating",
-                "all",
-            ]:
-                propagating_mode = Mode(
-                    mode_boundary=boundary_points, is_polar=True, r_lim=r_lim
-                )
-                mode_list_propagating.append(propagating_mode)
-
-            if is_evanescent_mode and self.grid_wave_type in [
-                "evanescent",
-                "all",
-            ]:
-                evanescent_mode = Mode(
-                    mode_boundary=boundary_points, is_polar=True, r_lim=r_lim
-                )
-                mode_list_evanescent.append(evanescent_mode)
-
-        return mode_list_propagating, mode_list_evanescent
-
-    def _handle_general_case(
-        self, mode_boundary_list: Iterable[npt.NDArray[Numeric]]
-    ) -> tuple[list[Mode], list[Mode]]:
-        """
-        Sets up a Cartesian grid of modes.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
-
-        r_lim = self.r_lim
-
-        # Lists for storing modes
-        # Will later be converted into dictionaries
-        mode_list_propagating = []
-        mode_list_evanescent = []
-
-        for boundary_points in mode_boundary_list:
-            # r_vals for all points on the boundary
-            boundary_r_vals = np.linalg.norm(boundary_points, axis=1)
-
-            # Remove points that lie on either the inner or outer circle
-            circle_points_excluded = boundary_points[
-                ~np.isclose(boundary_r_vals, 1.0)
-                & ~np.isclose(boundary_r_vals, r_lim)
-            ]
-
-            # These are the r_vals for the remaining points. These cannot
-            # include 1.0 or r_lim
-            circle_points_excluded_r_vals = np.linalg.norm(
-                circle_points_excluded, axis=1
-            )
-
-            # These points are those inside the inner circle, within the
-            # annulus and beyond the outer circle respectively
-            inner_points = circle_points_excluded[
-                circle_points_excluded_r_vals < 1.0
-            ]
-            middle_points = circle_points_excluded[
-                (circle_points_excluded_r_vals > 1.0)
-                & (circle_points_excluded_r_vals < r_lim)
-            ]
-            outer_points = circle_points_excluded[
-                circle_points_excluded_r_vals > r_lim
-            ]
-
-            # Determine if the bounary crosses the circles
-            crosses_inner_circle = len(inner_points) > 0 and (
-                len(middle_points) > 0 or len(outer_points) > 0
-            )
-            crosses_outer_circle = len(outer_points) > 0 and (
-                len(middle_points) > 0 or len(inner_points) > 0
-            )
-
-            # Get the circle intersection points
-            # r = 1.0 and r = r_lim > 1.0
-            (
-                inner_circle_points,
-                outer_circle_points,
-            ) = self._get_circle_intersections(boundary_points)
-
-            # Note that these are distinct from crosses_inner_circle
-            # and crosses_outer_circle. These allow for there to be points
-            # on the circles, even if the mode does not strictly cross
-            # the boundary
-            has_inner_circle_points = inner_circle_points is not None
-            has_outer_circle_points = outer_circle_points is not None
-
-            # Clean up circle intersections to remove unnecessary points
-            # Note that afrer this step, inner_circle_crossings and
-            # outer_circle_crossings must contained exactly 0, 1 or 2 points
-            if has_inner_circle_points and len(inner_circle_points) > 2:
-                print("Ohhhh")
-                inner_circle_points = (
-                    geometry_utils.get_angularly_separated_edge_points(
-                        inner_circle_points, radius=r_lim
-                    )
-                )
-            if has_outer_circle_points and len(outer_circle_points) > 2:
-                outer_circle_points = (
-                    geometry_utils.get_angularly_separated_edge_points(
-                        outer_circle_points, radius=r_lim
-                    )
-                )
-
-            # There are now four possible cases
-            is_propagating_mode = False
-            is_evanescent_mode = False
-            propagating_mode_inner_crossings = None
-            evanescent_mode_inner_crossings = None
-            evanescent_mode_outer_crossings = None
-
-            match crosses_inner_circle, crosses_outer_circle:
-                case True, True:
-                    # In this case we make two modes and include the outer
-                    # circle points on the evanescent mode
-                    is_propagating_mode = True
-                    propagating_mode_points = np.vstack(
-                        (inner_points, inner_circle_points)
-                    )
-                    propagating_mode_inner_crossings = inner_circle_points
-
-                    is_evanescent_mode = True
-                    evanescent_mode_points = np.vstack(
-                        (
-                            middle_points,
-                            inner_circle_points,
-                            outer_circle_points,
-                        )
-                    )
-                    evanescent_mode_inner_crossings = inner_circle_points
-                    evanescent_mode_outer_crossings = outer_circle_points
-
-                case True, False:
-                    # In this case we make two modes, but don't include the
-                    # outer circle points on the exterior_mode
-                    is_propagating_mode = True
-                    propagating_mode_points = np.vstack(
-                        (inner_points, inner_circle_points)
-                    )
-                    propagating_mode_inner_crossings = inner_circle_points
-
-                    is_evanescent_mode = True
-                    evanescent_mode_points = np.vstack(
-                        (middle_points, inner_circle_points)
-                    )
-                    evanescent_mode_inner_crossings = inner_circle_points
-
-                case False, True:
-                    # In this case we make one evanescent mode, including
-                    # the outer circle points
-                    is_evanescent_mode = True
-                    evanescent_mode_points = np.vstack(
-                        (middle_points, outer_circle_points)
-                    )
-                    evanescent_mode_outer_crossings = outer_circle_points
-
-                case False, False:
-                    # In this case we only make at most one mode, but it
-                    # depends on where the shape is. This can be determined by
-                    # any of the r_vals
-                    r = circle_points_excluded_r_vals[0]
-                    if r < 1.0:
-                        is_propagating_mode = True
-                        propagating_mode_points = inner_points
-                        # Check for case where there are points on the circle
-                        # Note that these are not crossings!
-                        if has_inner_circle_points:
-                            propagating_mode_points = np.vstack(
-                                (propagating_mode_points, inner_circle_points)
-                            )
-
-                    elif r > 1.0 and r < r_lim:
-                        is_evanescent_mode = True
-                        evanescent_mode_points = middle_points
-                        if has_inner_circle_points:
-                            evanescent_mode_points = np.vstack(
-                                (evanescent_mode_points, inner_circle_points)
-                            )
-                        if has_outer_circle_points:
-                            evanescent_mode_points = np.vstack(
-                                (evanescent_mode_points, outer_circle_points)
-                            )
-
-                    else:
-                        # Mode is completely outside of r_lim, so we ignore it
-                        continue
-
-            # Make the mode and add it to the lists
-            # Note that both modes get added in the "all" case
-            if is_propagating_mode and self.grid_wave_type in [
-                "propagating",
-                "all",
-            ]:
-                propagating_mode = Mode(
-                    mode_boundary=propagating_mode_points,
-                    inner_circle_crossings=propagating_mode_inner_crossings,
-                    outer_circle_crossings=None,
-                    r_lim=r_lim,
-                    is_polar=False,
-                )
-                mode_list_propagating.append(propagating_mode)
-
-            if is_evanescent_mode and self.grid_wave_type in [
-                "evanescent",
-                "all",
-            ]:
-                evanescent_mode = Mode(
-                    mode_boundary=evanescent_mode_points,
-                    inner_circle_crossings=evanescent_mode_inner_crossings,
-                    outer_circle_crossings=evanescent_mode_outer_crossings,
-                    r_lim=r_lim,
-                    is_polar=False,
-                )
-                mode_list_evanescent.append(evanescent_mode)
-
-        return mode_list_propagating, mode_list_evanescent
-
-    def _handle_general_case_two():
-        pass
-
-    def _get_circle_intersections(
-        self, boundary_points: npt.NDArray
-    ) -> tuple[npt.NDArray[Numeric], npt.NDArray[Numeric]]:
-        r_lim = self.r_lim
-        inner_circle_crossings = (
-            geometry_utils.get_polygon_circle_intersection_points(
-                boundary_points, skspatial.objects.Circle([0.0, 0.0], 1.0)
-            )
-        )
-        outer_circle_crossings = (
-            geometry_utils.get_polygon_circle_intersection_points(
-                boundary_points, skspatial.objects.Circle([0.0, 0.0], r_lim)
-            )
-        )
-
-        return inner_circle_crossings, outer_circle_crossings  # type: ignore
 
     def _is_reciprocal_mode_list(self, mode_list: list[Mode]) -> bool:
         for mode_index, mode in enumerate(mode_list):
@@ -634,11 +350,10 @@ class ModeGrid:
         """
 
         output = (
-            f"Polar grid: {self.is_polar_grid},\n"
             f"Reciprocal: {self.is_reciprocal},\n"
             f"Number of propagating modes: {len(self.modes_propagating)},\n"
             f"Number of evanescent modes: {len(self.modes_evanescent)},\n"
-            f"Maximum |kappa|: {self.r_lim}.\n"
+            f"Maximum |kappa|: {self.r_lim}\n"
         )
         return output
 
@@ -707,26 +422,4 @@ class ModeGrid:
 
         plotting_utils.draw_circle(ax)
         plotting_utils.draw_circle(ax, r=self.r_lim)
-
-    # --------------------------------------------------------------------------
-    # Temporary store
-    # --------------------------------------------------------------------------
-
-    @classmethod
-    def from_dr_dt(
-        cls,
-        dr: float,
-        dt: float,
-        grid_params: dict[str, Any],
-        r_lim: float = 1.0,
-    ) -> Self:
-        # Set up r and t value arrays
-        r_vals = np.arange(0.0, 2 * r_lim, dr)
-        t_vals = np.arange(0.0, 2 * np.pi, dt)
-
-        # Filter r_vals to be up to limit
-        r_vals = r_vals[np.abs(r_vals) <= r_lim]
-
-        return cls.from_rt_vals(
-            r_vals=r_vals, t_vals=t_vals, grid_params=grid_params
-        )
+        
