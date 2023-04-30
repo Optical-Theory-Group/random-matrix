@@ -60,7 +60,7 @@ class ModeGrid:
         self,
         grid_params: dict[str, Any],
         r_lim: float = 1.1,
-        mode_boundary_list: Iterable[npt.NDArray[Numeric]] | None = None,
+        mode_boundary_dict_list: Iterable[npt.NDArray[Numeric]] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -91,8 +91,8 @@ class ModeGrid:
         None
         """
         # Ensure that mode_boundary_list has been provided
-        if mode_boundary_list is None:
-            raise ValueError("mode_boundary_list not provided.")
+        # if mode_boundary_list is None:
+        #    raise ValueError("mode_boundary_list not provided.")
 
         # Make sure that r_lim is greater than 1.0
         if r_lim < 1.0:
@@ -122,7 +122,7 @@ class ModeGrid:
             (
                 mode_list_propagating,
                 mode_list_evanescent,
-            ) = self._handle_general_case(mode_boundary_list)
+            ) = self._handle_general_case_two(mode_boundary_dict_list)
 
         combined_modes = mode_list_propagating + mode_list_evanescent
 
@@ -413,6 +413,9 @@ class ModeGrid:
                 mode_list_evanescent.append(evanescent_mode)
 
         return mode_list_propagating, mode_list_evanescent
+
+    def _handle_general_case_two():
+        pass
 
     def _get_circle_intersections(
         self, boundary_points: npt.NDArray

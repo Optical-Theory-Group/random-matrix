@@ -251,33 +251,54 @@ def translate_points(
     return translated_points  # type: ignore
 
 
-def order_points(
-    points: npt.NDArray[Numeric],
-) -> npt.NDArray[Numeric]:
-    """Given a set of unordered 2D points, compute the ordered vertices of
-    their convex hull.
+# def order_points(
+#    points: npt.NDArray[Numeric],
+# ) -> npt.NDArray[Numeric]:
+#    """Given a set of unordered 2D points, compute the ordered vertices of
+#    their convex hull.
+#
+#    Parameters:
+#    ----------
+#        points : numpy.ndarray
+#            A 2D NumPy array of shape (N, 2), where N is the number of points.
+#            Each row of the array represents a 2D point, where the first and
+#            second columns contain the x and y coordinates of the point,
+#            respectively.
+#
+#    Returns:
+#    -------
+#        new_points : numpy.ndarray
+#            A 2D NumPy array of shape (M, 2), where M is the number of vertices
+#            of the convex hull. Each row of the array represents a vertex of
+#            the convex hull, in counterclockwise order.
+#
+#    """
+#
+#    hull = scipy.spatial.ConvexHull(points)
+#    vertices: npt.NDArray[np.int32] = hull.vertices
+#    new_points: npt.NDArray[Numeric] = points[vertices]
+#    return new_points
 
-    Parameters:
-    ----------
-        points : numpy.ndarray
-            A 2D NumPy array of shape (N, 2), where N is the number of points.
-            Each row of the array represents a 2D point, where the first and
-            second columns contain the x and y coordinates of the point,
-            respectively.
 
-    Returns:
-    -------
-        new_points : numpy.ndarray
-            A 2D NumPy array of shape (M, 2), where M is the number of vertices
-            of the convex hull. Each row of the array represents a vertex of
-            the convex hull, in counterclockwise order.
+def order_points(points: npt.NDArray[Numeric]) -> npt.NDArray[Numeric]:
+    x = points[:, 0]
+    y = points[:, 1]
 
-    """
+    x0 = np.mean(x)
+    y0 = np.mean(y)
+    r = np.sqrt((x - x0) ** 2 + (y - y0) ** 2)
 
-    hull = scipy.spatial.ConvexHull(points)
-    vertices: npt.NDArray[np.int32] = hull.vertices
-    new_points: npt.NDArray[Numeric] = points[vertices]
-    return new_points
+    angles = np.where(
+        (y - y0) > 0,
+        np.arccos((x - x0) / r),
+        2 * np.pi - np.arccos((x - x0) / r),
+    )
+
+    mask = np.argsort(angles)
+    x_sorted = x[mask]
+    y_sorted = y[mask]
+
+    return np.array([x_sorted, y_sorted]).T
 
 
 def get_convex_polygon_area(
