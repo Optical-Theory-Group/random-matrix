@@ -1,10 +1,10 @@
 """This module defines a "ModeGrid" class for use in scattering calculations.
 
-ModeGrid acts as a container for Mode objects.
+ModeGrid acts as a container for Mode objects. 
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Iterator, Self
+from dataclasses import dataclass, field, InitVar
+from typing import Any, Self
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,149 +15,132 @@ from random_matrix.mode import Mode
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
 
 
+@dataclass(slots=True)
 class ModeGrid:
     """A class used to represent a grid of modes.
 
-    To construct a grid, please use methods from the grid_generator module.
+    To construct a grid, please do not call this class directly, but use
+    functions from the mode_grid_generator module.
 
     Attributes
     ----------
-    modes_propagating : dict
-        A dictionary containing all of the propagating modes. Note that the
-        keys are the mode indices.
-    modes_evanescent : dict
-        A dictionary containing all of the evanescent modes. Note that the
-        keys are the mode indices.
-    t_offset : float
-        An angle used to rotate the entire grid.
-    grid_type : str
-        Used to generate special grids. Possible values are:
-
-        "cartesian", "polar", "custom".
-
-    grid_wave_type: str
-        The types of modes that are to be generated in the grid. Possible
-        values are:
-
-        "propagating", "evanescent", "all".
+        r_lim : float
+            radial extend of the grid of modes
+        mode_list : list[Mode]
+            List of modes that will be stored in the grid. Note that this list
+            is only used for initialisation. After initialisation, modes are
+            stored the "modes" dictionary.
+        is_reciprocal : bool
+            Tracks whether or not the set of modes satisfies reciprocity.
+        modes : dict
+            Main dictionary in which the modes are stored. Keys are tuples
+            of the form (index, wave_type). Note that to access modes, it is
+            advised that you use the by_index method.
+        num_propagating : int
+            Number of propagating modes. Computed when needed.
+        num_evanescent : int
+            Number of evanescent modes. Computed when needed.
 
     Methods
     -------
+        by_index
+            Obtain a mode from the grid by refernencing its index.
+            One should also specify the type of mode that is desired, i.e.
+            propagating or evanescent. Note that "p" and "e" can also be passed
+            as the second argument instead of "propagating" and "evanescent".
+        plot
+            Plots the grid of modes.
+
     """
 
-    __slots__ = (
-        "r_lim",
-        "grid_wave_type",
-        "is_reciprocal",
-        "modes_propagating",
-        "modes_evanescent",
-    )
+    r_lim: float
+
+    mode_list: InitVar[list[Mode]] = None
+
+    is_reciprocal: bool = field(init=False)
+    modes: dict[tuple[str, str], Mode] = field(init=False)
 
     # --------------------------------------------------------------------------
     # Constructor method
     # --------------------------------------------------------------------------
 
-    def __init__(
-        self,
-        r_lim: float,
-        mode_list: Iterator[Mode] | None = None,
-        **kwargs: Any,
-    ) -> None:
-        """
-        Initialises grid of modes. Please use class methods outlined above to
-        construct grids.
+    def __post_init__(self, mode_list: list[Mode]) -> None:
+        """Validates input data and sets up the mode grid"""
 
-        Parameters
-        ----------
+        self._validate_input(mode_list)
 
-            mode_boundary_list : numpy.array (generator)
-                A list containing the bounary points for each mode in the grid.
-                Generated from the ModeGridGenerator class.
-            grid_params : dict
-                A dictionary containing data that is used to generate the grid.
-                This should contain the following three key-value pairs:
-
-                "t_offset"
-                    Angle that rotates the entire grid.
-                "grid_type"
-                    Type of constructer to be used. Options are
-                    "polar", "cartesian"
-                "grid_wave_type"
-                    Type of modes to be included in the grid. Options are
-                    "propagating", "evanescent"
-
-        Returns
-        -------
-        None
-        """
-
-        if mode_list is None:
-            raise ValueError("Mode list not provided.")
-
-        self.r_lim = r_lim
-
-        mode_list_propagating = []
-        mode_list_evanescent = []
-
-        for mode in mode_list:
-            if mode.wave_type == "propagating":
-                mode_list_propagating.append(mode)
-            else:
-                mode_list_evanescent.append(mode)
-
-        num_modes_propagating = len(mode_list_propagating)
-        num_modes_evanescent = len(mode_list_evanescent)
-
-        if num_modes_propagating > 0 and num_modes_evanescent > 0:
-            self.grid_wave_type = "all"
-        elif num_modes_propagating > 0:
-            self.grid_wave_type = "propagating"
-        else:
-            self.grid_wave_type = "evanescent"
-
-        # Check if resultant grid is reciprocal or not
-        combined_modes = mode_list_propagating + mode_list_evanescent
-        is_reciprocal_grid = self._is_reciprocal_mode_list(combined_modes)
-        self.is_reciprocal = is_reciprocal_grid
-
-        # Check if the propagating portion of the modes contains a central
-        # mode or not
-        contains_central_mode = self._contains_central_mode(
-            mode_list_propagating
-        )
-
-        # Put modes in dictionaries with correct keys
-        self.modes_propagating: dict[str, Mode] = {}
-        self.modes_evanescent: dict[str, Mode] = {}
-
-        if self.grid_wave_type in ["propagating", "all"]:
-            self._set_up_mode_dictionary(
-                mode_list=mode_list_propagating,
-                list_wave_type="propagating",
-                is_reciprocal=is_reciprocal_grid,
-                contains_central_mode=contains_central_mode,
-            )
-
-        # Evanescent modes cannot contain a central mode by definition
-        if self.grid_wave_type in ["evanescent", "all"]:
-            self._set_up_mode_dictionary(
-                mode_list=mode_list_evanescent,
-                list_wave_type="evanescent",
-                is_reciprocal=is_reciprocal_grid,
-                contains_central_mode=False,
-            )
+        self.is_reciprocal = self._get_is_reciprocal(mode_list)
+        self.modes = self._get_mode_dictionary(mode_list, self.is_reciprocal)
 
     # --------------------------------------------------------------------------
     # Input validation and processing
     # --------------------------------------------------------------------------
 
-    def _is_reciprocal_mode_list(self, mode_list: list[Mode]) -> bool:
+    @staticmethod
+    def _validate_input(mode_list: list[Mode]) -> None:
+        if mode_list is None:
+            raise ValueError("Mode list not provided.")
+        if len(mode_list) == 0:
+            raise ValueError("Your mode_list is an empty list.")
+
+    @staticmethod
+    def _get_reciprocal_partner_index(
+        mode: Mode, mode_list: list[Mode]
+    ) -> int:
+        """Find the index of a mode's reciprocal partner in mode_list
+
+        Parameters
+        ----------
+        mode : Mode
+            The mode whose partner is to be found.
+        mode_list : list[Mode]
+            The whole list of modes.
+
+        Returns
+        -------
+        int
+            Index of the partner within mode_list
+        """
+
+        vertices = mode.vertices
+        for partner_index, partner in enumerate(mode_list):
+            partner_vertices = partner.vertices
+            inverted_partner_vertices = -partner_vertices
+
+            # Check that points are the same shape
+            # If not, move to the next one.
+            if np.shape(vertices) != np.shape(inverted_partner_vertices):
+                continue
+
+            # Check equality
+            if array_utils.is_equal_array(vertices, inverted_partner_vertices):
+                return partner_index
+
+        return -1
+
+    @classmethod
+    def _get_is_reciprocal(cls, mode_list: list[Mode]) -> bool:
+        """Determine whether or not the list of modes satisfies reciprocity.
+
+        Parameters
+        ----------
+        mode_list : list[Mode]
+            The list of modes.
+
+        Returns
+        -------
+        bool
+            Is the grid reciprocal?
+        """
+
         for mode_index, mode in enumerate(mode_list):
-            partner_index = self._get_reciprocal_partner_index(
+            partner_index = cls._get_reciprocal_partner_index(
                 mode=mode, mode_list=mode_list
             )
-            # If we find the partner, keep going
-            if partner_index is not None:
+
+            # If we find the partner, keep going. This will be the case if the
+            # returned index is a positive integer
+            if partner_index >= 0:
                 continue
 
             # If we haven't found a partner, it can't be a reciprocal grid
@@ -166,42 +149,33 @@ class ModeGrid:
         # If we reach here, every mode must have found a partner
         return True
 
-    @staticmethod
-    def _contains_central_mode(mode_list: list[Mode]) -> bool:
-        for mode in mode_list:
-            if mode.is_central:
-                return True
-        return False
+    @classmethod
+    def _get_reciprocal_indices(cls, mode_list: list[Mode]) -> list[int]:
+        """Get a list of indices for saving the modes in the modes dictionary.
 
-    def _get_reciprocal_partner_index(
-        self, mode: Mode, mode_list: list[Mode]
-    ) -> int | None:
-        mode_boundary = mode.vertices
-        for partner_index, partner in enumerate(mode_list):
-            partner_boundary = partner.vertices
-            inverted_partner_boundary = -partner_boundary
+        If an index is negative, e.g. -5, then modes 5 and -5 are reciprocal
+        partners.
 
-            # Check that points are the same shape
-            # If not, move to the next one.
-            if np.shape(mode_boundary) != np.shape(inverted_partner_boundary):
-                continue
+        Parameters
+        ----------
+        mode_list : list[Mode]
+            The list of modes.
 
-            # Check equality
-            if array_utils.is_equal_array(
-                mode_boundary, inverted_partner_boundary
-            ):
-                return partner_index
+        Returns
+        -------
+        list[int]
+            The list of indices
+        """
 
-        return None
-
-    def _get_reciprocal_indices(self, mode_list: list[Mode]) -> list[int]:
         # Reciprocal indices will be the indices we use later in the
         # dictionary. already_handled_modes will keep track of which
         # modes have been dealt with. In fact, this list will also tell
         # us what modes the reciprocal indices line up with
+        if len(mode_list) == 0:
+            return []
+
         reciprocal_indices = []
         already_handled_modes = []
-
         running_index = 1
 
         for mode_index, mode in enumerate(mode_list):
@@ -210,7 +184,7 @@ class ModeGrid:
                 continue
 
             # This mode is new. Find the index of its reciprocal partner
-            partner_index = self._get_reciprocal_partner_index(
+            partner_index = cls._get_reciprocal_partner_index(
                 mode=mode, mode_list=mode_list
             )
 
@@ -224,108 +198,156 @@ class ModeGrid:
                 reciprocal_indices.append(-running_index)
                 already_handled_modes.append(mode_index)
                 already_handled_modes.append(partner_index)
-
                 running_index += 1
 
         reciprocal_indices = array_utils.sort_by_reference_list(
             reciprocal_indices, already_handled_modes
         )
+
         return reciprocal_indices
 
-    def _set_up_mode_dictionary(
-        self,
+    @classmethod
+    def _get_mode_dictionary(
+        cls,
         mode_list: list[Mode],
-        list_wave_type: str,
-        is_reciprocal: bool | np.bool_,
-        contains_central_mode: bool | np.bool_,
-    ) -> None:
-        """
-        Sets up dictionaries of modes with correct indices. Note that input
-        is assumed to be from a cartesian or polar grid generation
+        is_reciprocal: bool,
+    ) -> dict[tuple[str, str], Mode]:
+        """Get a dictionary of modes with correct indices and wave_types
 
         Parameters
         ----------
         mode_list : list[Mode]
-            List of modes from cartesian or polar generators.
-        list_wave_type : str
-            Type of mode in list. Either "propagating" or "evanescent".
+            List of modes
+        is_reciprocal : bool
+            Is the grid reciprocal?
 
         Returns
         -------
-        None
+        dict
+            The dictionary that will become the "modes" attribute.
         """
 
-        if self.is_reciprocal:
-            indices = self._get_reciprocal_indices(mode_list)
+        modes = {}
+
+        (
+            mode_list_propagating,
+            mode_list_evanescent,
+        ) = cls._get_separated_mode_lists(mode_list)
+
+        if is_reciprocal:
+            indices_propagating = cls._get_reciprocal_indices(
+                mode_list_propagating,
+            )
+            indices_evanescent = cls._get_reciprocal_indices(
+                mode_list_evanescent,
+            )
+
         else:
-            # If not reciprocal, just number the modes sequentially.
-            # Negative indices are meaningless.
-            num_modes = len(mode_list)
-            indices = np.arange(1, num_modes + 1)
+            indices_propagating = range(1, len(mode_list_propagating) + 1)
+            indices_evanescent = range(1, len(mode_list_evanescent) + 1)
 
-        # Add modes to dictionary
-        for index, mode in zip(indices, mode_list):
+        for index, mode in zip(indices_propagating, mode_list_propagating):
             mode.index = index
-            self._add_mode(mode, list_wave_type)
+            modes[(str(index), "propagating")] = mode
+        for index, mode in zip(indices_evanescent, mode_list_evanescent):
+            mode.index = index
+            modes[(str(index), "evanescent")] = mode
 
-    def _add_mode(
-        self, mode: Mode, mode_wave_type: str = "propagating"
-    ) -> None:
-        """
-        Adds a new mode to the internal ModeGrid dictionaries for storage.
+        return modes
+
+    @staticmethod
+    def _get_separated_mode_lists(
+        mode_list: list[Mode],
+    ) -> tuple[list[Mode], list[Mode]]:
+        """Separate a list of modes into lists of propagating and evanescent
+        components.
 
         Parameters
         ----------
-        mode : Mode
-            The new mode that is to be added
-        mode_wave_type : str
-            The type of mode that is to be added. This determines which
-            dictionary the mode will be stored in.
+        mode_list : list[Mode]
+            List of all modes
 
         Returns
         -------
-        None
+        mode_list_propagating, mode_list_evanescent
+            Lists containing only propagating and evanescent modes.
         """
 
-        index = str(mode.index)
-        if mode_wave_type == "propagating":
-            self.modes_propagating[index] = mode
-        else:
-            self.modes_evanescent[index] = mode
-        pass
+        mode_list_propagating = [
+            mode for mode in mode_list if mode.wave_type == "propagating"
+        ]
+        mode_list_evanescent = [
+            mode for mode in mode_list if mode.wave_type == "evanescent"
+        ]
+        return mode_list_propagating, mode_list_evanescent
+
+    # -------------------------------------------------------------------------
+    # Property methods
+    # -------------------------------------------------------------------------
+
+    @property
+    def num_propagating(self) -> int:
+        propagating_modes = [
+            mode
+            for mode in self.modes.values()
+            if mode.wave_type == "propagating"
+        ]
+        return len(propagating_modes)
+
+    @property
+    def num_evanescent(self) -> int:
+        evanescent_modes = [
+            mode
+            for mode in self.modes.values()
+            if mode.wave_type == "evanescent"
+        ]
+        return len(evanescent_modes)
 
     # --------------------------------------------------------------------------
     # Public methods
     # --------------------------------------------------------------------------
 
-    def get_mode_by_index(
+    def by_index(
         self, index: str | int, mode_wave_type: str = "propagating"
     ) -> Mode | None:
-        """
-        Gets a mode from the ModeGrid dictionaries according to an input
-        index and wave type.
+        """Get a mode from "modes" dictionary
 
         Parameters
         ----------
         index : str, int
             The index of the desired mode.
         mode_wave_type : str
-            The type of mode that is to be collected. This determines which
-            dictionary the mode will be taken from.
+            The type of mode that is to be collected. Options are
+
+            "propagating" (or "p")
+            "evanescent" (or "e")
 
         Returns
         -------
         mode : Mode
-            The mode with desired index.
+            The desired mode.
         """
 
         # Stringify index for consistency. Means that the user can give an int
         # if they want
+        if not isinstance(index, (int, str)):
+            raise ValueError("index must be an integer or a string")
+
         index = str(index)
-        if mode_wave_type == "propagating":
-            mode = self.modes_propagating.get(index, None)
+
+        accepted_propagating_strings = {"p", "propagating"}
+        accepted_evanescent_strings = {"e", "evanescent"}
+
+        if mode_wave_type in accepted_propagating_strings:
+            mode = self.modes.get((index, "propagating"), None)
+        elif mode_wave_type in accepted_evanescent_strings:
+            mode = self.modes.get((index, "evanescent"), None)
         else:
-            mode = self.modes_evanescent.get(index, None)
+            raise ValueError(
+                "Unknown mode_wave_type. Please specify either "
+                "propagating or evanescent."
+            )
+
         return mode
 
     # --------------------------------------------------------------------------
@@ -335,8 +357,8 @@ class ModeGrid:
     def __str__(self) -> str:
         output = (
             f"Reciprocal: {self.is_reciprocal},\n"
-            f"Number of propagating modes: {len(self.modes_propagating)},\n"
-            f"Number of evanescent modes: {len(self.modes_evanescent)},\n"
+            f"Number of propagating modes: {self.num_propagating},\n"
+            f"Number of evanescent modes: {self.num_evanescent},\n"
             f"Maximum |kappa|: {self.r_lim}\n"
         )
         return output
@@ -378,21 +400,12 @@ class ModeGrid:
             alpha=0.5,
         )
 
-        if len(self.modes_propagating) > 0:
-            for key, mode in self.modes_propagating.items():
-                mode.plot(
-                    ax=ax,
-                    show_index=show_indices,
-                    show_triangulation=show_triangulation,
-                )
-
-        if len(self.modes_evanescent) > 0:
-            for key, mode in self.modes_evanescent.items():
-                mode.plot(
-                    ax=ax,
-                    show_index=show_indices,
-                    show_triangulation=show_triangulation,
-                )
+        for mode in self.modes.values():
+            mode.plot(
+                ax=ax,
+                show_index=show_indices,
+                show_triangulation=show_triangulation,
+            )
 
         plotting_utils.draw_circle(ax)
         plotting_utils.draw_circle(ax, r=self.r_lim)

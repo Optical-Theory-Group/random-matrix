@@ -5,7 +5,7 @@ A Python library for performing random matrix simulations of the scattering of p
 
 ## Repository Structure
 
-The core library is contained in the `random_matrix` directory, which has the following structure:
+The core library is contained in the `random_matrix/` directory, which has the following structure:
 
 ```
 random_matrix/

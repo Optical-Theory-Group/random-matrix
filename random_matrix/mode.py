@@ -5,7 +5,7 @@ space. A mode thus represents a bundle of wavevectors that light can scatter
 from or into.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from typing import NamedTuple, Optional
 
 import matplotlib.pyplot as plt
@@ -32,6 +32,10 @@ class Mode:
         than a line.
     index : int
         For keeping track of mode within a grid.
+    clean_vertices : bool
+        If True, duplicates will be removed from vertices. Points will also
+        be ordered clockwise for consistency. Note that this attribute is not
+        saved after an instance has initialised.
     is_central : bool
         True if the mode is centro-symmetric about the origin. Helps when
         setting up the grid.
@@ -54,6 +58,8 @@ class Mode:
     sides: list[NamedTuple]
     index: int = 0
 
+    clean_vertices: InitVar[bool] = False
+
     is_central: bool = field(init=False)
     wave_type: str = field(init=False)
     weight: float = field(init=False)
@@ -63,11 +69,16 @@ class Mode:
     # Constructor method
     # --------------------------------------------------------------------------
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, clean_vertices: bool) -> None:
         """Validates input data and determines computed attributes"""
 
         self._validate_input(self.vertices, self.sides)
 
+        if clean_vertices:
+            self.vertices = array_utils.remove_duplicate_points(self.vertices)
+            self.vertices = geometry_utils.order_points(self.vertices)
+
+        # Check if mode is a centro-symmetric or not
         self.is_central = self._get_is_central(self.vertices)
         self.wave_type = self._get_mode_wave_type(self.vertices)
         self.triangulation = self._get_triangulation(self.vertices)
@@ -116,6 +127,18 @@ class Mode:
 
     @staticmethod
     def _get_mode_wave_type(vertices: npt.NDArray[np.float64]) -> str:
+        """Determine whether the mode is propagating or evanescent
+
+        Parameters
+        ----------
+        vertices : np.ndarray
+            Vertices of the mode.
+
+        Returns
+        -------
+        str
+            The wave type of the mode
+        """
         r_vals = np.linalg.norm(vertices, axis=1)
         circle_points_excluded = r_vals[~np.isclose(r_vals, 1.0)]
         all_interior_points = np.all(circle_points_excluded < 1.0)

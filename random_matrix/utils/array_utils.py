@@ -1,7 +1,7 @@
 """This module contains utility functions for frequently used array
 manipulations.
 """
-import typing
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -171,6 +171,7 @@ def get_array_index(val: np.float64, array: npt.NDArray[np.float64]) -> int:
     index: int = np.where(np.isclose(array, val))[0][0]
     return index
 
+
 def get_point_index(
     point: npt.NDArray[np.float64], point_array: npt.NDArray[np.float64]
 ) -> int | None:
@@ -227,8 +228,9 @@ def vals_to_box(
 
 
 def sort_by_reference_list(
-    to_be_sorted: npt.NDArray[np.float64], reference_list: list[np.float64]
-) -> npt.NDArray[np.float64]:
+    to_be_sorted: npt.NDArray[np.float64] | list[Any],
+    reference_list: list[np.float64] | list[Any],
+) -> npt.NDArray[np.float64] | list[Any]:
     """Sort a list or array by the order of a reference list.
 
     Parameters
