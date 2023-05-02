@@ -20,7 +20,8 @@ More information about each of these methods can be found in their
 individual function documentation.
 
 We note that, excluding the aforementioned circular arcs, only grids consisting
-of convex polygons are currently supported in this class.
+of convex polygons are currently supported. Concave polygons may produce
+unexpected behaviour.
 
 """
 
@@ -37,9 +38,28 @@ from random_matrix.mode import Mode
 from random_matrix.mode_grid import ModeGrid
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
 
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Side object
+# -----------------------------------------------------------------------------
+
+"""Side object used to track which sides of a mode are arcs and which are
+lines
+
+These objects are used in _get_mode_list function, which sets up the data
+that needs to be passed to the Mode constructor. The Side object
+contains two key-value pairs
+
+    "points" : np.ndarray
+        (2,2) numpy array representing the two vertices of a side of a mode
+    "type" : str
+        What type of side it is. Options are "line" and "arc"
+"""
+
+Side = namedtuple("Side", ("points", "type"))
+
+# -----------------------------------------------------------------------------
 # Public constructor functions
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 
 def from_tiling(
@@ -164,7 +184,7 @@ def from_dr_dt(
         include_central_mode=include_central_mode,
         rotation_angle=rotation_angle,
         translation_vector=translation_vector,
-    )  # type: ignore
+    )
 
 
 def from_rt_vals(
@@ -266,7 +286,7 @@ def from_random(
     # Get a list of mode_boundaries
     vertices_list = _generate_random_vertices_list(
         num_points=num_points, r_lim=r_lim, random_type=random_type
-    )  # type: ignore
+    )
 
     return _get_mode_grid(
         vertices_list=vertices_list,
@@ -327,7 +347,7 @@ def _get_mode_grid(
     )
 
     # Construct mode objects from dictionary list
-    mode_list = _get_mode_list(mode_boundary_dict_list)
+    mode_list = list(_get_mode_list(mode_boundary_dict_list))
 
     return ModeGrid(mode_list=mode_list, r_lim=r_lim)
 
@@ -353,8 +373,6 @@ def _get_mode_list(
     """
 
     # These namedtuples keep track of whether a certain side is a line or arc
-    Side = namedtuple("Side", ("points", "type"))
-
     for mode_boundary_dict in mode_boundary_dict_list:
         vertices = mode_boundary_dict.get("vertices")
         arc_points_list = mode_boundary_dict.get("arc_points_list")
@@ -728,9 +746,7 @@ def _generate_random_vertices_list(
                 if len(region) > 0 and not -1 in region
             ]
             for region in regions:
-                poly_points.append(
-                    np.array([v.vertices[i] for i in region])
-                )
+                poly_points.append(np.array([v.vertices[i] for i in region]))
             points = poly_points
     yield from points
 
