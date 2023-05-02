@@ -4,10 +4,12 @@ Created on Thu Jun 30 16:05:19 2022
 
 @author: Matthew Foreman
 """
+
 import numpy as np
 
 
 class physical_constants:
+    
     def __init__(self):
         # Speed of light in vacuum
         self.c = 2.99792458e8
@@ -47,7 +49,7 @@ class physical_constants:
         self.Ryd = 1.0973731534e7
 
         # Avogadro number
-        self.NA = 6.0221367e23
+        NA = 6.0221367e23
 
         # Molar gas constanr
         self.R = 8.314510
@@ -70,3 +72,4 @@ class physical_constants:
 
         # Impedance of free space
         self.Z0 = self.mu0 * self.c
+    

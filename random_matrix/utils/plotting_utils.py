@@ -6,7 +6,6 @@ import numpy as np
 import numpy.typing as npt
 
 from random_matrix.utils import array_utils, geometry_utils
-from random_matrix.utils.typevars import Numeric
 
 
 def draw_ray(
@@ -90,8 +89,8 @@ def draw_circle(
 
 def draw_line(
     ax: plt.Axes,
-    start: npt.NDArray[Numeric],
-    end: npt.NDArray[Numeric],
+    start: npt.NDArray[np.float64],
+    end: npt.NDArray[np.float64],
     color: str = "black",
     linestyle: str = "-",
 ) -> None:
@@ -187,81 +186,10 @@ def draw_horizontal_chord(
     right_point = np.array([x_right, y])
     draw_line(ax, left_point, right_point, color=color, linestyle=linestyle)
 
-
-def draw_convex_polygon(
-    ax: plt.Axes,
-    points: npt.NDArray[Numeric],
-    color: str = "black",
-    linestyle: str = "-",
-    arc_points_list: list[npt.NDArray[Numeric]] = [],
-) -> None:
-    """Draws a convex polygon on the given `Axes` object.
-
-    Parameters
-    ----------
-        ax : plt.Axes
-            The `Axes` object to draw the polygon on.
-        points : Matrix[np.float32]
-            A 2D numpy array containing the vertices of the polygon. The array
-            should have shape (n, 2), where n is the number of vertices. Each
-            row should contain the x and y coordinates of a vertex,
-            respectively.
-        color : str, optional
-            The color of the lines used to draw the polygon. Defaults to
-            "black".
-        linestyle : str, optional
-            The style of the lines used to draw the polygon. Defaults to "-".
-
-    Returns
-    -------
-        None
-    """
-
-    pairs = array_utils.get_pairs(points, cyclic=True)
-
-    for first_point, second_point in pairs:
-        connection = np.array([first_point, second_point])
-
-        # Check if connection is equal to any of the arc points
-        is_arc = False
-        for arc_points in arc_points_list:
-            if array_utils.is_equal_array(connection, arc_points):
-                is_arc = True
-                break
-
-        # If it's an arc, we draw it as one
-        if is_arc:
-            radius = np.linalg.norm(connection[0])
-            thetas = geometry_utils.cartesian_to_polar(connection)[:, 1]
-            t_min = np.min(thetas)
-            t_max = np.max(thetas)
-
-            if t_max - t_min >= np.pi:
-                t_max = t_max - 2 * np.pi
-                t_min, t_max = t_max, t_min
-
-            draw_circle(
-                ax,
-                t_min=t_min,
-                t_max=t_max,
-                color=color,
-                r=radius,
-            )
-
-        else:
-            draw_line(
-                ax,
-                start=first_point,
-                end=second_point,
-                color=color,
-                linestyle=linestyle,
-            )
-
-
 def draw_interior_triangle(
     ax: plt.Axes,
-    triangle: npt.NDArray[Numeric],
-    polygon_points: npt.NDArray[Numeric],
+    triangle: npt.NDArray[np.float64],
+    polygon_points: npt.NDArray[np.float64],
     color: str = "tab:blue",
     linestyle: str = "-",
 ) -> None:

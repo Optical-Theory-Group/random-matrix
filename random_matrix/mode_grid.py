@@ -1,31 +1,24 @@
 """This module defines a "ModeGrid" class for use in scattering calculations.
 
-ModeGrid acts as a generator and container for Mode objects.
+ModeGrid acts as a container for Mode objects.
 """
 
+from dataclasses import dataclass, field
 from typing import Any, Iterator, Self
 
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import matplotlib.pyplot as plt
 import skspatial.objects
 
 from random_matrix.mode import Mode
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
-from random_matrix.utils.typevars import Numeric
 
 
 class ModeGrid:
-    """
-    A class used to represent a grid of modes. To construct a grid, please use
-    the
+    """A class used to represent a grid of modes.
 
-    from_dx_dy
-    from_xy_vals
-    from_dr_dt
-    from_rt_vals
-
-    class methods.
+    To construct a grid, please use methods from the grid_generator module.
 
     Attributes
     ----------
@@ -51,6 +44,14 @@ class ModeGrid:
     Methods
     -------
     """
+
+    __slots__ = (
+        "r_lim",
+        "grid_wave_type",
+        "is_reciprocal",
+        "modes_propagating",
+        "modes_evanescent",
+    )
 
     # --------------------------------------------------------------------------
     # Constructor method
@@ -92,7 +93,7 @@ class ModeGrid:
 
         if mode_list is None:
             raise ValueError("Mode list not provided.")
-        
+
         self.r_lim = r_lim
 
         mode_list_propagating = []
@@ -106,7 +107,7 @@ class ModeGrid:
 
         num_modes_propagating = len(mode_list_propagating)
         num_modes_evanescent = len(mode_list_evanescent)
-        
+
         if num_modes_propagating > 0 and num_modes_evanescent > 0:
             self.grid_wave_type = "all"
         elif num_modes_propagating > 0:
@@ -175,19 +176,15 @@ class ModeGrid:
     def _get_reciprocal_partner_index(
         self, mode: Mode, mode_list: list[Mode]
     ) -> int | None:
-        mode_boundary = mode.boundary
+        mode_boundary = mode.vertices
         for partner_index, partner in enumerate(mode_list):
-            partner_boundary = partner.boundary
+            partner_boundary = partner.vertices
             inverted_partner_boundary = -partner_boundary
 
             # Check that points are the same shape
             # If not, move to the next one.
             if np.shape(mode_boundary) != np.shape(inverted_partner_boundary):
                 continue
-
-            is_correct_partner = array_utils.is_equal_array(
-                mode_boundary, inverted_partner_boundary
-            )
 
             # Check equality
             if array_utils.is_equal_array(
@@ -336,19 +333,6 @@ class ModeGrid:
     # --------------------------------------------------------------------------
 
     def __str__(self) -> str:
-        """
-        Gives a helpful summary of the grid.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        output : str
-            A string summarising the grid.
-        """
-
         output = (
             f"Reciprocal: {self.is_reciprocal},\n"
             f"Number of propagating modes: {len(self.modes_propagating)},\n"
@@ -394,17 +378,10 @@ class ModeGrid:
             alpha=0.5,
         )
 
-        propagating_mode_color = "red"
-        evanescent_mode_color = "blue"
-        triangulation_color = "tab:blue"
-
         if len(self.modes_propagating) > 0:
             for key, mode in self.modes_propagating.items():
                 mode.plot(
                     ax=ax,
-                    boundary_color=propagating_mode_color,
-                    triangulation_color=triangulation_color,
-                    index_color=propagating_mode_color,
                     show_index=show_indices,
                     show_triangulation=show_triangulation,
                 )
@@ -413,13 +390,9 @@ class ModeGrid:
             for key, mode in self.modes_evanescent.items():
                 mode.plot(
                     ax=ax,
-                    boundary_color=evanescent_mode_color,
-                    triangulation_color=triangulation_color,
-                    index_color=evanescent_mode_color,
                     show_index=show_indices,
                     show_triangulation=show_triangulation,
                 )
 
         plotting_utils.draw_circle(ax)
         plotting_utils.draw_circle(ax, r=self.r_lim)
-        

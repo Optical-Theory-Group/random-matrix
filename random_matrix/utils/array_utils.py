@@ -7,13 +7,11 @@ import numpy as np
 import numpy.typing as npt
 import scipy.spatial
 
-from random_matrix.utils.typevars import Numeric
-
 
 def remove_duplicate_points(
-    points: npt.NDArray[Numeric],
+    points: npt.NDArray[np.float64],
     tolerance: float = 1e-8,
-) -> npt.NDArray[Numeric]:
+) -> npt.NDArray[np.float64]:
     """Remove duplicate points from an array of points.
 
     Parameters:
@@ -46,9 +44,9 @@ def remove_duplicate_points(
 
 
 def get_pairs(
-    points: npt.NDArray[Numeric],
+    points: npt.NDArray[np.float64],
     cyclic: bool = False,
-) -> npt.NDArray[Numeric]:
+) -> npt.NDArray[np.float64]:
     """Get sequential pairs of elements in an array.
 
     Given an array of shape (N,), or an array of 2D points stored in a (N,2)
@@ -81,7 +79,7 @@ def get_pairs(
     return pairs
 
 
-def is_in_array(val: Numeric, array: npt.NDArray[Numeric]) -> bool:
+def is_in_array(val: np.float64, array: npt.NDArray[np.float64]) -> bool:
     """Check if a given value is present in a NumPy array within a
     small tolerance.
 
@@ -104,8 +102,8 @@ def is_in_array(val: Numeric, array: npt.NDArray[Numeric]) -> bool:
 
 
 def is_equal_array(
-    first_array: npt.NDArray[Numeric],
-    second_array: npt.NDArray[Numeric],
+    first_array: npt.NDArray[np.float64],
+    second_array: npt.NDArray[np.float64],
     order_matters: bool = False,
 ) -> bool:
     """Check if two NumPy arrays of dimensions 1 or 2 are equal within a
@@ -155,7 +153,7 @@ def is_equal_array(
     return are_equal
 
 
-def get_array_index(val: Numeric, array: npt.NDArray[Numeric]) -> int:
+def get_array_index(val: np.float64, array: npt.NDArray[np.float64]) -> int:
     """Find the index of a value within a NumPy array.
 
     Parameters
@@ -173,33 +171,8 @@ def get_array_index(val: Numeric, array: npt.NDArray[Numeric]) -> int:
     index: int = np.where(np.isclose(array, val))[0][0]
     return index
 
-
-def remove_element_by_index(
-    array: npt.NDArray[Numeric], index: int
-) -> npt.NDArray[Numeric]:
-    """Remove an element from a numpy array by index.
-
-    Parameters
-    ----------
-        array : np.ndarray
-            The numpy array from which to remove an element.
-        index : int
-            The index of the element to remove.
-
-    Returns
-    -------
-        np.ndarray
-            A new numpy array with the specified element removed.
-    """
-
-    lower = array[:index]
-    upper = array[index + 1 :]
-    filtered: npt.NDArray[Numeric] = np.concatenate((lower, upper), axis=0)
-    return filtered
-
-
 def get_point_index(
-    point: npt.NDArray[Numeric], point_array: npt.NDArray[Numeric]
+    point: npt.NDArray[np.float64], point_array: npt.NDArray[np.float64]
 ) -> int | None:
     """Return the index of the first point in `point_array` that is close to
     the given `point`.
@@ -228,8 +201,8 @@ def get_point_index(
 
 
 def vals_to_box(
-    first_vals: npt.NDArray[Numeric], second_vals: npt.NDArray[Numeric]
-) -> npt.NDArray[Numeric]:
+    first_vals: npt.NDArray[np.float64], second_vals: npt.NDArray[np.float64]
+) -> npt.NDArray[np.float64]:
     """Given lists of 2 first_vals and 2 second_vals, return a list of points
     of the corresponding rectangle.
 
@@ -254,15 +227,15 @@ def vals_to_box(
 
 
 def sort_by_reference_list(
-    to_be_sorted: npt.NDArray[Numeric], reference_list: list[Numeric]
-) -> npt.NDArray[Numeric]:
+    to_be_sorted: npt.NDArray[np.float64], reference_list: list[np.float64]
+) -> npt.NDArray[np.float64]:
     """Sort a list or array by the order of a reference list.
 
     Parameters
     ----------
         to_be_sorted : numpy.ndarray
             The list or array to be sorted.
-        reference_list : List[Numeric]
+        reference_list : List[np.float64]
             The reference list used to determine the order of the sorted list.
 
     Returns

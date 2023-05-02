@@ -10,12 +10,11 @@ import scipy.spatial
 import skspatial.objects
 
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
-from random_matrix.utils.typevars import Numeric
 
 
 def get_circle_coordinate(
-    x: npt.NDArray[Numeric] | float, r: float = 1.0
-) -> npt.NDArray[Numeric] | float:
+    x: npt.NDArray[np.float64] | float, r: float = 1.0
+) -> npt.NDArray[np.float64] | float:
     """Returns the y-coordinate(s) of a point on a circle, given the
     x-coordinate(s) and radius.
 
@@ -38,8 +37,8 @@ def get_circle_coordinate(
 
 
 def cartesian_to_polar(
-    points_cartesian: npt.NDArray[Numeric],
-) -> npt.NDArray[Numeric]:
+    points_cartesian: npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
     """Convert an array of 2D points from Cartesian coordinates to polar
     coordinates.
 
@@ -74,15 +73,15 @@ def cartesian_to_polar(
     # Check if only one point is present
     nx, ny = np.shape(points_polar)
     if nx == 1:
-        lone_point: npt.NDArray[Numeric] = points_polar[0]
+        lone_point: npt.NDArray[np.float64] = points_polar[0]
         return lone_point
 
     return points_polar
 
 
 def polar_to_cartesian(
-    points_polar: npt.NDArray[Numeric],
-) -> npt.NDArray[Numeric]:
+    points_polar: npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
     """Convert an array of 2D points from polar coordinates to Cartesian
     coordinates.
 
@@ -118,7 +117,7 @@ def polar_to_cartesian(
     # Check if only one point is present
     nx, ny = np.shape(points_cartesian)
     if nx == 1:
-        lone_point: npt.NDArray[Numeric] = points_cartesian[0]
+        lone_point: npt.NDArray[np.float64] = points_cartesian[0]
         return lone_point
 
     return points_cartesian
@@ -148,7 +147,7 @@ def get_small_angular_difference(t_1: float, t_2: float) -> float:
     return dt
 
 
-def is_rectangle(points: npt.NDArray[Numeric]) -> bool:
+def is_rectangle(points: npt.NDArray[np.float64]) -> bool:
     """Determines if a set of 4 2D points form a rectangle.
 
     Parameters
@@ -190,10 +189,10 @@ def is_rectangle(points: npt.NDArray[Numeric]) -> bool:
 
 
 def rotate_points(
-    points: npt.NDArray[Numeric],
+    points: npt.NDArray[np.float64],
     rotation_angle: float,
-    axis: npt.NDArray[Numeric] = np.array([0.0, 0.0]),
-) -> npt.NDArray[Numeric]:
+    axis: npt.NDArray[np.float64] = np.array([0.0, 0.0]),
+) -> npt.NDArray[np.float64]:
     """Rotate a set of 2D points around a specified axis by a given angle.
 
     Parameters
@@ -215,16 +214,16 @@ def rotate_points(
     rotation_matrix = np.array([[c, -s], [s, c]])
     translated_points = points - axis  # type: ignore
     rotated_points = rotation_matrix @ translated_points.T
-    output: npt.NDArray[Numeric] | npt.NDArray[Numeric] = (
+    output: npt.NDArray[np.float64] | npt.NDArray[np.float64] = (
         rotated_points.T + axis
     )
     return output
 
 
 def translate_points(
-    points: npt.NDArray[Numeric],
-    translation_vector: npt.NDArray[Numeric],
-) -> npt.NDArray[Numeric]:
+    points: npt.NDArray[np.float64],
+    translation_vector: npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
     """Translate a set of 2D points by a given vector.
 
     Parameters
@@ -250,37 +249,7 @@ def translate_points(
     translated_points = points + translation_vector  # type: ignore
     return translated_points  # type: ignore
 
-
-# def order_points(
-#    points: npt.NDArray[Numeric],
-# ) -> npt.NDArray[Numeric]:
-#    """Given a set of unordered 2D points, compute the ordered vertices of
-#    their convex hull.
-#
-#    Parameters:
-#    ----------
-#        points : numpy.ndarray
-#            A 2D NumPy array of shape (N, 2), where N is the number of points.
-#            Each row of the array represents a 2D point, where the first and
-#            second columns contain the x and y coordinates of the point,
-#            respectively.
-#
-#    Returns:
-#    -------
-#        new_points : numpy.ndarray
-#            A 2D NumPy array of shape (M, 2), where M is the number of vertices
-#            of the convex hull. Each row of the array represents a vertex of
-#            the convex hull, in counterclockwise order.
-#
-#    """
-#
-#    hull = scipy.spatial.ConvexHull(points)
-#    vertices: npt.NDArray[np.int32] = hull.vertices
-#    new_points: npt.NDArray[Numeric] = points[vertices]
-#    return new_points
-
-
-def order_points(points: npt.NDArray[Numeric]) -> npt.NDArray[Numeric]:
+def order_points(points: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     x = points[:, 0]
     y = points[:, 1]
 
@@ -302,7 +271,7 @@ def order_points(points: npt.NDArray[Numeric]) -> npt.NDArray[Numeric]:
 
 
 def get_convex_polygon_area(
-    convex_hull: scipy.spatial.ConvexHull | npt.NDArray[Numeric],
+    convex_hull: scipy.spatial.ConvexHull | npt.NDArray[np.float64],
 ) -> float:
     """Compute the area of a 2D convex polygon. If a non-convex polygon is
     given, the area of its convex hull will be computed instead.
@@ -328,7 +297,7 @@ def get_convex_polygon_area(
     return area
 
 
-def get_edge_area(points: npt.NDArray[Numeric], radius: float = 1.0) -> float:
+def get_edge_area(points: npt.NDArray[np.float64], radius: float = 1.0) -> float:
     """Compute the area of a small circle segment bounded by a chord connecting
     two points lying on the circle and the arc in between.
 
@@ -354,11 +323,11 @@ def get_edge_area(points: npt.NDArray[Numeric], radius: float = 1.0) -> float:
 
 
 def get_line_segment_circle_intersection_points(
-    line_segment: npt.NDArray[Numeric],
+    line_segment: npt.NDArray[np.float64],
     circle: skspatial.objects.Circle = skspatial.objects.Circle(
         [0.0, 0.0], 1.0
     ),
-) -> npt.NDArray[Numeric] | None:
+) -> npt.NDArray[np.float64] | None:
     """Computes the intersection points between a line segment and a circle.
 
     Parameters
@@ -416,17 +385,17 @@ def get_line_segment_circle_intersection_points(
 
 
 def get_polygon_circle_intersection_points(
-    points: npt.NDArray[Numeric],
+    points: npt.NDArray[np.float64],
     circle: skspatial.objects.Circle = skspatial.objects.Circle(
         [0.0, 0.0], 1.0
     ),
-) -> npt.NDArray[Numeric] | None:
+) -> npt.NDArray[np.float64] | None:
     """Returns a matrix of intersection points between a polygon defined by its
     boundary points and a circle.
 
     Parameters
     ----------
-        points : npt.NDArray[Numeric]
+        points : npt.NDArray[np.float64]
             A 2D matrix of shape (N, 2) representing the vertices of the
             polygon.
         circle : skspatial.objects.Circle, optional
@@ -435,7 +404,7 @@ def get_polygon_circle_intersection_points(
 
     Retruns
     ----------
-        npt.NDArray[Numeric] | None
+        npt.NDArray[np.float64] | None
             A 2D matrix of shape (M, 2) representing M intersection points
             between the polygon and the circle, or None if there are
             no intersection points.
@@ -475,8 +444,8 @@ def get_polygon_circle_intersection_points(
 
 
 def get_angularly_separated_edge_points(
-    circle_points: npt.NDArray[Numeric], radius: float = 1.0
-) -> npt.NDArray[Numeric]:
+    circle_points: npt.NDArray[np.float64], radius: float = 1.0
+) -> npt.NDArray[np.float64]:
     if len(circle_points) < 3:
         raise ValueError(
             "Must be at least two circle points for "
