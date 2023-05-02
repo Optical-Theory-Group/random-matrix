@@ -4,156 +4,119 @@ In this context, a mode is defined as a non-zero, finite region of (k_x, k_y)
 space. A mode thus represents a bundle of wavevectors that light can scatter
 from or into.
 """
-from typing import Any
+
+from dataclasses import dataclass, field
+from typing import NamedTuple, Optional
+
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import scipy.spatial
 
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
-from random_matrix.utils.typevars import Numeric
 
 
+@dataclass(slots=True)
 class Mode:
-    """
-    A class used to represent a mode
+    """A class used to represent a mode.
 
     Attributes
     ----------
+    vertices : np.ndarray
+        Array of vertices that lie on the boundary of the mode.
+    sides : list[namedtuple]
+        List of namedtuples, each of which contains two attributes, namely
+        "points" and "type". "points" gives a (2,2) array containing two points
+        within vertices that are in fact the end points of an arc. This tells
+        the mode that those two points are connected by a circular arc, rather
+        than a line.
     index : int
-        The index of the mode within its container ModeGrid.
-    is_polar : bool
-        A boolean that is True if the mode is polar. Polar modes have curved
-        edges, while others are polygonal in shape.
-    points : np.ndarray
-        A numpy array of size (N,2) where N is the number of points defining
-        the boundary of the mode.
-    circle_points : np.ndarray | None
-        An array of size (2,2) containing a pair of points within the boundary
-        points that also lie on the unit circle. If no such points exist,
-        this will be None.
-    mode_wave_type: str
-        A string describing if the mode is "propagating" or "evanescent"
+        For keeping track of mode within a grid.
+    is_central : bool
+        True if the mode is centro-symmetric about the origin. Helps when
+        setting up the grid.
+    wave_type : str
+        A string describing if the mode is "propagating" or "evanescent".
+    weight : float
+        The area of the mode.
+    triangulation : np.ndarray
+        An array containing the vertices of the delaunay triangulation of the
+        mode.
 
     Methods
-    -------
+    ----------
+    plot
+        Plots the mode on a given set of axes
+
     """
 
-    circle_rtol = 1e-8
-    generic_rtol = 1e-8
+    vertices: npt.NDArray[np.float64]
+    sides: list[NamedTuple]
+    index: int = 0
+
+    is_central: bool = field(init=False)
+    wave_type: str = field(init=False)
+    weight: float = field(init=False)
+    triangulation: npt.NDArray[np.float64] = field(init=False)
 
     # --------------------------------------------------------------------------
-    # Constructor methods
+    # Constructor method
     # --------------------------------------------------------------------------
 
-    def __init__(
-        self,
-        mode_boundary_dict: dict[str, Any],
-        index: int = 0,
-    ) -> None:
-        """
-        Initialises mode.
+    def __post_init__(self) -> None:
+        """Validates input data and determines computed attributes"""
 
-        Parameters
-        ----------
-        index : int
-            The mode's index within its containing ModeGrid.
-        mode_boudnary : np.ndarray, ConvexHull
-            The boundary of the mode, defined by an array of 2D points.
-            A ConvexHull object will also be accepted.
-        is_polar : bool
-            A boolean that tells the initialiser whether or not the mode is
-            polar. If it is, it has curved edges and is treated differently.
-        is_central_mode : bool
-            True if the mode is centrosymmetric about the origin.
+        self._validate_input(self.vertices, self.sides)
 
-        Returns
-        -------
-        None
-        """
-
-        # Validate and clean up mode_boundary
-        mode_boundary_dict = self._validate_boundary_dict(
-            mode_boundary_dict=mode_boundary_dict
+        self.is_central = self._get_is_central(self.vertices)
+        self.wave_type = self._get_mode_wave_type(self.vertices)
+        self.triangulation = self._get_triangulation(self.vertices)
+        self.weight = self._get_weight(
+            self.vertices, self.sides, self.wave_type
         )
-
-        mode_boundary = mode_boundary_dict["mode_boundary"]
-        arc_points_list = mode_boundary_dict["arc_points_list"]
-
-        self.index = index
-        self.boundary = mode_boundary
-        self.arc_points_list = arc_points_list
-
-        # Check if mode is a centro-symmetric or not
-        inverted_boundary = -mode_boundary  # type: ignore
-        self.is_central = array_utils.is_equal_array(
-            mode_boundary, inverted_boundary  # type: ignore
-        )
-
-        self.wave_type = self._get_mode_wave_type(mode_boundary)  # type: ignore
-
-        # triangulation = scipy.spatial.Delaunay(self.boundary)
-        # self.triangulation = self.boundary[triangulation.simplices]
-
-        # Weight
-        self.weight = self._get_weight()
 
     # --------------------------------------------------------------------------
     # Input validation and processing
     # --------------------------------------------------------------------------
 
     @staticmethod
-    def _validate_boundary_dict(
-        mode_boundary_dict: dict[
-            str, npt.NDArray[Numeric] | list[npt.NDArray[Numeric]]
-        ]
-        | None,
-    ) -> dict[str, npt.NDArray[Numeric] | list[npt.NDArray[Numeric]]]:
-        if mode_boundary_dict is None:
-            raise ValueError("No data provided to construct mode.")
+    def _validate_input(
+        vertices: npt.NDArray[np.float64],
+        sides: list[NamedTuple],
+    ) -> None:
+        """Checks vertices and arc_points_list and throws exceptions
+        if the data is improperly given"""
 
-        mode_boundary = mode_boundary_dict["mode_boundary"]
-        arc_points_list = mode_boundary_dict["arc_points_list"]
-
-        # Check that either a numpy array of points has been
-        # provided and ensure that dimensions are correct
-        if isinstance(mode_boundary, np.ndarray):
-            if mode_boundary.ndim != 2 or mode_boundary.shape[1] != 2:
-                raise ValueError(
-                    f"mode_boundary must be a 2D array of (x,y) points.\n"
-                    f"Your array has shape {np.shape(mode_boundary)}.\n"
-                )
+        # Check types
+        if not isinstance(vertices, np.ndarray):
+            raise ValueError(
+                f"vertices must be a numpy array. "
+                f"You gave a {type(vertices)}"
+            )
         else:
+            if vertices.ndim != 2 or vertices.shape[1] != 2:
+                raise ValueError(
+                    f"vertices must be a 2D array of (x,y) points.\n"
+                    f"Your array has shape {np.shape(vertices)}.\n"
+                )
+
+        # Check that the number of points in vertices is correct
+        num_vertices = len(vertices)
+        num_arc_sides = len([side for side in sides if side.type == "arc"])
+
+        if num_vertices == 2 and num_arc_sides == 0:
             raise ValueError(
-                f"mode_boundary must be a numpy array.\n"
-                f"Yours is a {type(mode_boundary)}.\n"
+                "A mode containing only two vertices must have arc "
+                " points too. You have 0."
             )
-
-        # Remove duplicate points and order them cyclically
-        mode_boundary = array_utils.remove_duplicate_points(mode_boundary)
-        mode_boundary = geometry_utils.order_points(mode_boundary)
-        mode_boundary_dict["mode_boundary"] = mode_boundary
-
-        num_points = len(mode_boundary)
-        num_arc_points = len(arc_points_list)
-        # Check that the number of points in mode_boundary is correct
-
-        if num_points == 2 and num_arc_points == 0:
+        if num_vertices < 2:
             raise ValueError(
-                "A mode containing only two points must be "
-                "have arc points too. You have 0."
+                "At least two vertices are required to " "define a mode."
             )
-        if num_points < 2:
-            raise ValueError(
-                "At least two boundary points are required to "
-                "define a mode."
-            )
-
-        return mode_boundary_dict
 
     @staticmethod
-    def _get_mode_wave_type(mode_boundary: npt.NDArray[Numeric]) -> str:
-        r_vals = np.linalg.norm(mode_boundary, axis=1)
+    def _get_mode_wave_type(vertices: npt.NDArray[np.float64]) -> str:
+        r_vals = np.linalg.norm(vertices, axis=1)
         circle_points_excluded = r_vals[~np.isclose(r_vals, 1.0)]
         all_interior_points = np.all(circle_points_excluded < 1.0)
         all_exterior_points = np.all(circle_points_excluded > 1.0)
@@ -168,37 +131,85 @@ class Mode:
                 "evanescent regions of k-space. This is not allowed.\n"
             )
 
-    def _get_weight(self) -> float:
-        boundary_points = self.boundary
-        num_points = len(boundary_points)
-        arc_points_list = self.arc_points_list
-        num_arcs = len(arc_points_list)
+    @staticmethod
+    def _get_is_central(vertices: npt.NDArray[np.float64]) -> bool:
+        """Get a boolean telling if the mode is centro-symmetric or not
 
+        Parameters
+        ----------
+        vertices : np.ndarray
+            Vertices of the mode.
+
+        Returns
+        -------
+        is_central : bool
+            Is the mode centro-symmetric or not?
+        """
+
+        inverted_vertices = -vertices
+        is_central = array_utils.is_equal_array(vertices, inverted_vertices)
+        return is_central
+
+    @staticmethod
+    def _get_weight(
+        vertices: npt.NDArray[np.float64],
+        sides: list[NamedTuple],
+        wave_type: str,
+    ) -> float:
+        """Get the weight associated with the mode.
+
+        Parameters
+        ----------
+        vertices : np.ndarray
+            Vertices of the mode.
+        sides : list[NamedTuple]
+            Description of types of sides on boundary.
+        wave_type : str
+            The type of mode, i.e. "propagating" or "evanescent".
+
+        Returns
+        -------
+        weight : float
+            The area of the mode.
+        """
+
+        num_points = len(vertices)
+        arc_sides = [side for side in sides if side.type == "arc"]
+        num_arcs = len(arc_sides)
         base_polygon_area = 0.0
 
         if num_points > 2:
             base_polygon_area += geometry_utils.get_convex_polygon_area(
-                boundary_points
+                vertices
             )
 
         # Check if there are any arc points. If not, we're done
         if num_arcs == 0:
             return base_polygon_area
 
-        # Sort inner and outer crossings
         inner_crossing_list = []
         outer_crossing_list = []
-        for arc_points in arc_points_list:
-            r_val = np.linalg.norm(arc_points[0])
-            if np.isclose(r_val, 1.0):
-                inner_crossing_list.append(arc_points)
+
+        # All modes will have arc points on either r = 1.0 or r = r_lim from
+        # the generator functions. If there are 2 values, the minimum will be
+        # 1.0. If not, it must be a polar mode
+        r_vals = set([np.linalg.norm(side.points[0]) for side in arc_sides])
+        min_val = min(r_vals)
+        if len(r_vals) == 2 and not np.isclose(min_val, 1.0):
+            r_min = min_val
+        else:
+            r_min = 1.0  # type: ignore
+
+        for side in arc_sides:
+            r_val = np.linalg.norm(side.points[0])
+            if np.isclose(r_val, r_min):
+                inner_crossing_list.append(side.points)
             else:
-                outer_crossing_list.append(arc_points)
+                outer_crossing_list.append(side.points)
 
         # Areas where polygons meet the circle
         inner_edge_area = 0.0
         outer_edge_area = 0.0
-
         for inner_crossing in inner_crossing_list:
             inner_edge_area += geometry_utils.get_edge_area(
                 points=inner_crossing, radius=1.0
@@ -210,69 +221,74 @@ class Mode:
             )
 
         extra_area = 0.0
-
-        if self.wave_type == "propagating":
+        if wave_type == "propagating":
             extra_area += inner_edge_area
-        elif self.wave_type == "evanescent":
+        elif wave_type == "evanescent":
             extra_area += outer_edge_area
             extra_area -= inner_edge_area
-
         weight = base_polygon_area + extra_area
+        return weight
 
-        return weight  # type: ignore
+    @staticmethod
+    def _get_triangulation(
+        vertices: npt.NDArray[np.float64],
+    ) -> npt.NDArray[np.float64]:
+        """Get the delaunay triangulation of the mode.
+
+        Parameters
+        ----------
+        vertices : np.ndarray
+            Vertices of the mode.
+
+        Returns
+        -------
+        triangulation : np.ndarray
+            An array containing the vertices of the triangles in the
+            triangulation.
+        """
+
+        if len(vertices) == 2:
+            return np.empty((0, 3, 2))
+
+        triangulation_obj = scipy.spatial.Delaunay(vertices)
+        triangulation: npt.NDArray[np.float64] = vertices[
+            triangulation_obj.simplices
+        ]
+        return triangulation
 
     # --------------------------------------------------------------------------
     # Object representations
     # --------------------------------------------------------------------------
 
     def __str__(self) -> str:
-        """
-        Gives a helpful summary of the mode.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        output : str
-            A string summarising the mode.
-        """
-
         output = (
-            f"Boundary vertices: \n"
-            f"{self.boundary},\n"
-            f"Arc points: \n"
-            f"{self.arc_points_list}\n"
-            # f"Weight: {self.weight}\n"
-            f"Wave Type: {self.wave_type},\n"
+            f"Index: \n"
+            f"{self.index}\n"
+            f"Vertices: \n"
+            f"{self.vertices},\n"
+            f"Sides: \n"
+            f"{self.sides}\n"
+            f"Weight: {self.weight}\n"
+            f"Wave type: {self.wave_type},\n"
+            f"Is central: {self.is_central}\n"
         )
         return output
 
     def plot(
         self,
         ax: plt.Axes,
-        boundary_color: str,
-        triangulation_color: str,
-        index_color: str,
-        show_index: bool = False,
-        show_triangulation: bool = False,
+        triangulation_color: str = "tab:blue",
+        show_index: Optional[bool] = False,
+        show_triangulation: Optional[bool] = False,
     ) -> None:
-        """
-        Draws the mode.
+        """Draw the mode on a given axis.
 
         Parameters
         ----------
         ax : plt.Axes
             The axis on which the mode will be drawn.
-        is_solo : bool
-            Creates a new axis object if True. Allows for plotting of indivudal
-            modes. Keep false if plotting from within a ModeGrid.
-        show_guidelines : bool
-            If True, shows rays and circles that illustrate the positioning of
-            a polar mode. Does nothing for general modes.
-        mode_color : str
-            The color of the mode.
+        triangulation_color : str
+            Color that the triangles will be drawn in.
         show_index : bool
             Shows the mode's index at its center if True.
         show_triangulation : bool
@@ -283,93 +299,36 @@ class Mode:
         None
         """
 
-        self._plot_general(
-            ax=ax,
-            boundary_color=boundary_color,
-            triangulation_color=triangulation_color,
-            index_color=index_color,
-            show_index=show_index,
-            show_triangulation=show_triangulation,
-        )
+        color = "red" if self.wave_type == "propagating" else "blue"
 
-    def _plot_polar(
-        self,
-        ax: plt.Axes,
-        boundary_color: str,
-        index_color: str,
-        show_index: bool = False,
-    ) -> None:
-        """
-        Extension of plot for polar modes.
-
-        Parameters
-        ----------
-        ax : plt.Axes
-            The axis on which the mode will be drawn.
-        show_guidelines : bool
-            If True, shows rays and circles that illustrate the positioning of
-            a polar mode. Does nothing for general modes.
-        mode_color : str
-            The color of the mode.
-        show_index : bool
-            Shows the mode's index at its center if True.
-
-        Returns
-        -------
-        None
-        """
-
-        if self.is_central:
-            # mode is a small circle centred at the origin
-            small_circle_radius = self.r_max
-            plotting_utils.draw_circle(
-                ax, r=small_circle_radius, color=boundary_color
-            )
-        else:
-            # Ensure acute angle sector is taken
-            t_1 = self.t_min
-            t_2 = self.t_max
-            if self.t_max - self.t_min > np.pi:
-                t_1 = self.t_max - 2 * np.pi
-                t_2 = self.t_min
-
-            # Two side rays
-            plotting_utils.draw_ray(
-                ax,
-                theta=self.t_min,
-                r_min=self.r_min,
-                r_max=self.r_max,
-                linestyle="-",
-                color=boundary_color,
-            )
-            plotting_utils.draw_ray(
-                ax,
-                theta=self.t_max,
-                r_min=self.r_min,
-                r_max=self.r_max,
-                linestyle="-",
-                color=boundary_color,
-            )
-            # Circular parts
-            plotting_utils.draw_circle(
-                ax,
-                t_min=t_1,
-                t_max=t_2,
-                r=self.r_min,
-                linestyle="-",
-                color=boundary_color,
-            )
-            plotting_utils.draw_circle(
-                ax,
-                t_min=t_1,
-                t_max=t_2,
-                r=self.r_max,
-                linestyle="-",
-                color=boundary_color,
-            )
+        for side in self.sides:
+            connection = side.points
+            is_arc = side.type == "arc"
+            if is_arc:
+                radius = np.linalg.norm(connection[0])
+                thetas = geometry_utils.cartesian_to_polar(connection)[:, 1]
+                t_min = np.min(thetas)
+                t_max = np.max(thetas)
+                if t_max - t_min >= np.pi:
+                    t_max = t_max - 2 * np.pi
+                    t_min, t_max = t_max, t_min
+                plotting_utils.draw_circle(
+                    ax,
+                    t_min=t_min,
+                    t_max=t_max,
+                    color=color,
+                    r=radius,  # type: ignore
+                )
+            else:
+                plotting_utils.draw_line(
+                    ax,
+                    start=connection[0],
+                    end=connection[1],
+                    color=color,
+                )
 
         if show_index:
-            central_coordinates = self.get_center()  # type: ignore
+            central_coordinates = self.center
             x, y = central_coordinates
             plt.text(
                 x,
@@ -377,41 +336,8 @@ class Mode:
                 str(self.index),
                 ha="center",
                 va="center",
-                color=index_color,
+                color=color,
             )
-
-    def _plot_general(
-        self,
-        ax: plt.Axes,
-        boundary_color: str,
-        index_color: str,
-        triangulation_color: str,
-        show_index: bool = False,
-        show_triangulation: bool = False,
-    ) -> None:
-        """
-        Extension of plot for non-polar modes.
-
-        Parameters
-        ----------
-        ax : plt.Axes
-            The axis on which the mode will be drawn.
-        show_guidelines : bool
-            If True, shows rays and circles that illustrate the positioning of
-            a polar mode. Does nothing for general modes.
-        mode_color : str
-            The color of the mode.
-        show_index : bool
-            Shows the mode's index at its center if True.
-
-        Returns
-        -------
-        None
-        """
-        if self.wave_type == "propagating":
-            boundary_color = "red"
-        else:
-            boundary_color = "blue"
 
         if show_triangulation:
             for triangle in self.triangulation:
@@ -419,35 +345,16 @@ class Mode:
                     ax,
                     triangle,
                     color=triangulation_color,
-                    polygon_points=self.boundary,
+                    polygon_points=self.vertices,
                 )
-
-        plotting_utils.draw_convex_polygon(
-            ax,
-            self.boundary,
-            color=boundary_color,
-            arc_points_list=self.arc_points_list,
-        )
-
-        if show_index:
-            central_coordinates = self.get_center()  # type: ignore
-            x, y = central_coordinates
-            plt.text(
-                x,
-                y,
-                str(self.index),
-                ha="center",
-                va="center",
-                color=boundary_color,
-            )
 
     # -------------------------------------------------------------------------
     # Miscellaneous
     # -------------------------------------------------------------------------
 
-    def get_center(self) -> npt.NDArray[Numeric]:
-        """
-        Find the central coordinates of the mode. Used in plotting.
+    @property
+    def center(self) -> npt.NDArray[np.float64]:
+        """Find the central coordinates of the mode. Used in plotting.
 
         Parameters
         ----------
@@ -460,11 +367,8 @@ class Mode:
             the mode.
         """
 
-        boundary = self.boundary
-
-        # Centro-symmetric mode. The center is just the origin.
         if self.is_central:
             center = np.array([0.0, 0.0])
         else:
-            center = np.mean(self.boundary, axis=0)  # type:ignore
+            center = np.mean(self.vertices, axis=0)
         return center
