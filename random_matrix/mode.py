@@ -5,7 +5,7 @@ space. A mode thus represents a bundle of wavevectors that light can scatter
 from or into.
 """
 
-from dataclasses import dataclass, field, InitVar
+from dataclasses import InitVar, dataclass, field
 from typing import NamedTuple, Optional
 
 import matplotlib.pyplot as plt
@@ -213,19 +213,14 @@ class Mode:
         inner_crossing_list = []
         outer_crossing_list = []
 
-        # All modes will have arc points on either r = 1.0 or r = r_lim from
-        # the generator functions. If there are 2 values, the minimum will be
-        # 1.0. If not, it must be a polar mode
-        r_vals = set([np.linalg.norm(side.points[0]) for side in arc_sides])
-        min_val = min(r_vals)
-        if len(r_vals) == 2 and not np.isclose(min_val, 1.0):
-            r_min = min_val
-        else:
-            r_min = 1.0  # type: ignore
+        vertices_r_vals = set([np.linalg.norm(vertex) for vertex in vertices])
+        vertices_r_max = max(vertices_r_vals)
+        vertices_r_min = min(vertices_r_vals)
 
         for side in arc_sides:
             r_val = np.linalg.norm(side.points[0])
-            if np.isclose(r_val, r_min):
+
+            if not np.isclose(r_val, vertices_r_max):
                 inner_crossing_list.append(side.points)
             else:
                 outer_crossing_list.append(side.points)
@@ -235,20 +230,16 @@ class Mode:
         outer_edge_area = 0.0
         for inner_crossing in inner_crossing_list:
             inner_edge_area += geometry_utils.get_edge_area(
-                points=inner_crossing, radius=1.0
+                points=inner_crossing, radius=vertices_r_min
             )
         for outer_crossing in outer_crossing_list:
             outer_edge_area += geometry_utils.get_edge_area(
-                points=outer_crossing,
-                radius=np.linalg.norm(outer_crossing[0]),  # type: ignore
+                points=outer_crossing, radius=vertices_r_max
             )
 
         extra_area = 0.0
-        if wave_type == "propagating":
-            extra_area += inner_edge_area
-        elif wave_type == "evanescent":
-            extra_area += outer_edge_area
-            extra_area -= inner_edge_area
+        extra_area += outer_edge_area
+        extra_area -= inner_edge_area
         weight = base_polygon_area + extra_area
         return weight
 

@@ -3,7 +3,7 @@
 ModeGrid acts as a container for Mode objects. 
 """
 
-from dataclasses import dataclass, field, InitVar
+from dataclasses import InitVar, dataclass, field
 from typing import Any, Self
 
 import matplotlib.pyplot as plt
