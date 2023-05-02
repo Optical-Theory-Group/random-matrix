@@ -17,9 +17,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sp
 import scipy.constants
-from random_matrix.amplitude_matrix.anisotropic_tmatrix import AmatrixGenerator
 from scipy.special import hankel1, jv, lpmv
 from scipy.special.orthogonal import p_roots
+
+from random_matrix.amplitude_matrix.anisotropic_tmatrix import AmatrixGenerator
 
 plt.close("all")
 warnings.filterwarnings("ignore", message="divide by zero encountered in *")

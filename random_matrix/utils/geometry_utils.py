@@ -249,6 +249,7 @@ def translate_points(
     translated_points = points + translation_vector  # type: ignore
     return translated_points  # type: ignore
 
+
 def order_points(points: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     x = points[:, 0]
     y = points[:, 1]
@@ -297,7 +298,9 @@ def get_convex_polygon_area(
     return area
 
 
-def get_edge_area(points: npt.NDArray[np.float64], radius: float = 1.0) -> float:
+def get_edge_area(
+    points: npt.NDArray[np.float64], radius: float
+) -> float:
     """Compute the area of a small circle segment bounded by a chord connecting
     two points lying on the circle and the arc in between.
 
@@ -316,9 +319,7 @@ def get_edge_area(points: npt.NDArray[np.float64], radius: float = 1.0) -> float
     points_polar = cartesian_to_polar(points)
     t_1, t_2 = points_polar[:, 1]
     dt = get_small_angular_difference(t_1, t_2)
-    sector_area = 0.5 * dt * radius**2
-    triangle_area = 0.5 * np.sin(dt) * radius**2
-    area: float = sector_area - triangle_area
+    area = radius**2 / 2 * (dt - np.sin(dt))
     return area
 
 

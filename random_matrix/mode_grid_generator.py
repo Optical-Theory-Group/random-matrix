@@ -139,8 +139,6 @@ def from_dr_dt(
     r_lim: float = 1.2,
     include_central_mode: bool = True,
     rotation_angle: float = 0.0,
-    translation_vector: npt.NDArray[np.float64] = np.array([0.0, 0.0]),
-    grid_wave_type: str = "all",
 ) -> ModeGrid:
     """Generate polar grid from dr and dt.
 
@@ -183,7 +181,6 @@ def from_dr_dt(
         t_vals=t_vals,
         include_central_mode=include_central_mode,
         rotation_angle=rotation_angle,
-        translation_vector=translation_vector,
     )
 
 
@@ -192,8 +189,6 @@ def from_rt_vals(
     t_vals: npt.NDArray[np.float64],
     include_central_mode: bool = True,
     rotation_angle: float = 0.0,
-    translation_vector: npt.NDArray[np.float64] = np.array([0.0, 0.0]),
-    grid_wave_type: str = "all",
 ) -> ModeGrid:
     """Generate polar grid from arrays of r and t values.
 
@@ -224,21 +219,19 @@ def from_rt_vals(
         ModeGrid
             The ModeGrid object.
     """
-    # Force grid_type to be polar
-    r_lim = r_vals[-1]
+    r_lim = max(1.0, np.max(r_vals))
 
-    vertices_list = _generate_polar_vertices_list(
+    mode_boundary_dict_list = _get_polar_mode_boundary_dict_list(
         r_vals=r_vals,
         t_vals=t_vals,
         rotation_angle=rotation_angle,
         include_central_mode=include_central_mode,
     )
 
-    return _get_mode_grid(
-        vertices_list=vertices_list,
-        r_lim=r_lim,
-        grid_wave_type=grid_wave_type,
-    )
+    # Construct mode objects from dictionary list
+    mode_list = list(_get_mode_list(mode_boundary_dict_list))
+
+    return ModeGrid(mode_list=mode_list, r_lim=r_lim)
 
 
 def from_dx_dy() -> None:
@@ -599,7 +592,7 @@ def _generate_unit_cell(
             pass
 
 
-def _generate_polar_vertices_list(
+def _get_polar_mode_boundary_dict_list(
     r_vals: npt.NDArray[np.float64],
     t_vals: npt.NDArray[np.float64],
     include_central_mode: bool,
@@ -636,7 +629,7 @@ def _generate_polar_vertices_list(
 
     # Check that 0.0 and 2PI are in t_vals. If not, add them
     if not array_utils.is_in_array(0.0, t_vals):  # type: ignore
-        t_vals = np.concatenate(t_vals, 0.0)  # type: ignore
+        t_vals = np.append(t_vals, 0.0)
     if not array_utils.is_in_array(2 * np.pi, t_vals):  # type: ignore
         t_vals = np.append(t_vals, 2 * np.pi)
 
@@ -649,49 +642,58 @@ def _generate_polar_vertices_list(
     r_central = r_vals[1]
     # Handle central mode case
     if include_central_mode:
-        yield np.array(
+        vertices = np.array(
             [
                 [r_central, 0.0],
-                [-r_central, 0.0],
                 [0.0, r_central],
+                [-r_central, 0.0],
                 [0.0, -r_central],
             ]
         )
+
+        arc_points_list = list(array_utils.get_pairs(vertices, cyclic=True))
+        new_mode_boundary_dict = {
+            "vertices": vertices,
+            "arc_points_list": arc_points_list,
+        }
+        yield new_mode_boundary_dict
+
     else:
         # Get wedges
         for t_1, t_2 in array_utils.get_pairs(t_vals):
-            mode_boundary_polar = np.array(
+            vertices_polar = np.array(
                 [[0.0, 0.0], [r_central, t_1], [r_central, t_2]]
             )
-            mode_boundary = geometry_utils.polar_to_cartesian(
-                mode_boundary_polar
-            )
-            # Rotate according to the provided rotation angle
-            mode_boundary = geometry_utils.rotate_points(
-                mode_boundary, rotation_angle
-            )
+            vertices = geometry_utils.polar_to_cartesian(vertices_polar)
 
-            mode_boundary = geometry_utils.order_points(mode_boundary)
-            yield mode_boundary
+            # Rotate according to the provided rotation angle
+            vertices = geometry_utils.rotate_points(vertices, rotation_angle)
+
+            arc_points_list = [vertices[1:]]
+            new_mode_boundary_dict = {
+                "vertices": vertices,
+                "arc_points_list": arc_points_list,
+            }
+            yield new_mode_boundary_dict
 
     # All modes beyond the central ones
     # Get rid of 0 from the r_vals list
     r_vals = r_vals[1:]
     for r_1, r_2 in array_utils.get_pairs(r_vals):
         for t_1, t_2 in array_utils.get_pairs(t_vals):
-            mode_boundary_polar = np.array(
-                [[r_1, t_1], [r_1, t_2], [r_2, t_1], [r_2, t_2]]
+            vertices_polar = np.array(
+                [[r_1, t_1], [r_1, t_2], [r_2, t_2], [r_2, t_1]]
             )
-            mode_boundary = geometry_utils.polar_to_cartesian(
-                mode_boundary_polar
-            )
+            vertices = geometry_utils.polar_to_cartesian(vertices_polar)
             # Rotate according to the provided rotation angle
-            mode_boundary = geometry_utils.rotate_points(
-                mode_boundary, rotation_angle
-            )
+            vertices = geometry_utils.rotate_points(vertices, rotation_angle)
 
-            mode_boundary = geometry_utils.order_points(mode_boundary)
-            yield mode_boundary
+            arc_points_list = [vertices[0:2], vertices[2:]]
+            new_mode_boundary_dict = {
+                "vertices": vertices,
+                "arc_points_list": arc_points_list,
+            }
+            yield new_mode_boundary_dict
 
 
 def _generate_random_vertices_list(
