@@ -290,7 +290,8 @@ class Mode:
 
     def plot(
         self,
-        ax: plt.Axes,
+        ax: plt.Axes = None,
+        is_solo: bool = True,
         triangulation_color: str = "tab:blue",
         show_index: Optional[bool] = False,
         show_triangulation: Optional[bool] = False,
@@ -314,6 +315,10 @@ class Mode:
         """
 
         color = "red" if self.wave_type == "propagating" else "blue"
+
+        if is_solo:
+            fig, ax = plt.subplots()
+            ax.set_aspect("equal")
 
         for side in self.sides:
             connection = side.points

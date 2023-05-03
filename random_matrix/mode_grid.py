@@ -403,6 +403,7 @@ class ModeGrid:
         for mode in self.modes.values():
             mode.plot(
                 ax=ax,
+                is_solo=False,
                 show_index=show_indices,
                 show_triangulation=show_triangulation,
             )
