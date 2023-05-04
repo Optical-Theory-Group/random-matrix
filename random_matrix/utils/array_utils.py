@@ -1,6 +1,5 @@
-"""This module contains utility functions for frequently used array
-manipulations.
-"""
+"""Utility functions for frequently used array manipulations."""
+
 from typing import Any
 
 import numpy as np

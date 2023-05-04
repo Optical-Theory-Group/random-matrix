@@ -1,6 +1,6 @@
-"""This module defines a "ModeGrid" class for use in scattering calculations.
+"""ModeGrid class for use in scattering calculations.
 
-ModeGrid acts as a container for Mode objects. 
+ModeGrid serves as a container for Mode objects.
 """
 
 from dataclasses import InitVar, dataclass, field
@@ -28,14 +28,16 @@ class ModeGrid:
             radial extend of the grid of modes
         mode_list : list[Mode]
             List of modes that will be stored in the grid. Note that this list
-            is only used for initialisation. After initialisation, modes are
-            stored the "modes" dictionary.
+            is only used for initialising objects. After an objet has been
+            created, modes are stored the "modes" attribute.
         is_reciprocal : bool
             Tracks whether or not the set of modes satisfies reciprocity.
         modes : dict
             Main dictionary in which the modes are stored. Keys are tuples
-            of the form (index, wave_type). Note that to access modes, it is
-            advised that you use the by_index method.
+            of the form (index, wave_type).
+
+            N.B.
+            To access modes, it is advised that you use the by_index method.
         num_propagating : int
             Number of propagating modes. Computed when needed.
         num_evanescent : int
@@ -44,8 +46,9 @@ class ModeGrid:
     Methods
     -------
         by_index
-            Obtain a mode from the grid by refernencing its index.
-            One should also specify the type of mode that is desired, i.e.
+            Obtain a mode from the grid by refernencing its index. Since
+            indices for propagating and evanescent waves are independent, one
+            should also specify the type of mode that is desired, i.e.
             propagating or evanescent. Note that "p" and "e" can also be passed
             as the second argument instead of "propagating" and "evanescent".
         plot

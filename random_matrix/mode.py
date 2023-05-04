@@ -1,4 +1,4 @@
-"""This module defines a "Mode" class for use in scattering calculations.
+"""Mode class for use in scattering calculations.
 
 In this context, a mode is defined as a non-zero, finite region of (k_x, k_y)
 space. A mode thus represents a bundle of wavevectors that light can scatter
@@ -25,17 +25,18 @@ class Mode:
     vertices : np.ndarray
         Array of vertices that lie on the boundary of the mode.
     sides : list[namedtuple]
-        List of namedtuples, each of which contains two attributes, namely
-        "points" and "type". "points" gives a (2,2) array containing two points
-        within vertices that are in fact the end points of an arc. This tells
-        the mode that those two points are connected by a circular arc, rather
-        than a line.
+        List of namedtuples (Side), each of which represents a side of the
+        mode's boundary. Each Side contains two attributes, namely
+        "points" and "type". "points" is a (2,2) array that contains the two
+        end points of the side. "type", which is either "line" or "arc"
+        describes whether the side is a straight line between the two points,
+        or a circular arc between them.
     index : int
-        For keeping track of mode within a grid.
+        Keeps track of the mode mode within a ModeGrid object.
     clean_vertices : bool
         If True, duplicates will be removed from vertices. Points will also
         be ordered clockwise for consistency. Note that this attribute is not
-        saved after an instance has initialised.
+        saved after an instance has been created.
     is_central : bool
         True if the mode is centro-symmetric about the origin. Helps when
         setting up the grid.
@@ -45,7 +46,7 @@ class Mode:
         The area of the mode.
     triangulation : np.ndarray
         An array containing the vertices of the delaunay triangulation of the
-        mode.
+        mode. Used for integration.
 
     Methods
     ----------
