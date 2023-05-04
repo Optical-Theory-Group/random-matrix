@@ -30,8 +30,8 @@ def get_circle_coordinate(
             to the input x-coordinate(s).
     """
 
-    output = np.sqrt(r * r - x * x)  # type: ignore
-    return output  # type: ignore
+    output = np.sqrt(r * r - x * x)
+    return output
 
 
 def cartesian_to_polar(
@@ -210,7 +210,7 @@ def rotate_points(
 
     c, s = np.cos(rotation_angle), np.sin(rotation_angle)
     rotation_matrix = np.array([[c, -s], [s, c]])
-    translated_points = points - axis  # type: ignore
+    translated_points = points - axis
     rotated_points = rotation_matrix @ translated_points.T
     output: npt.NDArray[np.float64] | npt.NDArray[np.float64] = (
         rotated_points.T + axis
@@ -244,8 +244,8 @@ def translate_points(
             "Dimension of point and translation vector do not " "match"
         )
 
-    translated_points = points + translation_vector  # type: ignore
-    return translated_points  # type: ignore
+    translated_points = points + translation_vector
+    return translated_points
 
 
 def order_points(points: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
@@ -296,7 +296,9 @@ def get_convex_polygon_area(
     return area
 
 
-def get_edge_area(points: npt.NDArray[np.float64], radius: float) -> float:
+def get_edge_area(
+    points: npt.NDArray[np.float64], radius: np.float64
+) -> np.float64:
     """Compute the area of a small circle segment bounded by a chord connecting
     two points lying on the circle and the arc in between.
 
@@ -315,7 +317,7 @@ def get_edge_area(points: npt.NDArray[np.float64], radius: float) -> float:
     points_polar = cartesian_to_polar(points)
     t_1, t_2 = points_polar[:, 1]
     dt = get_small_angular_difference(t_1, t_2)
-    area = radius**2 / 2 * (dt - np.sin(dt))
+    area: np.float64 = radius**2 / 2 * (dt - np.sin(dt))
     return area
 
 
@@ -410,7 +412,7 @@ def get_polygon_circle_intersection_points(
     # Order points to avoid possible bugs
     points = order_points(points)
 
-    intersection_points = np.empty((0, 2), dtype=np.float32)
+    intersection_points = np.empty((0, 2), dtype=np.float64)
 
     # First, check if vertices lie on the circle. If so add them.
     # The intersection method doesn't always capture these.
@@ -437,7 +439,7 @@ def get_polygon_circle_intersection_points(
         intersection_points = array_utils.remove_duplicate_points(
             intersection_points
         )
-        return intersection_points  # type: ignore
+        return intersection_points
 
 
 def get_angularly_separated_edge_points(
@@ -451,7 +453,7 @@ def get_angularly_separated_edge_points(
 
     original_points = np.copy(circle_points)
     # Get points that are in the upper semi-circle
-    positive_points_indices = circle_points[:, 1] >= 0.0  # type: ignore
+    positive_points_indices = circle_points[:, 1] >= 0.0
     positive_points = circle_points[positive_points_indices]
     if len(positive_points) != 0:
         # There is at least one positive point

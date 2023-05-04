@@ -6,7 +6,7 @@ from or into.
 """
 
 from dataclasses import InitVar, dataclass, field
-from typing import NamedTuple, Optional
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,6 +17,23 @@ from random_matrix.utils import array_utils, geometry_utils, plotting_utils
 
 
 @dataclass(slots=True)
+class Side:
+    """Side object used to track which sides of a mode are arcs and which are
+    lines
+
+    Attributes
+    ----------
+    points : np.ndarray
+        (2,2) numpy array representing the two vertices of a side of a mode
+    type : str
+        What type of side it is. Options are "line" and "arc"
+    """
+
+    points: npt.NDArray[np.float64]
+    type: str
+
+
+@dataclass(slots=True)
 class Mode:
     """A class used to represent a mode.
 
@@ -24,8 +41,8 @@ class Mode:
     ----------
     vertices : np.ndarray
         Array of vertices that lie on the boundary of the mode.
-    sides : list[namedtuple]
-        List of namedtuples (Side), each of which represents a side of the
+    sides : list[Side]
+        List of Side objects, each of which represents a side of the
         mode's boundary. Each Side contains two attributes, namely
         "points" and "type". "points" is a (2,2) array that contains the two
         end points of the side. "type", which is either "line" or "arc"
@@ -56,15 +73,14 @@ class Mode:
     """
 
     vertices: npt.NDArray[np.float64]
-    sides: list[NamedTuple]
+    sides: list[Side]
     index: int = 0
 
     clean_vertices: InitVar[bool] = False
 
     is_central: bool = field(init=False)
     wave_type: str = field(init=False)
-    weight: float = field(init=False)
-    triangulation: npt.NDArray[np.float64] = field(init=False)
+    weight: np.float64 = field(init=False)
 
     # --------------------------------------------------------------------------
     # Constructor method
@@ -82,7 +98,6 @@ class Mode:
         # Check if mode is a centro-symmetric or not
         self.is_central = self._get_is_central(self.vertices)
         self.wave_type = self._get_mode_wave_type(self.vertices)
-        self.triangulation = self._get_triangulation(self.vertices)
         self.weight = self._get_weight(
             self.vertices, self.sides, self.wave_type
         )
@@ -94,7 +109,7 @@ class Mode:
     @staticmethod
     def _validate_input(
         vertices: npt.NDArray[np.float64],
-        sides: list[NamedTuple],
+        sides: list[Side],
     ) -> None:
         """Checks vertices and arc_points_list and throws exceptions
         if the data is improperly given"""
@@ -177,9 +192,9 @@ class Mode:
     @staticmethod
     def _get_weight(
         vertices: npt.NDArray[np.float64],
-        sides: list[NamedTuple],
+        sides: list[Side],
         wave_type: str,
-    ) -> float:
+    ) -> np.float64:
         """Get the weight associated with the mode.
 
         Parameters
@@ -200,7 +215,7 @@ class Mode:
         num_points = len(vertices)
         arc_sides = [side for side in sides if side.type == "arc"]
         num_arcs = len(arc_sides)
-        base_polygon_area = 0.0
+        base_polygon_area = np.float64(0.0)
 
         if num_points > 2:
             base_polygon_area += geometry_utils.get_convex_polygon_area(
@@ -227,8 +242,8 @@ class Mode:
                 outer_crossing_list.append(side.points)
 
         # Areas where polygons meet the circle
-        inner_edge_area = 0.0
-        outer_edge_area = 0.0
+        inner_edge_area = np.float64(0.0)
+        outer_edge_area = np.float64(0.0)
         for inner_crossing in inner_crossing_list:
             inner_edge_area += geometry_utils.get_edge_area(
                 points=inner_crossing, radius=vertices_r_min
@@ -238,38 +253,11 @@ class Mode:
                 points=outer_crossing, radius=vertices_r_max
             )
 
-        extra_area = 0.0
+        extra_area = np.float64(0.0)
         extra_area += outer_edge_area
         extra_area -= inner_edge_area
         weight = base_polygon_area + extra_area
         return weight
-
-    @staticmethod
-    def _get_triangulation(
-        vertices: npt.NDArray[np.float64],
-    ) -> npt.NDArray[np.float64]:
-        """Get the delaunay triangulation of the mode.
-
-        Parameters
-        ----------
-        vertices : np.ndarray
-            Vertices of the mode.
-
-        Returns
-        -------
-        triangulation : np.ndarray
-            An array containing the vertices of the triangles in the
-            triangulation.
-        """
-
-        if len(vertices) == 2:
-            return np.empty((0, 3, 2))
-
-        triangulation_obj = scipy.spatial.Delaunay(vertices)
-        triangulation: npt.NDArray[np.float64] = vertices[
-            triangulation_obj.simplices
-        ]
-        return triangulation
 
     # --------------------------------------------------------------------------
     # Object representations
@@ -295,7 +283,6 @@ class Mode:
         is_solo: bool = True,
         triangulation_color: str = "tab:blue",
         show_index: Optional[bool] = False,
-        show_triangulation: Optional[bool] = False,
     ) -> None:
         """Draw the mode on a given axis.
 
@@ -307,8 +294,6 @@ class Mode:
             Color that the triangles will be drawn in.
         show_index : bool
             Shows the mode's index at its center if True.
-        show_triangulation : bool
-            Also draws the mode's triangulation if True
 
         Returns
         -------
@@ -358,15 +343,6 @@ class Mode:
                 va="center",
                 color=color,
             )
-
-        if show_triangulation:
-            for triangle in self.triangulation:
-                plotting_utils.draw_interior_triangle(
-                    ax,
-                    triangle,
-                    color=triangulation_color,
-                    polygon_points=self.vertices,
-                )
 
     # -------------------------------------------------------------------------
     # Miscellaneous

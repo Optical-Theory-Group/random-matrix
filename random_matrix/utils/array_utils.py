@@ -200,32 +200,6 @@ def get_point_index(
         return index
 
 
-def vals_to_box(
-    first_vals: npt.NDArray[np.float64], second_vals: npt.NDArray[np.float64]
-) -> npt.NDArray[np.float64]:
-    """Given lists of 2 first_vals and 2 second_vals, return a list of points
-    of the corresponding rectangle.
-
-    Parameters
-    ----------
-        first_vals : numpy.ndarray
-            First array of coordinates.
-        second_vals : numpy.ndarray
-            Second array of coordiantes.
-
-    Returns
-    -------
-        box_points : numpy.ndarray
-            Array of points in the resultant rectangle.
-    """
-
-    box_first_grid, box_second_grid = np.meshgrid(first_vals, second_vals)
-    box_points = np.column_stack(
-        (box_first_grid.ravel(), box_second_grid.ravel())
-    )
-    return box_points
-
-
 def sort_by_reference_list(
     to_be_sorted: npt.NDArray[np.float64] | list[Any],
     reference_list: list[np.float64] | list[Any],

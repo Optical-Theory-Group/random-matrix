@@ -28,7 +28,7 @@ supported. Grids consisting of concave polygons from user data should be used
 with great caution.
 """
 
-from collections import namedtuple
+import collections
 from typing import Any, Iterator
 
 import matplotlib.pyplot as plt
@@ -37,28 +37,10 @@ import numpy.typing as npt
 import scipy.spatial
 import skspatial.objects
 
-from random_matrix.mode import Mode
+from random_matrix.mode import Mode, Side
 from random_matrix.mode_grid import ModeGrid
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
 
-# -----------------------------------------------------------------------------
-# Side object
-# -----------------------------------------------------------------------------
-
-"""Side object used to track which sides of a mode are arcs and which are
-lines
-
-These objects are used in _get_mode_list function, which sets up the data
-that needs to be passed to the Mode constructor. The Side object
-contains two key-value pairs
-
-    "points" : np.ndarray
-        (2,2) numpy array representing the two vertices of a side of a mode
-    "type" : str
-        What type of side it is. Options are "line" and "arc"
-"""
-
-Side = namedtuple("Side", ("points", "type"))
 
 # -----------------------------------------------------------------------------
 # Public constructor functions
@@ -191,7 +173,7 @@ def from_rt_vals(
     r_vals: npt.NDArray[np.float64],
     t_vals: npt.NDArray[np.float64],
     include_central_mode: bool = True,
-    rotation_angle: float = 0.0,
+    rotation_angle: np.float64 = np.float64(0.0),
 ) -> ModeGrid:
     """Generate polar grid from arrays of r and t values.
 
@@ -222,7 +204,7 @@ def from_rt_vals(
         ModeGrid
             The ModeGrid object.
     """
-    r_lim = max(1.0, np.max(r_vals))
+    r_lim = np.max([1.0, np.max(r_vals)])
 
     mode_boundary_dict_list = _get_polar_mode_boundary_dict_list(
         r_vals=r_vals,
@@ -604,7 +586,7 @@ def _get_polar_mode_boundary_dict_list(
     t_vals: npt.NDArray[np.float64],
     include_central_mode: bool,
     rotation_angle: float,
-) -> Iterator[npt.NDArray[np.float64]]:
+) -> Iterator[dict[str, Any]]:
     """Generates polar mode boundaries for polar grids.
 
     Parameters
