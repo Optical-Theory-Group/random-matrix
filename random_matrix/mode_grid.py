@@ -4,7 +4,7 @@ ModeGrid serves as a container for Mode objects.
 """
 
 from dataclasses import InitVar, dataclass, field
-from typing import Any, Self
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -177,8 +177,8 @@ class ModeGrid:
         if len(mode_list) == 0:
             return []
 
-        reciprocal_indices = []
-        already_handled_modes = []
+        reciprocal_indices: list[Any] = []
+        already_handled_modes: list[Any] = []
         running_index = 1
 
         for mode_index, mode in enumerate(mode_list):
@@ -369,7 +369,6 @@ class ModeGrid:
     def plot(
         self,
         show_indices: bool = False,
-        show_triangulation: bool = False,
     ) -> None:
         """
         Draws the grid of modes.
@@ -408,7 +407,6 @@ class ModeGrid:
                 ax=ax,
                 is_solo=False,
                 show_index=show_indices,
-                show_triangulation=show_triangulation,
             )
 
         plotting_utils.draw_circle(ax)
