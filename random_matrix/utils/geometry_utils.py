@@ -1,6 +1,4 @@
-"""This module contains utility functions that perform various geometric
-calculations.
-"""
+"""Utility functions that perform various geometric calculations."""
 
 from itertools import combinations
 
@@ -298,9 +296,7 @@ def get_convex_polygon_area(
     return area
 
 
-def get_edge_area(
-    points: npt.NDArray[np.float64], radius: float
-) -> float:
+def get_edge_area(points: npt.NDArray[np.float64], radius: float) -> float:
     """Compute the area of a small circle segment bounded by a chord connecting
     two points lying on the circle and the arc in between.
 

@@ -1,5 +1,4 @@
-"""This module contains utility functions that help with plotting figures.
-"""
+"""Utility functions that help with plotting figures."""
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -185,6 +184,7 @@ def draw_horizontal_chord(
     left_point = np.array([x_left, y])
     right_point = np.array([x_right, y])
     draw_line(ax, left_point, right_point, color=color, linestyle=linestyle)
+
 
 def draw_interior_triangle(
     ax: plt.Axes,

@@ -2,27 +2,30 @@
 
 A module for generating grids to be used to generate ModeGrid instances.
 Specifically, the functions in this module partition the interior of the
-circle of radius r_lim into disjoint regions (or modes). These regions are
-also cut along the circimference of the circle of radius 1.0 where they are
-then split into multiple regions.
+circle of radius r_lim > 1.0 into disjoint regions (or modes). These regions
+are also cut along the circimference of the circle of radius 1.0, where they
+are then split into multiple regions.
 
 To use this module, please call one of the public constructor functions.
 These are:
 
-from_tiling     -Periodic tiling pattern
-from_dr_dt      -Polar grid from radial and angular spacings
-from_rt_vals    -Polar grid from arrays of radial and angular values
-from_dx_dy      -Rectangular grid from (x,y) lattice spacings
-from_xy_vals    -Rectangular grid from x and y boudary values.
-from_random     -Random grid from randomly generated points.
+from_tiling        -Periodic tiling pattern
+from_dr_dt         -Polar grid from radial and angular spacings
+from_rt_vals       -Polar grid from arrays of radial and angular values
+from_dx_dy (X)     -Rectangular grid from (x,y) lattice spacings
+from_xy_vals (X)   -Rectangular grid from x and y boudary values
+from_random        -Random grid from randomly generated points
+from_data (X)      -Builds a grid based on polygon vertex data passed by a user
 
-More information about each of these methods can be found in their
+
+(X) indicates that the function is not yet supported. More information about
+each of these methods can be found in their
 individual function documentation.
 
-We note that, excluding the aforementioned circular arcs, only grids consisting
-of convex polygons are currently supported. Concave polygons may produce
-unexpected behaviour.
-
+Note that, excluding circular arcs, such as in polar grids or where modes are
+cute by circles, only grids consisting of convex polygons are currently
+supported. Grids consisting of concave polygons from user data should be used
+with great caution.
 """
 
 from collections import namedtuple
@@ -286,6 +289,10 @@ def from_random(
         r_lim=r_lim,
         grid_wave_type=grid_wave_type,
     )
+
+
+def from_data() -> None:
+    pass
 
 
 # -------------------------------------------------------------------------
