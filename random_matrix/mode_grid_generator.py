@@ -9,7 +9,7 @@ then split into multiple regions.
 To use this module, please call one of the public constructor functions.
 These are:
 
-from_tiling     -Random periodic tiling pattern
+from_tiling     -Periodic tiling pattern
 from_dr_dt      -Polar grid from radial and angular spacings
 from_rt_vals    -Polar grid from arrays of radial and angular values
 from_dx_dy      -Rectangular grid from (x,y) lattice spacings
@@ -92,8 +92,8 @@ def from_tiling(
         r_lim : float
             The radial extent of the tiling pattern.
         rotation_angle : float
-            Angle by which the grid is rotated relative to their standard
-            definitions.
+            Angle by which the grid is rotated relative to its standard
+            orientation (see unit cell generator functions).
         translation_vector: numpy.array
             Vector by which the grid will be translated relative to its
             standard definition.
@@ -153,7 +153,7 @@ def from_dr_dt(
         include_central_mode : bool
             If True, a circle of radius dr will included at the origin.
         rotation_angle : float
-            Angle by which the grid is rotated relative to their standard
+            Angle by which the grid is rotated relative to its standard
             definitions.
         translation_vector: numpy.array
             Vector by which the grid will be translated relative to its
@@ -201,8 +201,8 @@ def from_rt_vals(
         include_central_mode : bool
             If True, a circle of radius dr will included at the origin.
         rotation_angle : float
-            Angle by which the grid is rotated relative to their standard
-            definitions.
+            Angle by which the grid is rotated relative to its
+            definition.
         translation_vector: numpy.array
             Vector by which the grid will be translated relative to its
             standard definition.
@@ -503,8 +503,8 @@ def _generate_tiling_vertices_list(
         r_lim : float
             The radial extent of the tiling pattern.
         rotation_angle : float
-            Angle by which the grid is rotated relative to their standard
-            definitions.
+            Angle by which the grid is rotated relative to its
+            definition.
         translation_vector: numpy.array
             Vector by which the grid will be translated relative to its
             standard definition.
@@ -609,8 +609,8 @@ def _get_polar_mode_boundary_dict_list(
         include_central_mode : bool
             If True, a circle of radius dr will included at the origin.
         rotation_angle : float
-            Angle by which the grid is rotated relative to their standard
-            definitions.
+            Angle by which the grid is rotated relative to its standard
+            definition.
 
     Returns
     -------
@@ -845,8 +845,6 @@ def _cut_by_circle(
         vertices = mode_boundary_dict.get("vertices")
         arc_points_list = mode_boundary_dict.get("arc_points_list")
 
-        # Look at points in boundary_list that do not lie on the circle
-        # we are cutting with.
         vertices_r_vals = np.linalg.norm(vertices, axis=1)
         vertices_r_vals = vertices_r_vals[~np.isclose(vertices_r_vals, radius)]
 
@@ -909,8 +907,7 @@ def _cut_by_circle(
         # the circle and a leftover mode inside. leftover_points will
         # keep track of those that will be left over after we have made
         # all the new modes. remove_list are points that are removed from
-        # augmented_bounday_points, which will result in the points in the
-        # piece left over after cutting
+        # augmented_vertices
         leftover_points = np.copy(augmented_vertices)
         remove_list = []
         leftover_mode_arc_list = []
@@ -1175,7 +1172,7 @@ def _generate_triangles(
 
     ____
     \  /\
-     \/__\  <--- center at mid-point on left
+     \/__\  <--- center at cross-shaped intersection point on the left
      /\  /
     /__\/
 
@@ -1264,7 +1261,7 @@ def _generate_hexagons(
     The unit cell for our hexagonal lattice is
       _____
      /     \
-    /       \_____<--- center at mid-point of the left hexagon
+    /       \_____<--- center at centroid of the left hexagon
     \       /     \
      \_____/       \
            \       /
