@@ -80,7 +80,7 @@ class Mode:
 
     is_central: bool = field(init=False)
     wave_type: str = field(init=False)
-    weight: np.float64 = field(init=False)
+    weight: float = field(init=False)
 
     # --------------------------------------------------------------------------
     # Constructor method
@@ -194,7 +194,7 @@ class Mode:
         vertices: npt.NDArray[np.float64],
         sides: list[Side],
         wave_type: str,
-    ) -> np.float64:
+    ) -> float:
         """Get the weight associated with the mode.
 
         Parameters
@@ -224,7 +224,7 @@ class Mode:
 
         # Check if there are any arc points. If not, we're done
         if num_arcs == 0:
-            return base_polygon_area
+            return float(base_polygon_area)
 
         inner_crossing_list = []
         outer_crossing_list = []
@@ -257,7 +257,7 @@ class Mode:
         extra_area += outer_edge_area
         extra_area -= inner_edge_area
         weight = base_polygon_area + extra_area
-        return weight
+        return float(weight)
 
     # --------------------------------------------------------------------------
     # Object representations

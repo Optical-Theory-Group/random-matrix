@@ -41,7 +41,6 @@ from random_matrix.mode import Mode, Side
 from random_matrix.mode_grid import ModeGrid
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
 
-
 # -----------------------------------------------------------------------------
 # Public constructor functions
 # -----------------------------------------------------------------------------

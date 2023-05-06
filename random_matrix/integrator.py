@@ -1,12 +1,13 @@
 """Module for integrating functions over regions defined by Mode objects"""
 
-from typing import Callable, Any
+import itertools
+from typing import Any, Callable
+
 import numpy as np
 import numpy.typing as npt
 import quadpy
 import scipy
-import itertools
-import numba
+
 
 def integrate_simplex(
     function: Callable[[..., Any], Any],
