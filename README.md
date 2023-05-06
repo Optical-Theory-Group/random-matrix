@@ -15,6 +15,7 @@ random_matrix/
 ├── utils/ -------------------------- Utility functions used throughout the library
 │   ├── array_utils.py -------------- Array manipulation
 │   ├── geometry_utils.py ----------- Geometric operations
+|   ├── memoize.py ------------------ Function memoization with caching
 │   └── plotting_utils.py ----------- Plotting figures
 │
 ├── integrator.py ------------------- Integration of functions over Mode objects
