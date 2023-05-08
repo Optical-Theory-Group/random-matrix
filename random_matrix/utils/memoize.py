@@ -4,11 +4,10 @@ import json
 import os
 from functools import wraps
 from typing import Any, Callable
+from random_matrix.utils.types import FloatLike
 
 import numpy as np
-import numpy.typing as npt
 
-FloatLike = float | complex | np.float64 | np.complex128 | np.ndarray
 
 
 class Memoize:
