@@ -39,7 +39,7 @@ DensityFunctionTerm objects to its constructor as a list.
 """
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Self
 from random_matrix.utils.types import FloatLike, MathematicalFunction
 from random_matrix.utils import integration_utils
 import numpy as np
@@ -118,47 +118,56 @@ class DensityFunctionTerm:
         The total integral of the term.
     """
 
-    regular: RegularDensityFactor
-    delta: DeltaDensityFactor
+    regular: RegularDensityFactor | None = None
+    delta: DeltaDensityFactor | None = None
 
     params: set[str] = field(init=False)
 
     def __post_init__(self) -> None:
         self._validate_input()
-        delta_params, density_params = self._get_params()
-        self._check_params(delta_params, density_params)
-        self.params = delta_params | density_params
+        delta_params, regular_params = self._get_params()
+        self._check_params(delta_params, regular_params)
+        self.params = delta_params | regular_params
 
-    @staticmethod
-    def _validate_input() -> None:
-        pass
+    def _validate_input(self) -> None:
+        if self.regular is None and self.delta is None:
+            raise ValueError(
+                "At least one of regular or delta must be "
+                "given. You have both as None."
+            )
 
     def _get_params(self) -> tuple[set[str], set[str]]:
         """Return sets containing all of the physical parameters
         from the residual density and dirac distributions."""
 
-        delta_params = set(self.delta.density.keys())
-        density_params = set(self.regular.domain.keys())
-        return delta_params, density_params
+        delta_params = (
+            set() if self.delta is None else set(self.delta.density.keys())
+        )
+        regular_params = (
+            set() if self.regular is None else set(self.regular.domain.keys())
+        )
+        return delta_params, regular_params
 
     @staticmethod
     def _check_params(
-        delta_params: set[str], density_params: set[str]
+        delta_params: set[str], regular_params: set[str]
     ) -> None:
         """Check that physical parameters are not repeated in the delta
         functions and residual density function."""
 
-        if delta_params & density_params != set():
+        if delta_params & regular_params != set():
             raise ValueError(
                 f"Physical parameters in the delta functions and "
                 f"density function must not overlap. You have "
-                f"{delta_params} and {density_params}"
+                f"{delta_params} and {regular_params}"
             )
 
     @property
     def integral(self) -> FloatLike:
         """Compute the integral of the probability density function term"""
-        return self.regular.integral * self.delta.integral
+        regular = 1.0 if self.regular is None else self.regular.integral
+        delta = 1.0 if self.delta is None else self.delta.integral
+        return regular * delta
 
 
 @dataclass
@@ -172,6 +181,16 @@ class DensityFunction:
         the sum of these terms.
     integral : float
         The integral of the total density function.
+
+    Methods
+    ----------
+    from_function:
+        Convenience constructor that creates an instance for a given density
+        function and domain without any delta functions.
+    from_deltas:
+        Convenience constructor that creates an instance for a product of
+        delta functions without a residual regular density function.
+
     """
 
     terms: list[DensityFunctionTerm]
@@ -214,3 +233,22 @@ class DensityFunction:
     def integral(self) -> FloatLike:
         """Compute the total integral of the probability density function"""
         return sum(term.integral for term in self.terms)
+
+    @classmethod
+    def from_function(
+        cls, function: MathematicalFunction, domain: dict[str, list[FloatLike]]
+    ) -> Self:
+        """Create an instance with only a single density function and no
+        deltas"""
+        regular = RegularDensityFactor(function, domain)
+        term = DensityFunctionTerm(regular, None)
+        density = cls([term])
+        return density
+
+    @classmethod
+    def from_deltas(cls, deltas: dict[str, FloatLike]) -> Self:
+        """Create an instance with only delta functions"""
+        delta = DeltaDensityFactor(deltas)
+        term = DensityFunctionTerm(None, delta)
+        density = cls([term])
+        return density
