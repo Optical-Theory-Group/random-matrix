@@ -15,10 +15,12 @@ random_matrix/
 ├── utils/ -------------------------- Utility functions used throughout the library
 │   ├── array_utils.py -------------- Array manipulation
 │   ├── geometry_utils.py ----------- Geometric operations
+│   ├── integration_utils.py -------- Numerical integration
 |   ├── memoize.py ------------------ Function memoization with caching
 │   └── plotting_utils.py ----------- Plotting figures
 │
-├── integrator.py ------------------- Integration of functions over Mode objects
+├── amplitude_matrix_statistics.py -- Statistical properties of the A matrix
+├── density_function.py ------------- Classes for building pdfs containing delta functions
 ├── mode_grid_generator.py ---------- Functions for generating ModeGrid objects
 ├── mode_grid.py -------------------- ModeGrid class, container for Mode objects
 └── mode.py ------------------------- Mode class
