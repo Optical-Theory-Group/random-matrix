@@ -9,7 +9,6 @@ from random_matrix.utils.types import FloatLike
 import numpy as np
 
 
-
 class Memoize:
     """Class for memoizing functions"""
 

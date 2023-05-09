@@ -4,7 +4,7 @@ import numpy as np
 import quadpy
 import inspect
 from typing import Callable, Any
-from random_matrix.utils.types import DensityFunction, FloatLike
+from random_matrix.utils.types import FloatLike, MathematicalFunction
 from enum import Enum
 
 
@@ -33,8 +33,8 @@ from enum import Enum
 #         )
 
 
-def integrate_density_function(
-    density_function: DensityFunction,
+def product_integral(
+    density_function: MathematicalFunction,
     integration_domain: dict[str, list[FloatLike]],
     degree: int = 5,
 ) -> FloatLike:
