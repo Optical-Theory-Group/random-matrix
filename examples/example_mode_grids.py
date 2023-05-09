@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from random_matrix import mode_grid_generator
+from random_matrix.modes import mode_grid_generator
 
 np.random.seed(25)
 

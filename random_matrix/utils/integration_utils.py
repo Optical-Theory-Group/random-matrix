@@ -1,56 +1,57 @@
 """Utility functions that assist with numerical integration"""
 
+import inspect
+from typing import Any, Callable
+import copy
+
 import numpy as np
 import quadpy
-import inspect
-from typing import Callable, Any
+
 from random_matrix.utils.types import FloatLike, MathematicalFunction
-from enum import Enum
 
 
-# def get_integration_variables(
-#     function: Callable[[Any], Any], integration_domain: dict[str, FloatLike]
-# ) -> tuple[list[str], list[str]]:
-#     """Determine integration variables given a function and"""
-#     domain_variables = list(integration_domain.keys())
-#     function_variables = list(inspect.getfullargspec(function).args)
-#     return domain_variables, function_variables
+def vectorize_arguments(
+    function: MathematicalFunction,
+) -> MathematicalFunction:
+    """Return a function that is equivalent to the original function, but whose
+    arguments have been changed into a vector.
 
+    This is necessary in many cases to make quadpy happy.
+    """
 
-# def check_variable_compatability(
-#     domain_variables: list[str], function_variables: list[str]
-# ) -> None:
-#     """Compare integration domain variables with those defined in the
-#     function"""
+    def vectorized_function(args: list[FloatLike]) -> FloatLike:
+        return function(*args)
 
-#     domain_variables_set = set(domain_variables)
-#     function_variables_set = set(function_variables)
-#     if not domain_variables_set == function_variables_set:
-#         raise ValueError(
-#             f"Given integration domain variables "
-#             f"{domain_variables} incompatible with function "
-#             f"variables {function_variables}"
-#         )
+    return vectorized_function
 
 
 def product_integral(
-    density_function: MathematicalFunction,
+    function: MathematicalFunction,
     integration_domain: dict[str, list[FloatLike]],
     degree: int = 5,
 ) -> FloatLike:
     """Integrate a probability density function over its arguments. Used for
     density normalization checking."""
 
+    # If the function has multiple arguments, replace its arguments
+    # by a vector.
+    num_args = len(inspect.signature(function).parameters)
+    if num_args > 1:
+        function = vectorize_arguments(function)
+
+    print(function)
     domains = list(integration_domain.values())
     dim = len(domains)
     match dim:
         case 1:
             scheme = quadpy.c1.gauss_legendre(degree)
-            integral = scheme.integrate(density_function, *domains)
+            integral = scheme.integrate(function, *domains)
         case _:
             scheme = quadpy.cn.stroud_cn_3_3(dim)
             integral = scheme.integrate(
-                density_function,
+                function,
                 quadpy.cn.ncube_points(*domains),
             )
     return integral  # type: ignore
+
+

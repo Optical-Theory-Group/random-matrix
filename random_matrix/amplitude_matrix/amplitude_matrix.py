@@ -1,6 +1,7 @@
+from typing import Protocol
+
 import numpy as np
 import numpy.typing as npt
-from typing import Protocol
 
 
 class AmplitudeMatrix(Protocol):

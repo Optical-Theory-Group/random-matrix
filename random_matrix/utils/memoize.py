@@ -4,9 +4,10 @@ import json
 import os
 from functools import wraps
 from typing import Any, Callable
-from random_matrix.utils.types import FloatLike
 
 import numpy as np
+
+from random_matrix.utils.types import FloatLike
 
 
 class Memoize:

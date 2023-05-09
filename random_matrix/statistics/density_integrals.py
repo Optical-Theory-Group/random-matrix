@@ -1,34 +1,33 @@
-from random_matrix import amplitude_matrix, particle_statistics
+"""AmplitudeMatrixStatistics class that """
 
-"""Statistical properties of the particles in the medium"""
-from dataclasses import dataclass, field
-import functools
-from typing import Protocol, Any
 import copy
+import functools
 import inspect
+from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 import numpy as np
 import numpy.typing as npt
 import quadpy
 
+from random_matrix.amplitude_matrix.amplitude_matrix import AmplitudeMatrix
+from random_matrix.statistics.density_function import DensityFunction
+from random_matrix.utils.types import MathematicalFunction
 
 
 @dataclass
 class AmplitudeMatrixStatistics:
-    amplitude_matrix: amplitude_matrix.AmplitudeMatrix
-    particle_statistics: particle_statistics.ParticleStatistics
+    amplitude_matrix: MathematicalFunction
+    particle_statistics: DensityFunction
 
-    def __post_init__(self) -> None:
-        self.mean = self._get_mean()
-
-    def __call__(self, *args: Any, **kwargs: Any) -> float:
-        return self.amplitude_matrix(*args, **kwargs)
+    def get_statistics(self) -> None:
+        # self._get_mean()
+        pass
 
     def _get_mean(self) -> None:
         expected_num_params = len(
             set(inspect.getfullargspec(self.a_matrix).args)
         )
-        print(expected_num_params)
 
         partial_functions = []
 

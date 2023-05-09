@@ -11,7 +11,7 @@ import numpy as np
 import numpy.typing as npt
 import skspatial.objects
 
-from random_matrix.mode import Mode
+from random_matrix.modes.mode import Mode
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
 
 
