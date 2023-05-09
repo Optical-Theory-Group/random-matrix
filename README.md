@@ -9,21 +9,27 @@ The core library is contained in the `random_matrix/` directory, which has the f
 
 ```
 random_matrix/
-├── amplitude_matrix/ --------------- Calculating the amplitude matrix
+│
+├── amplitude_matrix/ --------------- Modules related to the amplitude matrix
 |   └── anisotropic_tmatrix.py ------ T matrix method  
 │
-├── utils/ -------------------------- Utility functions used throughout the library
+├── modes/ -------------------------- Modules related to modes
+│   ├── mode_grid_generator.py ------ Functions for generating ModeGrid objects
+│   ├── mode_grid.py ---------------- ModeGrid class, container for Mode objects
+│   └── mode.py --------------------- Mode class
+│ 
+├── statistics/ --------------------- Modules related to statistical calculations
+│   ├── density_function.py --------- Classes for defining generalized pdfs 
+│   └── density_integrals.py -------- Integrating functions with respect to pdfs
+│
+├── utils/ -------------------------- Miscellaneous utility functions
 │   ├── array_utils.py -------------- Array manipulation
 │   ├── geometry_utils.py ----------- Geometric operations
 │   ├── integration_utils.py -------- Numerical integration
-|   ├── memoize.py ------------------ Function memoization with caching
+│   ├── memoize.py ------------------ Function memoization
 │   └── plotting_utils.py ----------- Plotting figures
 │
-├── amplitude_matrix_statistics.py -- Statistical properties of the A matrix
-├── density_function.py ------------- Classes for building pdfs containing delta functions
-├── mode_grid_generator.py ---------- Functions for generating ModeGrid objects
-├── mode_grid.py -------------------- ModeGrid class, container for Mode objects
-└── mode.py ------------------------- Mode class
+└── main.py ------------------------- Main simulation script
 ```
 
 Some examples can be seen by running the scripts within the root level `examples/` directory.

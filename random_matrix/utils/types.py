@@ -1,8 +1,9 @@
 """Generic types used throughout library for static type checking"""
 
+from typing import Protocol, runtime_checkable
+
 import numpy as np
 import numpy.typing as npt
-from typing import Protocol
 
 # Generic float-like type
 FloatLike = (
@@ -15,7 +16,7 @@ FloatLike = (
 )
 
 
-# Type hinting for distributions
+@runtime_checkable
 class MathematicalFunction(Protocol):
     def __call__(self, *args: FloatLike) -> FloatLike:
         ...

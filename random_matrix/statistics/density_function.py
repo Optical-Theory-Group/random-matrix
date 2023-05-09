@@ -8,7 +8,7 @@ example the following density function, defined over the region
 
 f(x, y) = 0.3*delta(x-0.4)delta(y-0.3) + 0.2*delta(x-0.1)*2y + 0.5*2x*2y
 
-This consists of three terms separated by + symbols. These can be analysed
+This consists of three terms separated by + symbols. These can be built
 separately
 
 Term 1:
@@ -36,13 +36,19 @@ Term 3:
 
 The DensityFunction object can be formed by passing the three
 DensityFunctionTerm objects to its constructor as a list.
+
+For simpler cases where one only has a product of delta functions or only
+a regular density function and no delta functions, one may use the
+DensityFunction class methods "from_function" or "from_deltas"
 """
 
 from dataclasses import dataclass, field
 from typing import Self
-from random_matrix.utils.types import FloatLike, MathematicalFunction
-from random_matrix.utils import integration_utils
+
 import numpy as np
+
+from random_matrix.utils import integration_utils
+from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 
 @dataclass
@@ -112,7 +118,7 @@ class DensityFunctionTerm:
         The regular factor of the term.
     delta:
         The delta factor of the term.
-    params:
+    variables:
         A set of all of the variables involved in the term.
     integral:
         The total integral of the term.
@@ -121,13 +127,13 @@ class DensityFunctionTerm:
     regular: RegularDensityFactor | None = None
     delta: DeltaDensityFactor | None = None
 
-    params: set[str] = field(init=False)
+    variables: set[str] = field(init=False)
 
     def __post_init__(self) -> None:
         self._validate_input()
-        delta_params, regular_params = self._get_params()
-        self._check_params(delta_params, regular_params)
-        self.params = delta_params | regular_params
+        delta_variables, regular_variables = self._get_variables()
+        self._check_variables(delta_variables, regular_variables)
+        self.variables = delta_variables | regular_variables
 
     def _validate_input(self) -> None:
         if self.regular is None and self.delta is None:
@@ -136,30 +142,30 @@ class DensityFunctionTerm:
                 "given. You have both as None."
             )
 
-    def _get_params(self) -> tuple[set[str], set[str]]:
-        """Return sets containing all of the physical parameters
-        from the residual density and dirac distributions."""
+    def _get_variables(self) -> tuple[set[str], set[str]]:
+        """Return sets containing all of the variables
+        from the regular and delta densities."""
 
-        delta_params = (
+        delta_variables = (
             set() if self.delta is None else set(self.delta.density.keys())
         )
-        regular_params = (
+        regular_variables = (
             set() if self.regular is None else set(self.regular.domain.keys())
         )
-        return delta_params, regular_params
+        return delta_variables, regular_variables
 
     @staticmethod
-    def _check_params(
-        delta_params: set[str], regular_params: set[str]
+    def _check_variables(
+        delta_variables: set[str], regular_variables: set[str]
     ) -> None:
-        """Check that physical parameters are not repeated in the delta
-        functions and residual density function."""
+        """Check that the variables are not repeated in the delta
+        functions and regular density function."""
 
-        if delta_params & regular_params != set():
+        if delta_variables & regular_variables != set():
             raise ValueError(
-                f"Physical parameters in the delta functions and "
+                f"Variables in the delta functions and "
                 f"density function must not overlap. You have "
-                f"{delta_params} and {regular_params}"
+                f"{delta_variables} and {regular_variables}"
             )
 
     @property
@@ -179,8 +185,10 @@ class DensityFunction:
     terms:
         A list containing DensityFunctionTerm objects. The total density is
         the sum of these terms.
-    integral : float
+    integral:
         The integral of the total density function.
+    variables:
+        set of variables involved in the terms.
 
     Methods
     ----------
@@ -199,24 +207,25 @@ class DensityFunction:
         # If only a single term is given, put it into an array
         if isinstance(self.terms, DensityFunctionTerm):
             self.terms = [self.terms]
-        self._check_param_consistency()
+        self._check_variable_consistency()
+        self.variables = self._get_variables()
         self._check_normalization()
 
-    def _check_param_consistency(self) -> None:
-        """Check that the physical parameters within each term object are
+    def _get_variables(self) -> set[str]:
+        return self.terms[0].variables
+
+    def _check_variable_consistency(self) -> None:
+        """Check that the variables within each term object are
         consistent."""
 
         # If there is only a single term, there's nothing to check
         if len(self.terms) == 1:
             pass
 
-        param_sets = [term.params for term in self.terms]
-        reference = param_sets[0]
-        if not all(s == reference for s in param_sets[1:]):
-            raise ValueError(
-                "Inconsistnet physical parameters in "
-                "terms contained in ParticleStatistics object"
-            )
+        variable_sets = [term.variables for term in self.terms]
+        reference = variable_sets[0]
+        if not all(s == reference for s in variable_sets[1:]):
+            raise ValueError("Inconsistnet variables in terms.")
 
     def _check_normalization(self) -> None:
         """Check that the given probability density function is normalized
@@ -241,6 +250,7 @@ class DensityFunction:
         """Create an instance with only a single density function and no
         deltas"""
         regular = RegularDensityFactor(function, domain)
+        print(regular)
         term = DensityFunctionTerm(regular, None)
         density = cls([term])
         return density

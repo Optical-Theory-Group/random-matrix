@@ -37,8 +37,8 @@ import numpy.typing as npt
 import scipy.spatial
 import skspatial.objects
 
-from random_matrix.mode import Mode, Side
-from random_matrix.mode_grid import ModeGrid
+from random_matrix.modes.mode import Mode, Side
+from random_matrix.modes.mode_grid import ModeGrid
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
 
 # -----------------------------------------------------------------------------
