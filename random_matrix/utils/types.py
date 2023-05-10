@@ -18,5 +18,5 @@ FloatLike = (
 
 @runtime_checkable
 class MathematicalFunction(Protocol):
-    def __call__(self, *args: FloatLike) -> FloatLike:
+    def __call__(self, *args: FloatLike, **kwargs: FloatLike) -> FloatLike:
         ...

@@ -8,21 +8,7 @@ import numpy as np
 import quadpy
 
 from random_matrix.utils.types import FloatLike, MathematicalFunction
-
-
-def vectorize_arguments(
-    function: MathematicalFunction,
-) -> MathematicalFunction:
-    """Return a function that is equivalent to the original function, but whose
-    arguments have been changed into a vector.
-
-    This is necessary in many cases to make quadpy happy.
-    """
-
-    def vectorized_function(args: list[FloatLike]) -> FloatLike:
-        return function(*args)
-
-    return vectorized_function
+from random_matrix.utils import function_utils
 
 
 def product_integral(
@@ -37,7 +23,7 @@ def product_integral(
     # by a vector.
     num_args = len(inspect.signature(function).parameters)
     if num_args > 1:
-        function = vectorize_arguments(function)
+        function = function_utils.vectorize_arguments(function)
 
     print(function)
     domains = list(integration_domain.values())
@@ -53,5 +39,3 @@ def product_integral(
                 quadpy.cn.ncube_points(*domains),
             )
     return integral  # type: ignore
-
-
