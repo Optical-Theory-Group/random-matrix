@@ -10,20 +10,24 @@ The core library is contained in the `random_matrix/` directory, which has the f
 ```
 random_matrix/
 │
-├── amplitude_matrix/ --------------- Modules related to the amplitude matrix
-|   └── anisotropic_tmatrix.py ------ T matrix method  
+├── amplitude_matrix/ --------------- Calculation of the single particle A matrix
+│   ├── _anisotropic_tmatrix.py ----- Anisotropic particle, T matrix method  
+│   ├── _chiral_sphere.py ----------- Chiral sphere, Mie theory
+│   ├── _isotropic_sphere.py -------- Isotropic sphere, Mie theory
+|   └── functions.py ---------------- Summary of functions and parameters for use elsewhere
 │
-├── modes/ -------------------------- Modules related to modes
+├── modes/ -------------------------- Definitions and properties of modes
 │   ├── mode_grid_generator.py ------ Functions for generating ModeGrid objects
 │   ├── mode_grid.py ---------------- ModeGrid class, container for Mode objects
 │   └── mode.py --------------------- Mode class
 │ 
-├── statistics/ --------------------- Modules related to statistical calculations
-│   ├── density_function.py --------- Classes for defining generalized pdfs 
+├── statistics/ --------------------- Statistical calculations
+│   ├── density_function.py --------- Classes for defining generalized density functions 
 │   └── density_integrals.py -------- Integrating functions with respect to pdfs
 │
 ├── utils/ -------------------------- Miscellaneous utility functions
 │   ├── array_utils.py -------------- Array manipulation
+│   ├── function_utils.py ----------- Mathematical function manipulation
 │   ├── geometry_utils.py ----------- Geometric operations
 │   ├── integration_utils.py -------- Numerical integration
 │   ├── memoize.py ------------------ Function memoization

@@ -1,80 +1,98 @@
-"""AmplitudeMatrixStatistics class that """
+"""Module for computing statistical quantities associated with functions."""
 
 import copy
 import functools
 import inspect
-from dataclasses import dataclass, field
-from typing import Any, Protocol
 
 import numpy as np
 import numpy.typing as npt
 import quadpy
 
-from random_matrix.amplitude_matrix.amplitude_matrix import AmplitudeMatrix
-from random_matrix.statistics.density_function import DensityFunction
-from random_matrix.utils.types import MathematicalFunction
+from random_matrix.statistics.density_function import (
+    DensityFunction,
+    DeltaDensityFactor,
+)
+from random_matrix.utils.types import MathematicalFunction, FloatLike
+from random_matrix.utils import integration_utils, function_utils
 
 
-@dataclass
-class AmplitudeMatrixStatistics:
-    amplitude_matrix: MathematicalFunction
-    particle_statistics: DensityFunction
+def integrate_by_delta(
+    function: MathematicalFunction, delta_density_factor: DeltaDensityFactor
+) -> MathematicalFunction:
+    """Integrate a function by a product of delta functions, yielding a new
+    function.
 
-    def get_statistics(self) -> None:
-        # self._get_mean()
-        pass
+    Note: the returned function has only key work arguments.
+    """
 
-    def _get_mean(self) -> None:
-        expected_num_params = len(
-            set(inspect.getfullargspec(self.a_matrix).args)
+    delta_function = delta_density_factor.density
+
+    def integrated_function(**kwargs: FloatLike) -> FloatLike:
+        new_kwargs = {**kwargs, **delta_function}
+        return function(**new_kwargs)
+
+    # Update signature of integrated_function to contain new variables
+    integrated_vars = set(delta_function.keys())
+    total_vars = function_utils.get_function_variables(function)
+    remaining_vars = total_vars - integrated_vars
+    if len(remaining_vars) > 0:
+        new_signature = inspect.Signature(
+            [
+                inspect.Parameter(var, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+                for var in remaining_vars
+            ]
+        )
+        integrated_function.__signature__ = new_signature
+
+    return integrated_function
+
+
+def integrate_by_density(
+    function: MathematicalFunction, density: DensityFunction
+) -> MathematicalFunction:
+    """Integrate a function by a probability density function, thus yielding
+    a new function."""
+
+    # Check that density_variables is a proper subset of function_variables
+    function_variables = integration_utils.get_function_variables(function)
+    density_variables = density.variables
+    if not density_variables <= function_variables:
+        raise ValueError(
+            f"The density function variables: {density_variables} must be a "
+            f"proper subset of the function variables {function_variables}."
         )
 
-        partial_functions = []
+    # Loop over terms. Results will be added
+    partial_results = []
+    for term in density.terms:
+        integrated_function = copy.copy(function)
 
-        for term in self.particle_statistics.terms:
-            # If delta distributions are present, enforce their values
-            delta_integrated = copy.copy(self.a_matrix)
-            if len(term.delta_distributions) > 0:
-                delta_integrated = functools.partial(
-                    delta_integrated, **term.delta_distributions
-                )
+        # Integrate over delta functions
+        delta_distribution = term.delta
+        if delta_distribution is not None:
+            integrated_function = integrate_by_delta(
+                integrated_function, delta_distribution
+            )
 
-            # Scale by delta_factor if it isn't 1.0
-            if not np.isclose(term.delta_factor, 1.0):
-                delta_integrated = functools.partial(
-                    lambda k, *args, **kwargs: k
-                    * delta_integrated(*args, **kwargs),
-                    k=term.delta_factor,
-                )
+        # Integrate over regular density function factor
+        regular_distribution = term.regular
+        if regular_distribution is not None:
+            integrated_function = integrate_by_regular(
+                integrated_function, regular_distribution
+            )
 
-            # If there is no residual density, we have our function
-            if term.residual_density is None:
-                partial_functions.append(delta_integrated)
-                continue
+        partial_results.append(integrated_function)
 
-            # There is a residual density function after the deltas
-            # We thus need to integrate
-            total_args = set(inspect.getfullargspec(delta_integrated).args)
-            residual_args = set(term.residual_density_domain.keys())
-            wavevector_args = list(total_args.difference(residual_args))
+    # Add together results
+    result = function_utils.add_functions(partial_results)
+    return result
 
 
-def amp_matrix(
-    k_inc: float, k_sca: float, params: dict[str, np.float64] = {}
-) -> float:
-    x = params.get("x", 1.0)
-    m = params.get("m", 1.0)
-    return (k_inc + k_sca) * x * m
+d = DeltaDensityFactor({"a": 1.0, "b": 2.0})
 
 
-def residual_density(x):
-    return x / 2.0
+def f(a, b, c):
+    return a + b + c
 
 
-particle_statistics_term = ParticleStatisticsTerm(
-    residual_density=None,
-    residual_density_domain={"x": [0.0, 1.0]},
-    delta_distributions={"m": 1.0},
-)
-particle_statistics = ParticleStatistics(particle_statistics_term)
-a_matrix = AmplitudeMatrixStatistics(amp_matrix, particle_statistics)
+g = integrate_by_delta(f, d)

@@ -7,16 +7,6 @@ from random_matrix.utils import integration_utils
 from random_matrix.utils.types import FloatLike
 
 
-# vectorizing arguments
-def test_vectorize_arguments() -> None:
-    def function(x: float, y: float, z: float) -> float:
-        return x * y * z
-
-    assert len(inspect.signature(function).parameters) == 3
-    vectorized = integration_utils.vectorize_arguments(function)
-    assert len(inspect.signature(vectorized).parameters) == 1
-
-
 # 1D integral
 def test_product_integral_1d() -> None:
     def function(x: float) -> float:

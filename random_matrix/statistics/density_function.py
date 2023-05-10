@@ -69,6 +69,15 @@ class RegularDensityFactor:
     density: MathematicalFunction
     domain: dict[str, list[FloatLike]]
 
+    variables: set[str] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.variables = self._get_variables()
+
+    def _get_variables(self) -> set[str]:
+        variables = set(self.domain.keys())
+        return variables
+
     @property
     def integral(self) -> FloatLike:
         integral = integration_utils.product_integral(
@@ -98,11 +107,20 @@ class DeltaDensityFactor:
     """
 
     density: dict[str, FloatLike]
-    factor: FloatLike = 1.0
+    const_factor: FloatLike = 1.0
+
+    variables: set[str] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.variables = self._get_variables()
+
+    def _get_variables(self) -> set[str]:
+        variables = set(self.density.keys())
+        return variables
 
     @property
     def integral(self) -> FloatLike:
-        integral = self.factor
+        integral = self.const_factor
         return integral
 
 
@@ -146,11 +164,9 @@ class DensityFunctionTerm:
         """Return sets containing all of the variables
         from the regular and delta densities."""
 
-        delta_variables = (
-            set() if self.delta is None else set(self.delta.density.keys())
-        )
+        delta_variables = set() if self.delta is None else self.delta.variables
         regular_variables = (
-            set() if self.regular is None else set(self.regular.domain.keys())
+            set() if self.regular is None else self.regular.variables
         )
         return delta_variables, regular_variables
 
