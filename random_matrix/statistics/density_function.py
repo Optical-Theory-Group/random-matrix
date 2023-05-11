@@ -80,14 +80,8 @@ class RegularDensityFactor:
 
     @property
     def integral(self) -> FloatLike:
-        # Convert dictionary domain to correctly ordered list
-        integration_domain = (
-            integration_utils.get_integration_domain_from_dict(
-                self.density, self.domain
-            )
-        )
         integral = integration_utils.basic_product_integral(
-            self.density, integration_domain
+            self.density, self.domain
         )
         return integral
 
@@ -226,12 +220,17 @@ class DensityFunction:
     terms: list[DensityFunctionTerm]
 
     def __post_init__(self) -> None:
-        # If only a single term is given, put it into an array
-        if isinstance(self.terms, DensityFunctionTerm):
-            self.terms = [self.terms]
+        self._validate_input(self.terms)
         self._check_variable_consistency()
         self.variables = self._get_variables()
         self._check_normalization()
+
+    def _validate_input(self, terms: list[DensityFunctionTerm] | None) -> None:
+        # If only a single term is given, put it into an array
+        if isinstance(terms, DensityFunctionTerm):
+            self.terms = [self.terms]
+        elif terms is None or not isinstance(terms, list) or len(terms) == 0:
+            raise ValueError("No terms provided to density function.")
 
     def _get_variables(self) -> set[str]:
         return self.terms[0].variables

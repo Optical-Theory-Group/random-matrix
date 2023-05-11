@@ -23,7 +23,8 @@ random_matrix/
 │ 
 ├── statistics/ --------------------- Statistical calculations
 │   ├── density_function.py --------- Classes for defining generalized density functions 
-│   └── density_integrals.py -------- Integrating functions with respect to pdfs
+│   ├── density_integrals.py -------- Integrating functions with respect to pdfs
+│   └── medium_statistics.py -------- Statistics of the particles in the random medium
 │
 ├── utils/ -------------------------- Miscellaneous utility functions
 │   ├── array_utils.py -------------- Array manipulation
