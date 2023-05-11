@@ -13,8 +13,8 @@ def get_arg_index(function: Callable[..., Any], arg: str) -> int:
     return function.__code__.co_varnames.index(arg)
 
 
-def get_function_variables(function: MathematicalFunction) -> set[str]:
-    return set(inspect.signature(function).parameters)
+def get_function_variables(function: MathematicalFunction) -> list[str]:
+    return list(inspect.signature(function).parameters)
 
 
 def vectorize_arguments(

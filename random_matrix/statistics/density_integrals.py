@@ -3,61 +3,200 @@
 import copy
 import functools
 import inspect
+import time
 
 import numpy as np
 import numpy.typing as npt
 import quadpy
 
-from random_matrix.statistics.density_function import (
-    DensityFunction,
-    DeltaDensityFactor,
+from random_matrix.statistics import density_function
+from random_matrix.utils.types import (
+    MathematicalFunction,
+    FloatLike,
+    AMatrixFunction,
 )
-from random_matrix.utils.types import MathematicalFunction, FloatLike
 from random_matrix.utils import integration_utils, function_utils
 
 
-def integrate_by_delta(
-    function: MathematicalFunction, delta_density_factor: DeltaDensityFactor
+def integrate_by_delta_density_function(
+    function: MathematicalFunction,
+    delta_density_function: dict[str, FloatLike],
 ) -> MathematicalFunction:
-    """Integrate a function by a product of delta functions, yielding a new
-    function.
+    """Integrates a function by a product of delta functions, fixing the
+    values of the arguments of the original function to those dictated
+    by the delta functions.
 
-    Note: the returned function has only key work arguments.
+    Parameters:
+    -----------
+    function:
+        The function to be integrated.
+    delta_density_function:
+        Delta functions in the integrand, represented by a dictionary of
+        variable-value pairs.
+
+    Returns:
+    --------
+    integrated_function:
+        The result of the integration.
     """
 
-    delta_function = delta_density_factor.density
+    function_variables = function_utils.get_function_variables(function)
+    integration_variables = set(delta_density_function.keys())
+    remaining_variables = [
+        var for var in function_variables if var not in integration_variables
+    ]
+    num_remaining_variables = len(remaining_variables)
 
-    def integrated_function(**kwargs: FloatLike) -> FloatLike:
-        new_kwargs = {**kwargs, **delta_function}
-        return function(**new_kwargs)
+    # args here are the remaning variables after integration
+    def integrated_function(*args: FloatLike) -> FloatLike:
+        if len(args) != num_remaining_variables:
+            raise ValueError(
+                f"Please give {num_remaining_variables} positional arguments "
+                f"for variables {remaining_variables}"
+            )
+        new_args = []
+        old_args = iter(args)
+        for arg in function_variables:
+            if arg in integration_variables:
+                new_args.append(delta_density_function[str(arg)])
+            else:
+                new_args.append(next(old_args))
+        return function(*new_args)
 
     # Update signature of integrated_function to contain new variables
-    integrated_vars = set(delta_function.keys())
-    total_vars = function_utils.get_function_variables(function)
-    remaining_vars = total_vars - integrated_vars
-    if len(remaining_vars) > 0:
+    if len(remaining_variables) > 0:
         new_signature = inspect.Signature(
             [
                 inspect.Parameter(var, inspect.Parameter.POSITIONAL_OR_KEYWORD)
-                for var in remaining_vars
+                for var in remaining_variables
             ]
         )
-        integrated_function.__signature__ = new_signature
+        integrated_function.__signature__ = new_signature  # type: ignore
+    return integrated_function  # type: ignore
 
-    return integrated_function
+
+def integrate_by_delta_density_factor(
+    function: MathematicalFunction,
+    delta_density_factor: density_function.DeltaDensityFactor,
+) -> MathematicalFunction:
+    """Equivalent to "integrate by delta functions", but for a
+    DeltaDensityFactor object as an input."""
+
+    delta_functions = delta_density_factor.density
+    return integrate_by_delta_density_function(function, delta_functions)
+
+
+def integrate_by_regular_density_function(
+    function: MathematicalFunction,
+    regular_density_function: MathematicalFunction,
+    integration_domain: dict[str, list[FloatLike]],
+) -> MathematicalFunction:
+    """Integrate a function by a regular (non-Dirac) probability density
+    function, yielding its expected value.
+
+    Parameters:
+    -----------
+    function:
+        The function to be integrated.
+    regular_density_function:
+        The pdf against which the function is integrated.
+    integration_domain:
+        The integration domain as a dictionary
+
+    Returns:
+    --------
+    integrated_function:
+        The integral of function * density over the domain.
+    """
+
+    function_variables = function_utils.get_function_variables(function)
+    integration_variables = function_utils.get_function_variables(
+        regular_density_function
+    )
+    remaining_variables = [
+        var for var in function_variables if var not in integration_variables
+    ]
+    num_remaining_variables = len(remaining_variables)
+
+    # For every choice of the non-integration variables, we return a function
+    # that gives the integrand, which is a function of the integration
+    # variables.
+    def integrand(*remaining_args: FloatLike) -> MathematicalFunction:
+        def inner(*integration_args: FloatLike) -> FloatLike:
+            # new_args is what needs to be passed to the function being
+            # integrated against
+            remaining_args_iter = iter(remaining_args)
+            integration_args_iter = iter(integration_args)
+            new_args = []
+
+            for arg in function_variables:
+                if arg in integration_variables:
+                    new_args.append(next(integration_args_iter))
+                else:
+                    new_args.append(next(remaining_args_iter))
+            return function(*new_args) * regular_density_function(
+                *integration_args
+            )
+
+        # Given the inner function a signature containing its integration
+        # variables
+        new_signature = inspect.Signature(
+            [
+                inspect.Parameter(var, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+                for var in integration_variables
+            ]
+        )
+        inner.__signature__ = new_signature  # type: ignore
+        return inner  # type: ignore
+
+    def integrated_function(*args: FloatLike) -> FloatLike:
+        if len(args) != num_remaining_variables:
+            raise ValueError(
+                f"Please give {num_remaining_variables} positional arguments "
+                f"for variables {remaining_variables}"
+            )
+        local_integrand = integrand(*args)
+        return integration_utils.basic_product_integral(
+            local_integrand, integration_domain
+        )
+
+    return integrated_function  # type: ignore
+
+
+def integrate_by_regular_density_factor(
+    function: MathematicalFunction,
+    regular_density_factor: density_function.RegularDensityFactor,
+) -> MathematicalFunction:
+    density = regular_density_factor.density
+    domain = regular_density_factor.domain
+    return integrate_by_regular_density_function(function, density, domain)
 
 
 def integrate_by_density(
-    function: MathematicalFunction, density: DensityFunction
+    function: MathematicalFunction, density: density_function.DensityFunction
 ) -> MathematicalFunction:
-    """Integrate a function by a probability density function, thus yielding
-    a new function."""
+    """Integrate a function by a general probability density function,
+    including both regular functions and Dirac delta functions.
+
+    Parameters:
+    -----------
+    function:
+        The function to be integrated.
+    density:
+        The pdf against which the function is integrated, represented as a
+        DensityFunction object.
+
+    Returns:
+    --------
+    integrated_function:
+        The integral of function * density.
+    """
 
     # Check that density_variables is a proper subset of function_variables
-    function_variables = integration_utils.get_function_variables(function)
-    density_variables = density.variables
+    function_variables = set(function_utils.get_function_variables(function))
+    density_variables = set(density.variables)
     if not density_variables <= function_variables:
-        raise ValueError(
+        raise TypeError(
             f"The density function variables: {density_variables} must be a "
             f"proper subset of the function variables {function_variables}."
         )
@@ -70,14 +209,14 @@ def integrate_by_density(
         # Integrate over delta functions
         delta_distribution = term.delta
         if delta_distribution is not None:
-            integrated_function = integrate_by_delta(
+            integrated_function = integrate_by_delta_density_factor(
                 integrated_function, delta_distribution
             )
 
         # Integrate over regular density function factor
         regular_distribution = term.regular
         if regular_distribution is not None:
-            integrated_function = integrate_by_regular(
+            integrated_function = integrate_by_regular_density_factor(
                 integrated_function, regular_distribution
             )
 
@@ -86,13 +225,3 @@ def integrate_by_density(
     # Add together results
     result = function_utils.add_functions(partial_results)
     return result
-
-
-d = DeltaDensityFactor({"a": 1.0, "b": 2.0})
-
-
-def f(a, b, c):
-    return a + b + c
-
-
-g = integrate_by_delta(f, d)
