@@ -14,9 +14,8 @@ def test_product_integral_1d() -> None:
 
     domain = {"x": [0.0, 1.0]}
 
-    integral = integration_utils.product_integral(function, domain)
+    integral = integration_utils.basic_product_integral(function, domain)
     assert np.isclose(integral, 1.0)
-
 
 # 2D integral
 def test_product_integral_2d() -> None:
@@ -25,9 +24,8 @@ def test_product_integral_2d() -> None:
 
     domain = {"x": [0.0, 1.0], "y": [0.0, 1.0]}
 
-    integral = integration_utils.product_integral(function, domain)
+    integral = integration_utils.basic_product_integral(function, domain)
     assert np.isclose(integral, 1.0)
-
 
 # High dimensional integral
 def test_product_integral_highd() -> None:
@@ -45,7 +43,7 @@ def test_product_integral_highd() -> None:
         "c": [0.0, 1.0],
     }
 
-    integral = integration_utils.product_integral(function, domain)
+    integral = integration_utils.basic_product_integral(function, domain)
     assert np.isclose(integral, 1.0)
 
 
@@ -55,7 +53,6 @@ def test_error_function_integral() -> None:
         return np.exp(-(x**2))
 
     domain = {"x": [0.0, 1.0]}
-    integral = integration_utils.product_integral(gaussian, domain)
+    integral = integration_utils.basic_product_integral(gaussian, domain)
     actual = np.sqrt(np.pi) / 2.0 * scipy.special.erf(1.0)
     assert np.isclose(integral, actual)
-

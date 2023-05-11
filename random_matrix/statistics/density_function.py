@@ -80,8 +80,14 @@ class RegularDensityFactor:
 
     @property
     def integral(self) -> FloatLike:
-        integral = integration_utils.product_integral(
-            self.density, self.domain
+        # Convert dictionary domain to correctly ordered list
+        integration_domain = (
+            integration_utils.get_integration_domain_from_dict(
+                self.density, self.domain
+            )
+        )
+        integral = integration_utils.basic_product_integral(
+            self.density, integration_domain
         )
         return integral
 
@@ -266,7 +272,6 @@ class DensityFunction:
         """Create an instance with only a single density function and no
         deltas"""
         regular = RegularDensityFactor(function, domain)
-        print(regular)
         term = DensityFunctionTerm(regular, None)
         density = cls([term])
         return density

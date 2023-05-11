@@ -72,7 +72,6 @@ def test_non_normalized_regular() -> None:
 def test_from_deltas() -> None:
     deltas = {"x": 0.1, "y": 0.2}
     density = DensityFunction.from_deltas(deltas)
-    print(density.terms[0])
     assert np.isclose(density.integral, 1.0)
     assert len(density.terms) == 1
     assert density.terms[0].delta.density == deltas
