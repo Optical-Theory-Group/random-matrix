@@ -9,3 +9,6 @@ def get_A(
     c: FloatLike,
 ) -> FloatLike:
     return 1.0
+
+
+get_A.particle_type = "isotropic sphere"  # type: ignore

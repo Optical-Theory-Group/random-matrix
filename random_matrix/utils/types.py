@@ -30,7 +30,10 @@ class MathematicalFunction(Protocol):
 
 
 @runtime_checkable
+@dataclass
 class AMatrixFunction(Protocol):
+    particle_type: str
+
     def __call__(
         self, k_inc: FloatLike, k_sca: FloatLike, params: Parameters
     ) -> FloatLike:

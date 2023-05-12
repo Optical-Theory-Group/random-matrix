@@ -18,7 +18,7 @@ def test_regular_density_factor() -> None:
     domain = {"x": [0.0, 1.0], "m": [0.0, 1.0]}
 
     density = RegularDensityFactor(function, domain)
-    assert density.density == function
+    assert density.density_function == function
     assert density.domain == domain
     assert np.isclose(density.integral, 1.0)
 
@@ -28,7 +28,7 @@ def test_dirac_density_factor() -> None:
     delta_functions = {"x": 1.0, "m": 1.2}
     density = DeltaDensityFactor(delta_functions)
 
-    assert density.density == delta_functions
+    assert density.density_function == delta_functions
     assert np.isclose(density.integral, 1.0)
 
 
@@ -52,8 +52,8 @@ def test_mixed_term() -> None:
     delt = DeltaDensityFactor(deltas, delta_factor)
     term = DensityFunctionTerm(reg, delt)
 
-    assert term.regular == reg
-    assert term.delta == delt
+    assert term.regular_factor == reg
+    assert term.delta_factor == delt
     assert np.isclose(term.integral, 0.3)
 
 
@@ -65,13 +65,13 @@ def test_non_normalized_regular() -> None:
             return x**2
 
         domain = {"x": [0.0, 1.0]}
-        density = DensityFunction.from_function(function, domain)
+        density = DensityFunction.from_regular(function, domain)
 
 
 # from deltas
 def test_from_deltas() -> None:
     deltas = {"x": 0.1, "y": 0.2}
-    density = DensityFunction.from_deltas(deltas)
+    density = DensityFunction.from_delta(deltas)
     assert np.isclose(density.integral, 1.0)
     assert len(density.terms) == 1
-    assert density.terms[0].delta.density == deltas
+    assert density.terms[0].delta_factor.density_function == deltas
