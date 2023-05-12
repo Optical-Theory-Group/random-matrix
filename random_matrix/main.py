@@ -1,0 +1,3 @@
+from random_matrix.amplitude_matrix import functions
+
+print(functions.isotropic_sphere.particle_type)

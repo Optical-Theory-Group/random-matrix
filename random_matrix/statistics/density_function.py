@@ -58,15 +58,18 @@ class RegularDensityFactor:
 
     Attributes
     ----------
-    density:
+    density_function:
         The factor of the density function.
     domain:
         The integration domain for each variable
+    variables:
+        A set containing all of the variables associated with the density
+        function
     integral:
         The integral of the density over the domain
     """
 
-    density: MathematicalFunction
+    density_function: MathematicalFunction
     domain: dict[str, list[FloatLike]]
 
     variables: set[str] = field(init=False)
@@ -81,7 +84,7 @@ class RegularDensityFactor:
     @property
     def integral(self) -> FloatLike:
         integral = integration_utils.basic_product_integral(
-            self.density, self.domain
+            self.density_function, self.domain
         )
         return integral
 
@@ -96,9 +99,9 @@ class DeltaDensityFactor:
 
     Attributes
     ----------
-    density:
+    density_function:
         Delta functions as a dict of variable-constant string-float pairs.
-    factor:
+    const_factor:
         Constant factor multiplying the product of delta functions.
     integral:
         The integral of the density over the domain. In this case, this is just
@@ -106,7 +109,7 @@ class DeltaDensityFactor:
         includes the delta function peak.
     """
 
-    density: dict[str, FloatLike]
+    density_function: dict[str, FloatLike]
     const_factor: FloatLike = 1.0
 
     variables: set[str] = field(init=False)
@@ -115,7 +118,7 @@ class DeltaDensityFactor:
         self.variables = self._get_variables()
 
     def _get_variables(self) -> set[str]:
-        variables = set(self.density.keys())
+        variables = set(self.density_function.keys())
         return variables
 
     @property
@@ -132,9 +135,9 @@ class DensityFunctionTerm:
 
     Attributes
     ----------
-    residual:
+    regular_factor:
         The regular factor of the term.
-    delta:
+    delta_factor:
         The delta factor of the term.
     variables:
         A set of all of the variables involved in the term.
@@ -142,8 +145,8 @@ class DensityFunctionTerm:
         The total integral of the term.
     """
 
-    regular: RegularDensityFactor | None = None
-    delta: DeltaDensityFactor | None = None
+    regular_factor: RegularDensityFactor | None = None
+    delta_factor: DeltaDensityFactor | None = None
 
     variables: set[str] = field(init=False)
 
@@ -154,7 +157,7 @@ class DensityFunctionTerm:
         self.variables = delta_variables | regular_variables
 
     def _validate_input(self) -> None:
-        if self.regular is None and self.delta is None:
+        if self.regular_factor is None and self.delta_factor is None:
             raise ValueError(
                 "At least one of regular or delta must be "
                 "given. You have both as None."
@@ -164,9 +167,13 @@ class DensityFunctionTerm:
         """Return sets containing all of the variables
         from the regular and delta densities."""
 
-        delta_variables = set() if self.delta is None else self.delta.variables
+        delta_variables = (
+            set() if self.delta_factor is None else self.delta_factor.variables
+        )
         regular_variables = (
-            set() if self.regular is None else self.regular.variables
+            set()
+            if self.regular_factor is None
+            else self.regular_factor.variables
         )
         return delta_variables, regular_variables
 
@@ -187,9 +194,31 @@ class DensityFunctionTerm:
     @property
     def integral(self) -> FloatLike:
         """Compute the integral of the probability density function term"""
-        regular = 1.0 if self.regular is None else self.regular.integral
-        delta = 1.0 if self.delta is None else self.delta.integral
+        regular = (
+            1.0
+            if self.regular_factor is None
+            else self.regular_factor.integral
+        )
+        delta = (
+            1.0 if self.delta_factor is None else self.delta_factor.integral
+        )
         return regular * delta
+
+    @classmethod
+    def from_regular(
+        cls,
+        density_function: MathematicalFunction,
+        domain: dict[str, list[FloatLike]],
+    ) -> Self:
+        regular_factor = RegularDensityFactor(density_function, domain)
+        return cls(regular_factor, None)
+
+    @classmethod
+    def from_delta(
+        cls, density_function: dict[str, FloatLike], const_factor: float = 1.0
+    ) -> Self:
+        delta_factor = DeltaDensityFactor(density_function, const_factor)
+        return cls(None, delta_factor)
 
 
 @dataclass
@@ -221,7 +250,7 @@ class DensityFunction:
 
     def __post_init__(self) -> None:
         self._validate_input(self.terms)
-        self._check_variable_consistency()
+        self._check_term_variable_consistency()
         self.variables = self._get_variables()
         self._check_normalization()
 
@@ -235,7 +264,7 @@ class DensityFunction:
     def _get_variables(self) -> set[str]:
         return self.terms[0].variables
 
-    def _check_variable_consistency(self) -> None:
+    def _check_term_variable_consistency(self) -> None:
         """Check that the variables within each term object are
         consistent."""
 
@@ -265,20 +294,20 @@ class DensityFunction:
         return sum(term.integral for term in self.terms)
 
     @classmethod
-    def from_function(
-        cls, function: MathematicalFunction, domain: dict[str, list[FloatLike]]
+    def from_regular(
+        cls,
+        density_function: MathematicalFunction,
+        domain: dict[str, list[FloatLike]],
     ) -> Self:
         """Create an instance with only a single density function and no
         deltas"""
-        regular = RegularDensityFactor(function, domain)
-        term = DensityFunctionTerm(regular, None)
-        density = cls([term])
-        return density
+        term = DensityFunctionTerm.from_regular(density_function, domain)
+        return cls([term])
 
     @classmethod
-    def from_deltas(cls, deltas: dict[str, FloatLike]) -> Self:
+    def from_delta(
+        cls, density_function: dict[str, FloatLike], const_factor: float = 1.0
+    ) -> Self:
         """Create an instance with only delta functions"""
-        delta = DeltaDensityFactor(deltas)
-        term = DensityFunctionTerm(None, delta)
-        density = cls([term])
-        return density
+        term = DensityFunctionTerm.from_delta(density_function, const_factor)
+        return cls([term])

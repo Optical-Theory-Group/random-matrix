@@ -80,10 +80,19 @@ def integrate_by_delta_density_factor(
     delta_density_factor: density_function.DeltaDensityFactor,
 ) -> MathematicalFunction:
     """Equivalent to "integrate by delta functions", but for a
-    DeltaDensityFactor object as an input."""
+    DeltaDensityFactor object as an input.
 
-    delta_functions = delta_density_factor.density
-    return integrate_by_delta_density_function(function, delta_functions)
+    Note that the constant factor is also enforced.
+    """
+
+    delta_functions = delta_density_factor.density_function
+    constant_factor = delta_density_factor.const_factor
+    integrated_function = integrate_by_delta_density_function(
+        function, delta_functions
+    )
+    return function_utils.multiply_function_by_constant(
+        integrated_function, constant_factor
+    )
 
 
 def integrate_by_regular_density_function(
@@ -160,6 +169,16 @@ def integrate_by_regular_density_function(
             local_integrand, integration_domain
         )
 
+    # Update signature of integrated_function to contain new variables
+    if len(remaining_variables) > 0:
+        new_signature = inspect.Signature(
+            [
+                inspect.Parameter(var, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+                for var in remaining_variables
+            ]
+        )
+        integrated_function.__signature__ = new_signature  # type: ignore
+
     return integrated_function  # type: ignore
 
 
@@ -167,7 +186,7 @@ def integrate_by_regular_density_factor(
     function: MathematicalFunction,
     regular_density_factor: density_function.RegularDensityFactor,
 ) -> MathematicalFunction:
-    density = regular_density_factor.density
+    density = regular_density_factor.density_function
     domain = regular_density_factor.domain
     return integrate_by_regular_density_function(function, density, domain)
 
@@ -207,14 +226,14 @@ def integrate_by_density(
         integrated_function = copy.copy(function)
 
         # Integrate over delta functions
-        delta_distribution = term.delta
+        delta_distribution = term.delta_factor
         if delta_distribution is not None:
             integrated_function = integrate_by_delta_density_factor(
                 integrated_function, delta_distribution
             )
 
         # Integrate over regular density function factor
-        regular_distribution = term.regular
+        regular_distribution = term.regular_factor
         if regular_distribution is not None:
             integrated_function = integrate_by_regular_density_factor(
                 integrated_function, regular_distribution

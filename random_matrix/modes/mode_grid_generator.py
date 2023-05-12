@@ -977,7 +977,7 @@ def _get_intersection_types(
     # These vectors are directed along the line segments of the polygon
     vectors = np.vstack(
         (
-            points[1:] - points[:-1],  # type:ignore
+            points[1:] - points[:-1],
             points[0] - points[-1],
         )
     )
