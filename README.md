@@ -24,7 +24,10 @@ random_matrix/
 ├── statistics/ --------------------- Statistical calculations
 │   ├── density_function.py --------- Classes for defining generalized density functions 
 │   ├── density_integrals.py -------- Integrating functions with respect to pdfs
-│   └── medium_statistics.py -------- Statistics of the particles in the random medium
+│   ├── index_finder.py ------------- Finds non-zero statistics within the scattering matrix
+│   ├── integral_preparer.py -------- Prepares integrals for efficient computation
+│   ├── medium_statistics.py -------- Statistics of the particles in the random medium
+│   └── scattering_statistics.py ---- Statistics of the scattering matrix
 │
 ├── utils/ -------------------------- Miscellaneous utility functions
 │   ├── array_utils.py -------------- Array manipulation

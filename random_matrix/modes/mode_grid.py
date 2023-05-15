@@ -306,6 +306,27 @@ class ModeGrid:
         ]
         return len(evanescent_modes)
 
+    @property
+    def propagating_indices(self) -> list[int]:
+        propagating_indices = [
+            int(entry[0])
+            for entry in list(self.modes.keys())
+            if entry[1] == "propagating"
+        ]
+        propagating_indices.sort()
+        return propagating_indices
+
+    @property
+    def evanescent_indices(self) -> list[int]:
+        evanescent_indices = [
+            int(entry[0])
+            for entry in list(self.modes.keys())
+            if entry[1] == "evanescent"
+        ]
+        evanescent_indices.sort()
+        return evanescent_indices
+
+
     # --------------------------------------------------------------------------
     # Public methods
     # --------------------------------------------------------------------------
