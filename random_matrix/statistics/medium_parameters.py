@@ -1,0 +1,2 @@
+class MediumParameters:
+    pass
