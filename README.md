@@ -11,11 +11,10 @@ The core library is contained in the `random_matrix/` directory, which has the f
 random_matrix/
 │
 ├── amplitude_matrix/ --------------- Calculation of the single particle A matrix
-│   ├── _anisotropic_tmatrix.py ----- Anisotropic particle, T matrix method  
-│   ├── _chiral_sphere.py ----------- Chiral sphere, Mie theory
-│   ├── _isotropic_sphere.py -------- Isotropic sphere, Mie theory
-|   └── functions.py ---------------- Summary of functions and parameters for use elsewhere
-│
+│   ├── anisotropic_tmatrix.py ------ Anisotropic particle, T matrix method  
+│   ├── chiral_sphere.py ------------ Chiral sphere, Mie theory
+│   └── isotropic_sphere.py --------- Isotropic sphere, Mie theory
+|   
 ├── modes/ -------------------------- Definitions and properties of modes
 │   ├── mode_grid_generator.py ------ Functions for generating ModeGrid objects
 │   ├── mode_grid.py ---------------- ModeGrid class, container for Mode objects
