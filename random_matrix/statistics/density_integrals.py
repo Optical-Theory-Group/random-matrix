@@ -10,12 +10,9 @@ import numpy.typing as npt
 import quadpy
 
 from random_matrix.statistics import density_function
-from random_matrix.utils.types import (
-    MathematicalFunction,
-    FloatLike,
-    AMatrixFunction,
-)
-from random_matrix.utils import integration_utils, function_utils
+from random_matrix.utils import function_utils, integration_utils
+from random_matrix.utils.types import (AMatrixFunction, FloatLike,
+                                       MathematicalFunction)
 
 
 def integrate_by_delta_density_function(

@@ -1,14 +1,14 @@
 """Utility functions that assist with numerical integration"""
 
+import copy
 import inspect
 from typing import Any, Callable
-import copy
 
 import numpy as np
 import quadpy
 
-from random_matrix.utils.types import FloatLike, MathematicalFunction
 from random_matrix.utils import function_utils
+from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 
 def get_integration_domain_from_dict(

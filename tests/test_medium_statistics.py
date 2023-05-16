@@ -1,5 +1,6 @@
-from random_matrix.statistics import density_function, medium_statistics
 import pytest
+
+from random_matrix.statistics import density_function, medium_statistics
 
 
 def test_particle_statistics_variable_consistency():

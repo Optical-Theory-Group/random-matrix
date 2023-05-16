@@ -1,7 +1,7 @@
 """Generic types used throughout library for static type checking"""
 
-from typing import Protocol, runtime_checkable
 from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
 
 import numpy as np
 import numpy.typing as npt

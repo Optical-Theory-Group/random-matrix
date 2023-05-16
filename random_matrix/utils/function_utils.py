@@ -1,9 +1,9 @@
 """Utility functions that manipulate mathematical functions"""
 
-import inspect
 import copy
-from typing import Any, Callable
 import functools
+import inspect
+from typing import Any, Callable
 
 import numpy as np
 
