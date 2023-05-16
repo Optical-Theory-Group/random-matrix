@@ -1,8 +1,10 @@
-from random_matrix.statistics import density_function
-from random_matrix.utils.types import FloatLike, MathematicalFunction
-from random_matrix.utils import function_utils
 from dataclasses import dataclass, field
+
 import numpy as np
+
+from random_matrix.statistics import density_function
+from random_matrix.utils import function_utils
+from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 
 @dataclass

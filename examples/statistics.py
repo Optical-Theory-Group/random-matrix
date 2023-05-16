@@ -1,6 +1,7 @@
-from random_matrix.statistics import scattering_statistics
-from random_matrix.modes import mode_grid, mode_grid_generator
 import numpy as np
+
+from random_matrix.modes import mode_grid, mode_grid_generator
+from random_matrix.statistics import scattering_statistics
 
 my_grid = mode_grid_generator.from_tiling(
     tiling_type="rectangles",

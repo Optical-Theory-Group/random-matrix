@@ -1,7 +1,8 @@
 from dataclasses import dataclass
+
+from random_matrix.modes.mode_grid import ModeGrid
 from random_matrix.statistics.medium_parameters import MediumParameters
 from random_matrix.statistics.medium_statistics import MediumStatistics
-from random_matrix.modes.mode_grid import ModeGrid
 
 
 class InputStatisticsManager:

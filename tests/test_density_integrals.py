@@ -1,6 +1,8 @@
-from random_matrix.statistics import density_integrals, density_function
-import numpy as np
 import inspect
+
+import numpy as np
+
+from random_matrix.statistics import density_function, density_integrals
 
 
 def test_integrate_by_delta_density_factor_pass() -> None:
