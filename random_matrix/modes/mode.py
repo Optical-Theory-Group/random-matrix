@@ -14,6 +14,7 @@ import numpy.typing as npt
 import scipy.spatial
 
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
+from random_matrix.utils.types import FloatLike
 
 
 @dataclass(slots=True)
@@ -72,7 +73,7 @@ class Mode:
 
     """
 
-    vertices: npt.NDArray[np.float64]
+    vertices: FloatLike
     sides: list[Side]
     index: int = 0
 

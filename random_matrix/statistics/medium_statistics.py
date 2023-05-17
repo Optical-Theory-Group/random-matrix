@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from random_matrix.statistics import density_function
+from random_matrix.statistics import density_function, density_integrals
 from random_matrix.utils import function_utils
 from random_matrix.utils.types import FloatLike, MathematicalFunction
 
@@ -64,6 +64,13 @@ class ParticleStatistics(density_function.DensityFunction):
     def integral(self) -> FloatLike:
         return self.mixing_ratio * sum(term.integral for term in self.terms)
 
+    def get_mean_a_matrix(self) -> MathematicalFunction:
+        mean_a = density_integrals.integrate_by_density(self.a_matrix, self)
+        mean_a = function_utils.multiply_function_by_constant(
+            mean_a, self.mixing_ratio
+        )
+        return mean_a
+
 
 @dataclass
 class MediumStatistics:
@@ -83,3 +90,10 @@ class MediumStatistics:
     @property
     def density_integral(self) -> FloatLike:
         return sum(term.integral for term in self.particle_terms)
+
+    def get_mean_a_matrix(self) -> MathematicalFunction:
+        """Computes <A> over the contained particle terms and A functions"""
+        partial_results = []
+        for particle_term in self.particle_terms:
+            partial_results.append(particle_term.get_mean_a_matrix())
+        return function_utils.add_functions(partial_results)

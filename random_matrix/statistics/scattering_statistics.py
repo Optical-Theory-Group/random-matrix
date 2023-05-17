@@ -1,16 +1,15 @@
 from dataclasses import dataclass
 
-from random_matrix.modes.mode_grid import ModeGrid
-from random_matrix.statistics.medium_parameters import MediumParameters
-from random_matrix.statistics.medium_statistics import MediumStatistics
+from random_matrix.modes import mode_grid
+from random_matrix.statistics import medium_parameters, medium_statistics
 
 
 class InputStatisticsManager:
     def __init__(
         self,
-        medium_parameters: MediumParameters,
-        medium_statistics: MediumStatistics,
-        mode_grid: ModeGrid,
+        medium_parameters: medium_parameters.MediumParameters,
+        medium_statistics: medium_statistics.MediumStatistics,
+        mode_grid: mode_grid.ModeGrid,
     ) -> None:
         """Input statistics manager class"""
 
@@ -24,7 +23,6 @@ class InputStatisticsManager:
             self._get_independent_element_indices()
         )
         self.mean_indices = self._get_mean_indices()
-
 
 
 class IntegrationManager:
