@@ -14,8 +14,8 @@ class IndexFinder:
             self._get_independent_element_indices()
         )
         self.mean_indices = self._get_mean_indices()
-        self.covariance_indices = self._get_covariance_indices()
-        self.pseudo_covariance_indices = self._get_pseudo_covariance_indices()
+        #self.covariance_indices = self._get_covariance_indices()
+        #self.pseudo_covariance_indices = self._get_pseudo_covariance_indices()
 
     # -------------------------------------------------------------------------
     # Methods for finding the independent elements (based on reciprocity)
