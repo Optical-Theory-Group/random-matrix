@@ -9,8 +9,7 @@ from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 def kz(kappa: FloatLike) -> FloatLike:
     """Note this is NORMALISED by k"""
-
-    return np.sqrt(1 - np.linalg.norm(kappa))
+    return np.sqrt(1 - np.linalg.norm(kappa, axis=0) ** 2)
 
 
 def inverse_kz(kappa: FloatLike) -> FloatLike:
@@ -26,10 +25,16 @@ def sinc(x: FloatLike) -> FloatLike:
     """Standard sinc function. Differs to scipy's by not including pi
     normalization."""
 
-    if np.isclose(x, 0.0):
-        return 1.0
-    else:
-        return np.sin(x) / x
+    if isinstance(x, list):
+        x = np.array(x)
+    if not isinstance(x, np.ndarray):
+        return 1.0 if np.isclose(x, 0.0) else np.sin(x) / x
+    result = np.empty_like(x)
+    mask = np.isclose(x, 0.0)
+    non_zero_x_vals = x[~mask]
+    result[mask] = 1.0
+    result[~mask] = np.sin(non_zero_x_vals) / non_zero_x_vals
+    return result
 
 
 def sinc_mean(k: FloatLike, L: FloatLike, kappa: FloatLike) -> FloatLike:

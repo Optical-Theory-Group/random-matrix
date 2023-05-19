@@ -7,15 +7,22 @@ class IndexFinder:
         self, mode_grid: ModeGrid, medium_parameters: MediumParameters
     ) -> None:
         self.mode_grid = mode_grid
+
+        # Only necessary if delta functions are later relaxed
+        # but left in for now
         self.medium_parameters = medium_parameters
 
-    def get_indices(self) -> None:
+    def get_indices(self) -> dict[str, dict[str, set[tuple[int, int]]]]:
+        # Determine the independent element indices
         self.independent_element_indices = (
             self._get_independent_element_indices()
         )
-        self.mean_indices = self._get_mean_indices()
-        #self.covariance_indices = self._get_covariance_indices()
-        #self.pseudo_covariance_indices = self._get_pseudo_covariance_indices()
+
+        indices = {}
+        indices["mean"] = self._get_mean_indices()
+        indices["covariance"] = self._get_covariance_indices()
+        indices["pseudo_covariance"] = self._get_pseudo_covariance_indices()
+        return indices
 
     # -------------------------------------------------------------------------
     # Methods for finding the independent elements (based on reciprocity)
@@ -123,7 +130,9 @@ class IndexFinder:
     # Methods for finding the indices where the covariance is non-zero
     # -------------------------------------------------------------------------
 
-    def _get_covariance_indices(self):
+    def _get_covariance_indices(
+        self,
+    ) -> dict[str, dict[str, set[tuple[int, int, int, int]]]]:
         """Get indices of the scattering matrix for which the covariance needs
         tobe calculated."""
 
@@ -141,14 +150,18 @@ class IndexFinder:
         }
         return covariance_indices  # type: ignore
 
-    def _get_covariance_indices_pppp(self):
+    def _get_covariance_indices_pppp(
+        self,
+    ) -> dict[str, set[tuple[int, int, int, int]]]:
         return {}
 
     # -------------------------------------------------------------------------
     # Methods for finding the indices where the pseudo-covariance is non-zero
     # -------------------------------------------------------------------------
 
-    def _get_pseudo_covariance_indices():
+    def _get_pseudo_covariance_indices(
+        self,
+    ) -> dict[str, dict[str, set[tuple[int, int, int, int]]]]:
         """Get indices of the scattering matrix for which the pseudo-covariance
         needs tobe calculated."""
 
@@ -164,6 +177,9 @@ class IndexFinder:
             "epee": {},
             "eeee": {},
         }
+        return pseudo_covariance_indices
 
-    def _get_pseudo_covariance_indices_pppp(self):
+    def _get_pseudo_covariance_indices_pppp(
+        self,
+    ) -> dict[str, set[tuple[int, int, int, int]]]:
         return {}

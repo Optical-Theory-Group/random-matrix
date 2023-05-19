@@ -128,7 +128,6 @@ def equate_arguments(function: MathematicalFunction) -> MathematicalFunction:
 
     num_variables = len(get_function_variables(function))
 
-    @functools.wraps(function)
     def new_function(arg: FloatLike) -> FloatLike:
         original_function_args = (arg for _ in range(num_variables))
         return function(*original_function_args)
