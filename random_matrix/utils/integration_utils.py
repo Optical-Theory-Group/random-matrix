@@ -37,6 +37,9 @@ def basic_product_integral(
         this should be [[0.0, 1.0], [1.0, 2.0]]. If it is given as a dict, this
         will first be converted.
 
+    scheme:
+        The cubature scheme. If not provided, defaults will be used.
+
     Returns:
     --------
     integral:
@@ -58,7 +61,7 @@ def basic_product_integral(
     dim = len(integration_domain)
     match dim:
         case 1:
-            scheme = quadpy.c1.gauss_legendre(10) if scheme is None else scheme            
+            scheme = quadpy.c1.gauss_legendre(10) if scheme is None else scheme
             integral = scheme.integrate(function, *integration_domain)
         case 2:
             scheme = (
@@ -75,3 +78,49 @@ def basic_product_integral(
             )
 
     return integral  # type: ignore
+
+
+def basic_triangle_integral(
+    function: MathematicalFunction,
+    integration_domain: FloatLike,
+    scheme: Any | None = None,
+) -> FloatLike:
+    """Integrates a function of 2 variables over a triangle (or collection
+    of triangles)
+
+    Parameters:
+    -----------
+    function:
+        The function to be integrated.
+    integration_domain:
+        The integration domain as a list of lists. E.g. if the arguments
+        come in the order (x,y) and the domain is 0 < x < 1, 1 < y < 2, then
+        this should be [[0.0, 1.0], [1.0, 2.0]]. If it is given as a dict, this
+        will first be converted.
+    scheme:
+        The cubature scheme. If not provided, defaults will be used.
+
+    Returns:
+    --------
+    integral:
+        The integral of function over the domain
+    """
+
+    # If the function has multiple arguments, replace its arguments
+    # by a vector. This is to make quadpy happy.
+    num_args = len(inspect.signature(function).parameters)
+    if num_args > 1:
+        function = function_utils.vectorize_arguments(function)
+
+    if scheme is None:
+        scheme = quadpy.t2.get_good_scheme(12)
+
+    # Reshape domain stack if necessary
+    # again to make quadpy happy
+    if np.ndim(integration_domain == 3) and np.shape(integration_domain)[
+        1:
+    ] == (3, 2):
+        integration_domain = np.transpose(integration_domain, (1, 0, 2))
+
+    integral = scheme.integrate(function, integration_domain)
+    return integral

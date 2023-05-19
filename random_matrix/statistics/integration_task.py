@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
+from typing import Self
 
 import numpy as np
 import scipy
+import inspect
 
 from random_matrix.modes import mode_grid
 from random_matrix.statistics import (
@@ -9,11 +11,67 @@ from random_matrix.statistics import (
     medium_parameters,
     medium_statistics,
 )
-from random_matrix.utils import function_utils, special_functions
+from random_matrix.utils import (
+    function_utils,
+    special_functions,
+    integration_utils,
+)
 from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 
-@dataclass
+@dataclass(slots=True)
+class IntegrationResult:
+    """General integration result container.
+
+    Contains results from executing an IntegrationTask object.
+
+    Attributes
+    ----------
+    statistic_type:
+        String that tracks what type of statistic is being calculated.
+        The options are "mean", "covariance" and "pseudo_covariance"
+    block_location:
+        Pair of strings that trick which block the integrated statistic is for
+        Examples include ("pp", "t") or ("pppp", "tt")
+    sub_block_locations:
+        list describing how the task outputs map back to positions within the
+        relevant block. The slice object is for accessing parts of the
+        domain stack, while the tuple tracks the modes inolved in the
+        statistical calculation.
+    integral:
+        The result of the task integration.
+    """
+
+    statistic_type: str
+    block_location: tuple[str, str]
+    sub_block_locations: list[tuple[int, int]]
+    integral: FloatLike
+
+    def __str__(self) -> str:
+        string = (
+            f"Statistic type: {self.statistic_type}\n"
+            f"Matrix block: {self.block_location}\n"
+            f"Number of integrals: {len(self.integral)}"
+        )
+
+        return string
+
+
+@dataclass(slots=True)
+class IntegrationResultList:
+    """Container class for many IntegrationResult objects."""
+
+    results: list[IntegrationResult] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        string = f"Number of results: {len(self.results)}"
+        return string
+
+    def append_result(self, new_result: IntegrationResult) -> None:
+        self.results.append(new_result)
+
+
+@dataclass(slots=True)
 class IntegrationTask:
     """General integration task container.
 
@@ -47,8 +105,75 @@ class IntegrationTask:
     sub_block_locations: list[tuple[slice, tuple[int, int]]]
     const_factor: FloatLike = 1.0
 
+    def __str__(self) -> str:
+        string = (
+            f"Statistic type: {self.statistic_type}\n"
+            f"Matrix block: {self.block_location}\n"
+            f"Number of integrals: {len(self.domain_stack)}"
+        )
 
-@dataclass
+        return string
+
+    def execute_task(self) -> IntegrationResult:
+        """Perofrm the integral associated with the task."""
+
+        integral = integration_utils.basic_triangle_integral(
+            self.integrand, self.domain_stack
+        )
+
+        # Results should be added over the slices. This corresponds to adding
+        # integrals over the triangular subregions of the integration domain
+        output_dim, num_outputs = np.shape(integral)
+        slices = [s[0] for s in self.sub_block_locations]
+        locations = [s[1] for s in self.sub_block_locations]
+        num_slices = len(slices)
+        output = np.zeros((output_dim, num_slices))
+
+        for i, s in enumerate(slices):
+            partial_output = np.sum(integral[:, s], axis=-1)
+            output[:, i] = partial_output
+
+        output = np.transpose(output, (1, 0))
+
+        return IntegrationResult(
+            self.statistic_type,
+            self.block_location,
+            locations,
+            self.const_factor * output,
+        )
+
+
+@dataclass(slots=True)
+class IntegrationTaskList:
+    """Container class for many IntegrationTask objects."""
+
+    tasks: list[IntegrationTask] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        string = f"Number of tasks: {len(self.tasks)}"
+        return string
+
+    def append_task(self, new_task: IntegrationTask) -> None:
+        """Add a new task to the task list"""
+
+        self.tasks.append(new_task)
+
+    def merge_task_list(self, new_task_list: Self) -> None:
+        """Append tasks from another task list object to itself"""
+
+        self.tasks += new_task_list.tasks
+
+    def execute_tasks(self) -> IntegrationResultList:
+        """Perofrm the integral associated with all tasks."""
+
+        results_list = IntegrationResultList()
+        for task in self.tasks:
+            new_result = task.execute_task()
+            results_list.append_result(new_result)
+        return results_list
+
+
+@dataclass(slots=True)
 class IntegrationTaskConfig:
     """Configuration metadata for controlling the degree of parallelisation of the
     integration tasks
@@ -77,23 +202,48 @@ class IntegrationTaskPreparer:
         self.mode_grid = mode_grid
         self.medium_parameters = medium_parameters
         self.medium_statistics = medium_statistics
-        self.integration_tasks: list[IntegrationTask] = []
 
-    def get_mean_integral_tasks(
+    def get_integration_tasks(
+        self, indices: dict[str, dict[str, set[tuple[int, int]]]]
+    ) -> IntegrationTaskList:
+        """Get an integration task list consisting of all necessary tasks.
+
+        This is the main function that is run by IntegrationTaskPreparer
+        """
+
+        master_task_list = IntegrationTaskList()
+        master_task_list.merge_task_list(
+            self._get_mean_integration_tasks(indices["mean"])
+        )
+        master_task_list.merge_task_list(
+            self._get_covariance_integration_tasks(indices["covariance"])
+        )
+        master_task_list.merge_task_list(
+            self._get_covariance_integration_tasks(
+                indices["pseudo_covariance"]
+            )
+        )
+
+        return master_task_list
+
+    def _get_mean_integration_tasks(
         self, mean_indices: dict[str, dict[str, tuple[int, int]]]
-    ) -> list[IntegrationTask]:
+    ) -> IntegrationTaskList:
         """Main method for preparing mean integral tasks"""
 
         # Factor common to all mean integrals
         const_factor = self.medium_parameters.mean_const_factor
-        integration_tasks = []
+        main_task_list = IntegrationTaskList()
 
         for wave_block, d in mean_indices.items():
+            sub_task_list = IntegrationTaskList()
+
             for block, index_set in d.items():
                 # The integrand depends only on the matrix blocks. This will
                 # be a function of kappa_inc (assumed to be equal to kappa_sca
                 # due to the delta function constraint)
                 integrand = self._get_mean_integrand(wave_block, block)
+                integration_tasks = IntegrationTaskList()
 
                 # Variables that will be used for constructing tasks
                 # These reset each time we go to a new block
@@ -126,7 +276,7 @@ class IntegrationTaskPreparer:
                             sub_block_locations=sub_block_locations,
                             const_factor=const_factor,
                         )
-                        integration_tasks.append(new_task)
+                        integration_tasks.append_task(new_task)
 
                         # Reset the triangle stack and stack length
                         triangle_stack = np.zeros((0, 3, 2), dtype=np.float64)
@@ -143,10 +293,9 @@ class IntegrationTaskPreparer:
                     triangle_stack = np.vstack((triangle_stack, new_triangles))
                     stack_length += len(new_triangles)
 
-                # If this point has been reached, we have exahusted all
+                # Once this point has been reached, we have exahusted all
                 # triangles for a certing block of the scattering matrix
-                # We now make the final task for the group and reset ready for
-                # the next block of S.
+                # We now make the final task for the group
                 new_task = IntegrationTask(
                     integrand,
                     triangle_stack,
@@ -155,12 +304,16 @@ class IntegrationTaskPreparer:
                     sub_block_locations=sub_block_locations,
                     const_factor=const_factor,
                 )
-                integration_tasks.append(new_task)
+                integration_tasks.append_task(new_task)
+                sub_task_list.merge_task_list(integration_tasks)
 
-        # Loop has finished and we have a list of tasks
-        return integration_tasks
+            main_task_list.merge_task_list(sub_task_list)
 
-    def _get_mean_integrand(self, wave_block: str, block: str):
+        return main_task_list
+
+    def _get_mean_integrand(
+        self, wave_block: str, block: str
+    ) -> MathematicalFunction:
         mean_a_matrix = self.medium_statistics.get_mean_a_matrix()
         signs = self._get_signs(block)
 
@@ -189,11 +342,10 @@ class IntegrationTaskPreparer:
                     ),
                 ]
             )
-
         return integrand
 
     @staticmethod
-    def _get_signs(block: str) -> tuple[..., int]:
+    def _get_signs(block: str) -> tuple[int, int]:
         """Get signs of z components of wavevectors depending on the matrix
         block."""
 
@@ -207,3 +359,17 @@ class IntegrationTaskPreparer:
             case "r2":
                 signs = (-1, 1)
         return signs
+
+    def _get_covariance_integration_tasks(
+        self,
+        covariance_indices: dict[str, dict[str, tuple[int, int, int, int]]],
+    ) -> IntegrationTaskList:
+        return IntegrationTaskList()
+
+    def _get_pseudo_covariance_integration_tasks(
+        self,
+        pseudo_covariance_indices: dict[
+            str, dict[str, tuple[int, int, int, int]]
+        ],
+    ) -> IntegrationTaskList:
+        return IntegrationTaskList()
