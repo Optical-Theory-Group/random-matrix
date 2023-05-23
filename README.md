@@ -24,8 +24,9 @@ random_matrix/
 │   ├── density_function.py --------- Classes for defining generalized density functions 
 │   ├── density_integrals.py -------- Integrating functions with respect to pdfs
 │   ├── index_finder.py ------------- Finds non-zero statistics within the scattering matrix
-│   ├── integral_preparer.py -------- Prepares integrals for efficient computation
-│   ├── medium_statistics.py -------- Statistics of the particles in the random medium
+│   ├── integration_task.py --------- Prepares integrals for statistical calculations
+│   ├── medium_parameters.py -------- Parameters associated with the scattering medium
+│   ├── medium_statistics.py -------- Statistics of the particles in the medium
 │   └── scattering_statistics.py ---- Statistics of the scattering matrix
 │
 ├── utils/ -------------------------- Miscellaneous utility functions
@@ -33,8 +34,11 @@ random_matrix/
 │   ├── function_utils.py ----------- Mathematical function manipulation
 │   ├── geometry_utils.py ----------- Geometric operations
 │   ├── integration_utils.py -------- Numerical integration
+│   ├── matrix_utils.py ------------- Scattering and transfer matrices
 │   ├── memoize.py ------------------ Function memoization
-│   └── plotting_utils.py ----------- Plotting figures
+│   ├── plotting_utils.py ----------- Plotting figures
+│   ├── special_functions.py -------- Special function definitions
+│   └── types.py -------------------- Reused custom Python types
 │
 └── main.py ------------------------- Main simulation script
 ```

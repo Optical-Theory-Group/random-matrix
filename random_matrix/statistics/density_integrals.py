@@ -11,8 +11,11 @@ import quadpy
 
 from random_matrix.statistics import density_function
 from random_matrix.utils import function_utils, integration_utils
-from random_matrix.utils.types import (AMatrixFunction, FloatLike,
-                                       MathematicalFunction)
+from random_matrix.utils.types import (
+    AMatrixFunction,
+    FloatLike,
+    MathematicalFunction,
+)
 
 
 def integrate_by_delta_density_function(
@@ -127,7 +130,7 @@ def integrate_by_regular_density_function(
     # For every choice of the non-integration variables, we return a function
     # that gives the integrand, which is a function of the integration
     # variables.
-    def integrand(*remaining_args: FloatLike) -> MathematicalFunction:
+    def get_integrand(*remaining_args: FloatLike) -> MathematicalFunction:
         def inner(*integration_args: FloatLike) -> FloatLike:
             # new_args is what needs to be passed to the function being
             # integrated against
@@ -161,7 +164,7 @@ def integrate_by_regular_density_function(
                 f"Please give {num_remaining_variables} positional arguments "
                 f"for variables {remaining_variables}"
             )
-        local_integrand = integrand(*args)
+        local_integrand = get_integrand(*args)
         return integration_utils.basic_product_integral(
             local_integrand, integration_domain
         )

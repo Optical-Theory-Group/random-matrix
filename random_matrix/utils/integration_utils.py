@@ -56,7 +56,7 @@ def basic_product_integral(
     # by a vector. This is to make quadpy happy.
     num_args = len(inspect.signature(function).parameters)
     if num_args > 1:
-        function = function_utils.vectorize_arguments(function)
+        function = function_utils.vectorize_functions_args(function)
 
     dim = len(integration_domain)
     match dim:
@@ -110,7 +110,7 @@ def basic_triangle_integral(
     # by a vector. This is to make quadpy happy.
     num_args = len(inspect.signature(function).parameters)
     if num_args > 1:
-        function = function_utils.vectorize_arguments(function)
+        function = function_utils.vectorize_functions_args(function)
 
     if scheme is None:
         scheme = quadpy.t2.get_good_scheme(12)
@@ -123,4 +123,5 @@ def basic_triangle_integral(
         integration_domain = np.transpose(integration_domain, (1, 0, 2))
 
     integral = scheme.integrate(function, integration_domain)
+
     return integral
