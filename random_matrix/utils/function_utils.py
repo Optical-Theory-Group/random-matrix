@@ -133,3 +133,78 @@ def equate_arguments(function: MathematicalFunction) -> MathematicalFunction:
         return function(*original_function_args)
 
     return new_function
+
+
+def vectorize_functions_args(
+    function: MathematicalFunction,
+) -> MathematicalFunction:
+    """Vectorize function prepartion for integration"""
+
+    def vectorized_function(x):
+        num_dim = np.ndim(x)
+        num_inputs = np.shape(x)[-1]
+        match num_dim:
+            case 0:
+                # x is a scalar
+                return function(x)
+
+            case 1:
+                # args are given as an array rather than as separate positional
+                # arguments. here we simply unpack them
+                return function(*x)
+
+            case 2:
+                # In this case, multiple collections of args have been given
+                # in a matrix e.g.
+                # [x1, x2, x3, ...]
+                # [m1, m1, m3, ...]
+                # [...         ...]
+                #
+                # Each column is one set of args. We need to loop over columns
+                # and collect the results
+
+                # Assuming the output is a vector, we need to determine its
+                # length
+                first_input = x[:, 0]
+                first_output = function(*first_input)
+                match np.ndim(first_output):
+                    case 0:
+                        output_array = np.zeros((num_inputs))
+                        output_array[0] = first_output
+                        for col_index in range(1, num_inputs):
+                            col = x[:, col_index]
+                            out = function(*col)
+                            output_array[col_index] = out
+                    case 1:
+                        length = len(first_output)
+
+                        output_array = np.zeros(
+                            (length, num_inputs), dtype=first_output.dtype
+                        )
+                        output_array[:, 0] = first_output
+
+                        # Loop over reamining inputs
+                        for col_index in range(1, num_inputs):
+                            col = x[:, col_index]
+                            out = function(*col)
+                            output_array[:, col_index] = out
+
+            case 3:
+                # This is the most common case for high dimensional integration
+                # for more information ,see
+                # https://github.com/sigma-py/quadpy/wiki/Dimensionality-of-input-and-output-arrays
+                ki_array = x[0]
+                kj_array = x[1]
+
+                nx, ny = np.shape(ki_array)
+                output_array = np.zeros((4, nx, ny), dtype=np.complex128)
+                for i in range(nx):
+                    for j in range(ny):
+                        ki = ki_array[i, j]
+                        kj = kj_array[i, j]
+                        out = function(ki, kj)
+                        output_array[:, i, j] = out
+
+        return output_array
+
+    return vectorized_function

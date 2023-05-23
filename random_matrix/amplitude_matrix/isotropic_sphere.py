@@ -1,5 +1,5 @@
 from random_matrix.utils.types import FloatLike
-import miepython
+from miepython import miepython_nojit
 import numpy as np
 
 
@@ -9,12 +9,9 @@ def get_A_scattering_plane(
     x: FloatLike,
     m: FloatLike,
 ) -> FloatLike:
-    if np.ndim(k_inc) == 1 and np.ndim(k_sca) == 1:
-        mu = np.dot(k_inc, k_sca)
-        return _get_A_scattering_plane_from_mu(x, m, mu)
-
-    mu_array = np.array([0.0, 1.0])
-    return _get_A_scattering_plane_from_mu(x, m, mu_array)
+    """Compute A with respect to the scattering plane"""
+    mu = np.dot(k_inc, k_sca)
+    return _get_A_scattering_plane_from_mu(x, m, mu)
 
 
 get_A_scattering_plane.particle_type = "isotropic sphere"  # type: ignore
@@ -23,15 +20,8 @@ get_A_scattering_plane.particle_type = "isotropic sphere"  # type: ignore
 def _get_A_scattering_plane_from_mu(
     x: FloatLike, m: FloatLike, mu: FloatLike
 ) -> FloatLike:
-    S1, S2 = miepython.mie_S1_S2(m, x, mu)
-
-    if isinstance(mu, np.ndarray):
-        S3 = np.zeros(len(mu))
-        S4 = np.zeros(len(mu))
-        output = np.array([*S2, *S3, *S4, *S1])
-    else:
-        S3 = 0.0 + 0.0 * 1j
-        S4 = 0.0 + 0.0 * 1j
-        output = np.array([S2, S3, S4, S1])
-
+    S1, S2 = miepython_nojit.mie_S1_S2(m, x, [mu], norm="bohren")
+    S3 = np.complex128(0)
+    S4 = np.complex128(0)
+    output = np.array([*S2, S3, S4, *S1])
     return output

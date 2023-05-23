@@ -64,11 +64,25 @@ class IntegrationResultList:
     results: list[IntegrationResult] = field(default_factory=list)
 
     def __str__(self) -> str:
-        string = f"Number of results: {len(self.results)}"
+        string = f"Number of results: {len(self.results)}\n" f"Results key:\n"
+
+        for i, result in enumerate(self.results):
+            string += f"{i} {result.statistic_type} {result.block_location}\n"
+
         return string
 
     def append_result(self, new_result: IntegrationResult) -> None:
         self.results.append(new_result)
+
+    def by_statistic_type(self, statistic_type: str) -> Self:
+        new_result_list = IntegrationResultList(
+            [
+                result
+                for result in self.results
+                if result.statistic_type == statistic_type
+            ]
+        )
+        return new_result_list
 
 
 @dataclass(slots=True)
@@ -127,7 +141,7 @@ class IntegrationTask:
         slices = [s[0] for s in self.sub_block_locations]
         locations = [s[1] for s in self.sub_block_locations]
         num_slices = len(slices)
-        output = np.zeros((output_dim, num_slices))
+        output = np.zeros((output_dim, num_slices), dtype=np.complex128)
 
         for i, s in enumerate(slices):
             partial_output = np.sum(integral[:, s], axis=-1)
@@ -315,34 +329,35 @@ class IntegrationTaskPreparer:
         self, wave_block: str, block: str
     ) -> MathematicalFunction:
         mean_a_matrix = self.medium_statistics.get_mean_a_matrix()
-        signs = self._get_signs(block)
+        k = self.medium_parameters.k
+        L = self.medium_parameters.L
 
-        # Convert to a function of kappa
-        mean_a_matrix_kappa = function_utils.fix_last_components(
-            mean_a_matrix, signs
-        )
+        def mean_integrand(k_x: FloatLike, k_y: FloatLike) -> FloatLike:
+            k_z = np.sqrt(1 - k_x**2 - k_y**2)
 
-        # Enforce delta function constraint on arguments
-        mean_a_matrix_kappa = function_utils.equate_arguments(
-            mean_a_matrix_kappa
-        )
+            # Sort out signs of k_iz and k_jz
+            if block in {"r2", "t2"}:
+                k_iz = -k_z
+            else:
+                k_iz = k_z
+            if block in {"r", "t2"}:
+                k_jz = -k_z
+            else:
+                k_jz = k_z
 
-        # Multiply by sec factor
-        integrand = function_utils.multiply_functions(
-            [mean_a_matrix_kappa, special_functions.inverse_kz]  # type:ignore
-        )
+            k_i = np.array([k_x, k_y, k_iz])
+            k_j = np.array([k_x, k_y, k_jz])
 
-        # Multiply by sinc term for r and r2 blocks
-        if block in {"r", "r2"}:
-            integrand = function_utils.multiply_functions(
-                [
-                    integrand,
-                    special_functions.get_sinc_mean_kappa(
-                        self.medium_parameters.k, self.medium_parameters.L
-                    ),
-                ]
-            )
-        return integrand
+            sinc_factor = 1.0
+            if block in {"r", "r2"}:
+                sinc_factor = special_functions.sinc(k * L * k_z)
+
+            sec_factor = 1.0 / k_z
+
+            output = mean_a_matrix(k_i, k_j) * sinc_factor * sec_factor
+            return output
+
+        return mean_integrand
 
     @staticmethod
     def _get_signs(block: str) -> tuple[int, int]:
