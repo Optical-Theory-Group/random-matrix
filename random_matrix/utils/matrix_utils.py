@@ -1,4 +1,5 @@
 import numpy as np
+
 from random_matrix.utils.types import FloatLike
 
 
