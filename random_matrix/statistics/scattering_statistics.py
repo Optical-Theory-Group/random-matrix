@@ -1,15 +1,16 @@
 from dataclasses import dataclass
 
+import numpy as np
+
 from random_matrix.modes import mode_grid
 from random_matrix.statistics import (
-    medium_parameters,
-    medium_statistics,
     index_finder,
     integration_task,
+    medium_parameters,
+    medium_statistics,
 )
-from random_matrix.utils.types import FloatLike
 from random_matrix.utils import matrix_utils
-import numpy as np
+from random_matrix.utils.types import FloatLike
 
 
 class InputStatisticsManager:
@@ -97,9 +98,6 @@ class InputStatisticsManager:
                     )
                     mean_S[j : j + 2, i : i + 2] = reciprocal_sub_block
 
-        # Multiply by constant factors
-        mean_S *= self.medium_parameters.mean_const_factor
-
         # Multiply by weights
         mean_weight_matrix = self._get_mean_weight_matrix()
         mean_S = mean_weight_matrix @ mean_S @ mean_weight_matrix
@@ -112,7 +110,15 @@ class InputStatisticsManager:
         Used to distribute weights across the mean matrix.
         """
 
-        weight_list = [mode.weight for mode in self.mode_grid.modes.values()]
+        num_modes = self.mode_grid.num_propagating
+        max_index = int((num_modes - 1) / 2)
+        indices = range(-max_index, max_index + 1, 1)
+
+        weight_list = []
+        for index in indices:
+            mode = self.mode_grid.by_index(index)
+            weight_list.append(mode.weight)
+
         weights = np.diag(1.0 / np.sqrt(weight_list))
         weights = np.kron(weights, np.identity(2))
         weights = np.kron(np.identity(2), weights)

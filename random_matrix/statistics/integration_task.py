@@ -1,9 +1,9 @@
+import inspect
 from dataclasses import dataclass, field
 from typing import Self
 
 import numpy as np
 import scipy
-import inspect
 
 from random_matrix.modes import mode_grid
 from random_matrix.statistics import (
@@ -13,8 +13,8 @@ from random_matrix.statistics import (
 )
 from random_matrix.utils import (
     function_utils,
-    special_functions,
     integration_utils,
+    special_functions,
 )
 from random_matrix.utils.types import FloatLike, MathematicalFunction
 
@@ -353,7 +353,6 @@ class IntegrationTaskPreparer:
                 sinc_factor = special_functions.sinc(k * L * k_z)
 
             sec_factor = 1.0 / k_z
-
             output = mean_a_matrix(k_i, k_j) * sinc_factor * sec_factor
             return output
 
