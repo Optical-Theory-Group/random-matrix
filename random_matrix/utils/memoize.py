@@ -6,12 +6,14 @@ Memoization can be used either by crating a "Memoize" object, or by applying
 
 import atexit
 import hashlib
+import inspect
 import json
 import pathlib
 from typing import Any, Callable
 
 import numpy as np
 
+from random_matrix.utils import function_utils
 from random_matrix.utils.types import FloatLike
 
 float_types = (float, complex, np.float64, np.complex128, np.ndarray)
@@ -39,8 +41,8 @@ class Memoize:
         self,
         function: Callable[..., Any],
         cache_path: pathlib.Path | str,
-        array_output: bool = False,
-        complex_output: bool = False,
+        array_output: bool = True,
+        complex_output: bool = True,
         float_atol: float = 1e-8,
         float_rtol: float = 1e-8,
     ):
@@ -158,7 +160,6 @@ class Memoize:
                     return value
         else:
             output = self.function(*args, **kwargs)
-
             # Handle different cases
             match (self.complex_output, self.array_output):
                 # Complex array
@@ -194,8 +195,8 @@ class Memoize:
 
 def memoize(
     cache_path: pathlib.Path | str,
-    array_output: bool = False,
-    complex_output: bool = False,
+    array_output: bool = True,
+    complex_output: bool = True,
     float_atol: float = 1e-8,
     float_rtol: float = 1e-8,
 ) -> Callable[..., Any]:

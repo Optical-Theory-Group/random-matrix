@@ -6,16 +6,10 @@ import numpy as np
 import scipy
 
 from random_matrix.modes import mode_grid
-from random_matrix.statistics import (
-    density_integrals,
-    medium_parameters,
-    medium_statistics,
-)
-from random_matrix.utils import (
-    function_utils,
-    integration_utils,
-    special_functions,
-)
+from random_matrix.statistics import (density_integrals, medium_parameters,
+                                      medium_statistics)
+from random_matrix.utils import (function_utils, geometry_utils,
+                                 integration_utils, special_functions)
 from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 
@@ -131,9 +125,15 @@ class IntegrationTask:
     def execute_task(self) -> IntegrationResult:
         """Perofrm the integral associated with the task."""
 
-        integral = integration_utils.basic_triangle_integral(
-            self.integrand, self.domain_stack
-        )
+        match self.statistic_type:
+            case "mean":
+                integral = integration_utils.basic_triangle_integral(
+                    self.integrand, self.domain_stack
+                )
+            case "covariance":
+                integral = integration_utils.basic_simplex_integral(
+                    self.integrand, self.domain_stack
+                )
 
         # Results should be added over the slices. This corresponds to adding
         # integrals over the triangular subregions of the integration domain
@@ -199,7 +199,7 @@ class IntegrationTaskConfig:
         task. If None, there will be no limit.
     """
 
-    integrals_per_task: int | None = None
+    integrals_per_task: int | None = 10**4
 
 
 class IntegrationTaskPreparer:
@@ -226,12 +226,15 @@ class IntegrationTaskPreparer:
         """
 
         master_task_list = IntegrationTaskList()
+        print("Preparing mean tasks")
         master_task_list.merge_task_list(
             self._get_mean_integration_tasks(indices["mean"])
         )
+        print("Preparing covariance tasks")
         master_task_list.merge_task_list(
             self._get_covariance_integration_tasks(indices["covariance"])
         )
+        print("Preparing pseudo-covariance tasks")
         master_task_list.merge_task_list(
             self._get_covariance_integration_tasks(
                 indices["pseudo_covariance"]
@@ -251,7 +254,6 @@ class IntegrationTaskPreparer:
 
         for wave_block, d in mean_indices.items():
             sub_task_list = IntegrationTaskList()
-
             for block, index_set in d.items():
                 # The integrand depends only on the matrix blocks. This will
                 # be a function of kappa_inc (assumed to be equal to kappa_sca
@@ -337,16 +339,16 @@ class IntegrationTaskPreparer:
 
             # Sort out signs of k_iz and k_jz
             if block in {"r2", "t2"}:
-                k_iz = -k_z
+                ki_z = -k_z
             else:
-                k_iz = k_z
+                ki_z = k_z
             if block in {"r", "t2"}:
-                k_jz = -k_z
+                kj_z = -k_z
             else:
-                k_jz = k_z
+                kj_z = k_z
 
-            k_i = np.array([k_x, k_y, k_iz])
-            k_j = np.array([k_x, k_y, k_jz])
+            k_i = np.array([k_x, k_y, ki_z])
+            k_j = np.array([k_x, k_y, kj_z])
 
             sinc_factor = 1.0
             if block in {"r", "r2"}:
@@ -358,27 +360,188 @@ class IntegrationTaskPreparer:
 
         return mean_integrand
 
-    @staticmethod
-    def _get_signs(block: str) -> tuple[int, int]:
-        """Get signs of z components of wavevectors depending on the matrix
-        block."""
-
-        match block:
-            case "t":
-                signs = (1, 1)
-            case "r":
-                signs = (1, -1)
-            case "t2":
-                signs = (-1, -1)
-            case "r2":
-                signs = (-1, 1)
-        return signs
+    # -------------------------------------------------------------------------
+    # Covariance
+    # -------------------------------------------------------------------------
 
     def _get_covariance_integration_tasks(
         self,
         covariance_indices: dict[str, dict[str, tuple[int, int, int, int]]],
     ) -> IntegrationTaskList:
-        return IntegrationTaskList()
+        """Main method for preparing covariance integral tasks"""
+
+        # Factor common to all covariance integrals
+        const_factor = self.medium_parameters.mean_const_factor
+        main_task_list = IntegrationTaskList()
+
+        # wave block will look like "pp,pp", "pp,ep" etc.
+        for wave_block, d in covariance_indices.items():
+            wave_block_one, wave_block_two = wave_block.split(",")
+            sub_task_list = IntegrationTaskList()
+
+            # block will look like "t,t", "r,r" etc.
+            for block, index_set in d.items():
+                block_one, block_two = block.split(",")
+                # The integrand depends only on the matrix blocks.
+                integrand = self._get_covariance_integrand(
+                    wave_block_one, wave_block_two, block_one, block_two
+                )
+                integration_tasks = IntegrationTaskList()
+
+                # Variables that will be used for constructing tasks
+                # These reset each time we go to a new block
+
+                sub_block_locations = []
+                simplex_stack = np.zeros((0, 7, 6), dtype=np.float64)
+                stack_length = 0
+
+                for indices in index_set:
+                    # Get the triangulation of the mode
+                    i, j, u, v = indices
+                    mode_i = self.mode_grid.by_index(i).vertices
+                    mode_j = self.mode_grid.by_index(j).vertices
+                    mode_u = self.mode_grid.by_index(u).vertices
+                    mode_v = self.mode_grid.by_index(v).vertices
+
+                    mean_ij = (
+                        geometry_utils.minkowski_sum(mode_i, mode_j)
+                    ) / 2
+                    mean_uv = (
+                        geometry_utils.minkowski_sum(mode_u, mode_v)
+                    ) / 2
+
+                    diff_ij = geometry_utils.minkowski_difference(
+                        mode_i, mode_j
+                    )
+                    diff_uv = geometry_utils.minkowski_difference(
+                        mode_u, mode_v
+                    )
+                    diff = geometry_utils.intersection(diff_ij, diff_uv)
+
+                    domain = geometry_utils.cartesian_product(mean_ij, mean_uv)
+                    domain = geometry_utils.cartesian_product(domain, diff)
+                    delaunay = scipy.spatial.Delaunay(domain)
+                    new_simplices = domain[delaunay.simplices]
+
+                    # Check how long the stack will become if the new triangles
+                    # are added. If this length exceeds the limit, we begin
+                    # working on a new task
+                    new_stack_length = stack_length + len(new_simplices)
+
+                    if (
+                        self.integration_task_config.integrals_per_task
+                        is not None
+                        and new_stack_length
+                        > self.integration_task_config.integrals_per_task
+                    ):
+                        new_task = IntegrationTask(
+                            integrand,
+                            simplex_stack,
+                            statistic_type="covariance",
+                            block_location=(wave_block, block),
+                            sub_block_locations=sub_block_locations,
+                            const_factor=const_factor,
+                        )
+                        integration_tasks.append_task(new_task)
+
+                        # Reset the triangle stack and stack length
+                        simplex_stack = np.zeros((0, 7, 6), dtype=np.float64)
+                        stack_length = 0
+                        sub_block_locations = []
+
+                    # Add location to sub_block_locations
+                    new_slice = slice(stack_length, new_stack_length)
+                    new_indices = indices
+                    new_sub_block_location = (new_slice, new_indices)
+                    sub_block_locations.append(new_sub_block_location)
+
+                    # Add new triangles to stack
+                    simplex_stack = np.vstack((simplex_stack, new_simplices))
+                    stack_length += len(new_simplices)
+
+                # Once this point has been reached, we have exahusted all
+                # triangles for a certing block of the scattering matrix
+                # We now make the final task for the group
+                new_task = IntegrationTask(
+                    integrand,
+                    simplex_stack,
+                    statistic_type="covariance",
+                    block_location=(wave_block, block),
+                    sub_block_locations=sub_block_locations,
+                    const_factor=const_factor,
+                )
+                integration_tasks.append_task(new_task)
+                sub_task_list.merge_task_list(integration_tasks)
+
+            main_task_list.merge_task_list(sub_task_list)
+
+        return main_task_list
+
+    def _get_covariance_integrand(
+        self,
+        wave_block_one: str,
+        wave_block_two: str,
+        block_one: str,
+        block_two: str,
+    ) -> MathematicalFunction:
+        covariance_a_matrix = self.medium_statistics.get_covariance_a_matrix()
+        k = self.medium_parameters.k
+        L = self.medium_parameters.L
+
+        def covariance_integrand(
+            k1_x: FloatLike,
+            k1_y: FloatLike,
+            k2_x: FloatLike,
+            k2_y: FloatLike,
+            d_x: FloatLike,
+            d_y: FloatLike,
+        ) -> FloatLike:
+            ki_x = k1_x + d_x / 2
+            ki_y = k1_y + d_y / 2
+            kj_x = k1_x - d_x / 2
+            kj_y = k1_y - d_y / 2
+            ku_x = k2_x + d_x / 2
+            ku_y = k2_y + d_y / 2
+            kv_x = k2_x - d_x / 2
+            kv_y = k2_y - d_y / 2
+            ki_z = np.sqrt(1 - ki_x**2 - ki_y**2)
+            kj_z = np.sqrt(1 - kj_x**2 - kj_y**2)
+            ku_z = np.sqrt(1 - ku_x**2 - ku_y**2)
+            kv_z = np.sqrt(1 - kv_x**2 - kv_y**2)
+
+            # Sort out signs of k_iz and k_jz
+            if block_one in {"r2", "t2"}:
+                ki_z = -ki_z
+            if block_two in {"r2", "t2"}:
+                ku_z = -ku_z
+            if block_one in {"r", "t2"}:
+                kj_z = -kj_z
+            if block_two in {"r", "t2"}:
+                kv_z = -kv_z
+
+            k_i = np.array([ki_x, ki_y, ki_z])
+            k_j = np.array([kj_x, kj_y, kj_z])
+            k_u = np.array([ku_x, ku_y, ku_z])
+            k_v = np.array([kv_x, kv_y, kv_z])
+
+            sinc_factor = special_functions.sinc(
+                k * L * (ki_z - kj_z - ku_z + kv_z)
+            )
+
+            sec_factor = 1.0 / np.abs(ki_z * kj_z * ku_z * kv_z)
+
+            output = (
+                covariance_a_matrix(k_i, k_j, k_u, k_v)
+                * sinc_factor
+                * sec_factor
+            )
+            return output
+
+        return covariance_integrand
+
+    # -------------------------------------------------------------------------
+    # Pseudo covariance
+    # -------------------------------------------------------------------------
 
     def _get_pseudo_covariance_integration_tasks(
         self,

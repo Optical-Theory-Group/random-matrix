@@ -1,6 +1,7 @@
 import numpy as np
 import scipy
 
+from random_matrix.utils import memoize
 from random_matrix.utils.types import FloatLike
 
 
@@ -130,13 +131,25 @@ def get_A(
 
     mu = np.dot(k_inc, k_sca)
 
+    T3 = get_T3(mu, x, m)
+
+    T = -T5 @ T4 @ T3 @ T2 @ T1
+
+    return T.flatten()
+
+
+get_A.particle_type = "isotropic_sphere"
+
+
+def get_T3(mu, x, m):
+    N_lim = 10
     psi_x = scipy.special.riccati_jn(N_lim, x)
     psi_mx = scipy.special.riccati_jn(N_lim, m * x)
     phi_x = scipy.special.riccati_yn(N_lim, x)
     xi_x = [psi + 1j * phi for psi, phi in zip(psi_x, phi_x)]
-
     S1 = 0
     S2 = 0
+
     for n in range(1, N_lim):
         a = (m * psi_mx[0][n] * psi_x[1][n] - psi_x[0][n] * psi_mx[1][n]) / (
             m * psi_mx[0][n] * xi_x[1][n] - xi_x[0][n] * psi_mx[1][n]
@@ -152,16 +165,11 @@ def get_A(
         )
 
     T3 = np.array([[S2, 0], [0, S1]])
-
-    T = -T5 @ T4 @ T3 @ T2 @ T1
-
-    return T.flatten()
+    return T3
 
 
-get_A.particle_type = "isotropic_sphere"
 
-
-def pi(n, mu):
+def pi(n: FloatLike, mu: FloatLike) -> FloatLike:
     if n == 0:
         return 0
     elif n == 1:
@@ -172,5 +180,33 @@ def pi(n, mu):
         )
 
 
-def tau(n, mu):
+def tau(n: FloatLike, mu: FloatLike) -> FloatLike:
     return n * mu * pi(n, mu) - (n + 1) * pi(n - 1, mu)
+
+
+def get_A_product_conj(
+    k_i: FloatLike,
+    k_j: FloatLike,
+    k_u: FloatLike,
+    k_v: FloatLike,
+    x: FloatLike,
+    m: FloatLike,
+) -> FloatLike:
+    A_ij = get_A(k_i, k_j, x, m)
+    A_uv = get_A(k_u, k_v, x, m)
+    prod = np.outer(A_ij, np.conj(A_uv))
+    return np.ravel(prod)
+
+
+def get_A_product(
+    k_i: FloatLike,
+    k_j: FloatLike,
+    k_u: FloatLike,
+    k_v: FloatLike,
+    x: FloatLike,
+    m: FloatLike,
+) -> FloatLike:
+    A_ij = get_A(k_i, k_j, x, m)
+    A_uv = get_A(k_u, k_v, x, m)
+    prod = np.outer(A_ij, A_uv)
+    return np.ravel(prod)

@@ -1,18 +1,12 @@
 import os
-from old_code.functions import (
-    get_mode_keys,
-    get_statistics,
-    mode_sample_cartesian,
-    S2M,
-    S_sampler_svd,
-    S_cascade,
-    M2S,
-    mie_cross_section,
-)
+
+import h5py
 import numpy as np
 import scipy as sp
-import h5py
 
+from old_code.functions import (M2S, S2M, S_cascade, S_sampler_svd,
+                                get_mode_keys, get_statistics,
+                                mie_cross_section, mode_sample_cartesian)
 
 # def get_data(f, data_blocks, cascade_method):
 #     """

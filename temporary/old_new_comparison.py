@@ -7,22 +7,17 @@ import numpy as np
 from random_matrix.amplitude_matrix import isotropic_sphere
 from random_matrix.modes import mode_grid, mode_grid_generator
 from random_matrix.statistics import density_function, density_integrals
-from random_matrix.statistics.density_function import (
-    DeltaDensityFactor,
-    DensityFunction,
-    DensityFunctionTerm,
-    RegularDensityFactor,
-)
+from random_matrix.statistics.density_function import (DeltaDensityFactor,
+                                                       DensityFunction,
+                                                       DensityFunctionTerm,
+                                                       RegularDensityFactor)
 from random_matrix.statistics.index_finder import IndexFinder
 from random_matrix.statistics.integration_task import IntegrationTaskPreparer
 from random_matrix.statistics.medium_parameters import MediumParameters
-from random_matrix.statistics.medium_statistics import (
-    MediumStatistics,
-    ParticleStatistics,
-)
-from random_matrix.statistics.scattering_statistics import (
-    InputStatisticsManager,
-)
+from random_matrix.statistics.medium_statistics import (MediumStatistics,
+                                                        ParticleStatistics)
+from random_matrix.statistics.scattering_statistics import \
+    InputStatisticsManager
 from random_matrix.utils import function_utils, matrix_utils
 
 

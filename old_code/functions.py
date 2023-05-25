@@ -1,9 +1,10 @@
 import numpy as np
 import scipy as sp
 import scipy.linalg
-import scipy.special
 import scipy.optimize
 import scipy.sparse
+import scipy.special
+
 #import sksparse.cholmod
 #from pathos.multiprocessing import ProcessingPool as Pool
 
