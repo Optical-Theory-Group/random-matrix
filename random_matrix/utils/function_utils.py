@@ -14,6 +14,16 @@ import numpy as np
 from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 
+def get_new_signature(variables: list[str]) -> inspect.Signature:
+    new_signature = inspect.Signature(
+        [
+            inspect.Parameter(var, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            for var in variables
+        ]
+    )
+    return new_signature
+
+
 def get_arg_index(function: Callable[..., Any], arg: str) -> int:
     """Get the index of a certain positional argument."""
 
@@ -190,20 +200,40 @@ def vectorize_functions_args(
                             output_array[:, col_index] = out
 
             case 3:
-                # This is the most common case for high dimensional integration
-                # for more information ,see
-                # https://github.com/sigma-py/quadpy/wiki/Dimensionality-of-input-and-output-arrays
-                ki_array = x[0]
-                kj_array = x[1]
+                if np.shape(x)[0] == 2:
+                    # This is the most common case for high dimensional integration
+                    # for more information ,see
+                    # https://github.com/sigma-py/quadpy/wiki/Dimensionality-of-input-and-output-arrays
+                    kx_array = x[0]
+                    ky_array = x[1]
 
-                nx, ny = np.shape(ki_array)
-                output_array = np.zeros((4, nx, ny), dtype=np.complex128)
-                for i in range(nx):
-                    for j in range(ny):
-                        ki = ki_array[i, j]
-                        kj = kj_array[i, j]
-                        out = function(ki, kj)
-                        output_array[:, i, j] = out
+                    nx, ny = np.shape(kx_array)
+                    output_array = np.zeros((4, nx, ny), dtype=np.complex128)
+                    for i in range(nx):
+                        for j in range(ny):
+                            kx = kx_array[i, j]
+                            ky = ky_array[i, j]
+                            out = function(kx, ky)
+                            output_array[:, i, j] = out
+                else:
+                    k1_x_array = x[0]
+                    k1_y_array = x[1]
+                    k2_x_array = x[2]
+                    k2_y_array = x[3]
+                    d_x_array = x[4]
+                    d_y_array = x[5]
+                    nx, ny = np.shape(k1_x_array)
+                    output_array = np.zeros((16, nx, ny), dtype=np.complex128)
+                    for i in range(nx):
+                        for j in range(ny):
+                            k1_x = k1_x_array[i, j]
+                            k1_y = k1_y_array[i, j]
+                            k2_x = k2_x_array[i, j]
+                            k2_y = k2_y_array[i, j]
+                            d_x = d_x_array[i, j]
+                            d_y = d_y_array[i, j]
+                            out = function(k1_x, k1_y, k2_x, k2_y, d_x, d_y)
+                            output_array[:, i, j] = out
 
         return output_array
 

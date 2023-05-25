@@ -5,9 +5,11 @@ from itertools import combinations
 import numpy as np
 import numpy.typing as npt
 import scipy.spatial
+import shapely
 import skspatial.objects
 
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
+from random_matrix.utils.types import FloatLike
 
 
 def get_circle_coordinate(
@@ -489,3 +491,150 @@ def get_angularly_separated_edge_points(
     max_index = array_utils.get_array_index(max_x_val, circle_points)
     output = np.array([original_points[min_index], original_points[max_index]])
     return output
+
+
+def minkowski_sum(polygon_one: FloatLike, polygon_two: FloatLike) -> FloatLike:
+    points_one = order_points(polygon_one)
+    points_two = order_points(polygon_two)
+    num_points_one = len(points_one)
+    num_points_two = len(points_two)
+    i = 0
+    j = 0
+
+    new_points = []
+
+    while i <= num_points_one and j <= num_points_two:
+        first_point = points_one[i % num_points_one]
+        second_point = points_two[j % num_points_two]
+
+        next_first = points_one[(i + 1) % num_points_one]
+        next_second = points_two[(j + 1) % num_points_two]
+
+        new_points.append(first_point + second_point)
+
+        theta_one = (
+            np.arctan2(
+                next_first[1] - first_point[1], next_first[0] - first_point[0]
+            )
+            + np.pi
+        )
+        theta_two = (
+            np.arctan2(
+                next_second[1] - second_point[1],
+                next_second[0] - second_point[0],
+            )
+            + np.pi
+        )
+        if np.isclose(theta_one, theta_two):
+            i += 1
+            j += 1
+        elif theta_one > theta_two:
+            j += 1
+        else:
+            i += 1
+
+    return np.array(new_points)
+
+
+def minkowski_sum(points_one: FloatLike, points_two: FloatLike) -> FloatLike:
+    points_one = order_points(points_one)
+    y_coordinates = points_one[:, 1]
+    x_coordinates = points_one[:, 0]
+    min_y_index = np.argmin(y_coordinates)
+    min_y_values = np.where(
+        np.isclose(y_coordinates, y_coordinates[min_y_index])
+    )[0]
+    min_x_index = min_y_values[np.argmin(x_coordinates[min_y_values])]
+    points_one = np.roll(points_one, -2 * min_x_index)
+    points_one = np.append(points_one, [points_one[0]], axis=0)
+
+    points_two = order_points(points_two)
+    y_coordinates = points_two[:, 1]
+    x_coordinates = points_two[:, 0]
+    min_y_index = np.argmin(y_coordinates)
+    min_y_values = np.where(
+        np.isclose(y_coordinates, y_coordinates[min_y_index])
+    )[0]
+    min_x_index = min_y_values[np.argmin(x_coordinates[min_y_values])]
+    points_two = np.roll(points_two, -2 * min_x_index)
+    points_two = np.append(points_two, [points_two[0]], axis=0)
+
+    num_points_one = len(points_one)
+    num_points_two = len(points_two)
+    i = 0
+    j = 0
+
+    new_points = []
+
+    while i < num_points_one and j < num_points_two:
+        first_point = points_one[i % num_points_one]
+        second_point = points_two[j % num_points_two]
+
+        next_first = points_one[(i + 1) % num_points_one]
+        next_second = points_two[(j + 1) % num_points_two]
+
+        new_points.append(first_point + second_point)
+
+        theta_one = np.arctan2(
+            next_first[1] - first_point[1], next_first[0] - first_point[0]
+        )
+        theta_one = 2 * np.pi + theta_one if theta_one < 0 else theta_one
+
+        theta_two = np.arctan2(
+            next_second[1] - second_point[1],
+            next_second[0] - second_point[0],
+        )
+        theta_two = 2 * np.pi + theta_two if theta_two < 0 else theta_two
+
+        if np.isclose(theta_one, theta_two):
+            i += 1
+            j += 1
+        elif theta_one > theta_two:
+            j += 1
+        else:
+            i += 1
+
+    output = np.array(new_points)
+    if np.all(np.isclose(output[0], output[-1])):
+        output = output[:-1]
+
+    return output
+
+
+def minkowski_difference(
+    points_one: FloatLike, points_two: FloatLike
+) -> FloatLike:
+    return minkowski_sum(points_one, -points_two)
+
+
+def intersects(points_one: FloatLike, points_two: FloatLike) -> bool:
+    """Returns a bool that is true if the two polygons intersect"""
+
+    polygon_one = shapely.Polygon(points_one)
+    polygon_two = shapely.Polygon(points_two)
+    return not np.isclose(polygon_one.intersection(polygon_two).area, 0.0)
+
+def intersection(points_one, points_two):
+    polygon_one = shapely.Polygon(points_one)
+    polygon_two = shapely.Polygon(points_two)
+    intersection = polygon_one.intersection(polygon_two)
+    intersection = np.array(intersection.exterior.coords)
+    return intersection[:-1]
+
+def cartesian_product(polygon1: FloatLike, polygon2: FloatLike) -> FloatLike:
+    # Get the number of vertices in each polygon
+    n1 = polygon1.shape[0]
+    n2 = polygon2.shape[0]
+
+    # Repeat each vertex of polygon1 n2 times
+    repeated_polygon1 = np.repeat(polygon1, n2, axis=0)
+
+    # Tile polygon2 to match the repeated polygon1
+    tiled_polygon2 = np.tile(polygon2, (n1, 1))
+
+    # Concatenate the repeated polygon1 and tiled polygon2
+    cartesian_product = np.concatenate(
+        (repeated_polygon1, tiled_polygon2), axis=1
+    )
+
+    return cartesian_product

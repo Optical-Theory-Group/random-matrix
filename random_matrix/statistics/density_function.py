@@ -51,7 +51,7 @@ from random_matrix.utils import integration_utils
 from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 
-@dataclass
+@dataclass(slots=True)
 class RegularDensityFactor:
     """Factor of a term in a probability density function that is a regular
     mathematical function.
@@ -72,15 +72,6 @@ class RegularDensityFactor:
     density_function: MathematicalFunction
     domain: dict[str, list[FloatLike]]
 
-    variables: set[str] = field(init=False)
-
-    def __post_init__(self) -> None:
-        self.variables = self._get_variables()
-
-    def _get_variables(self) -> set[str]:
-        variables = set(self.domain.keys())
-        return variables
-
     @property
     def integral(self) -> FloatLike:
         integral = integration_utils.basic_product_integral(
@@ -88,8 +79,13 @@ class RegularDensityFactor:
         )
         return integral
 
+    @property
+    def variables(self) -> set[str]:
+        variables = set(self.domain.keys())
+        return variables
 
-@dataclass
+
+@dataclass(slots=True)
 class DeltaDensityFactor:
     """Factor of a term in a probability density function that is a product of
     Dirac delta distributions. Note that this class only supports delta
@@ -112,19 +108,15 @@ class DeltaDensityFactor:
     density_function: dict[str, FloatLike]
     const_factor: FloatLike = 1.0
 
-    variables: set[str] = field(init=False)
-
-    def __post_init__(self) -> None:
-        self.variables = self._get_variables()
-
-    def _get_variables(self) -> set[str]:
-        variables = set(self.density_function.keys())
-        return variables
-
     @property
     def integral(self) -> FloatLike:
         integral = self.const_factor
         return integral
+
+    @property
+    def variables(self) -> set[str]:
+        variables = set(self.density_function.keys())
+        return variables
 
 
 @dataclass

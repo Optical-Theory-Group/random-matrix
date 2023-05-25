@@ -27,6 +27,8 @@ class ParticleStatistics(density_function.DensityFunction):
     """
 
     a_matrix: MathematicalFunction
+    a_product: MathematicalFunction
+    a_product_conj: MathematicalFunction
     mixing_ratio: float = 1.0
 
     particle_type: str = field(init=False)
@@ -71,6 +73,24 @@ class ParticleStatistics(density_function.DensityFunction):
         )
         return mean_a
 
+    def get_covariance_a_matrix(self) -> MathematicalFunction:
+        covariance_a = density_integrals.integrate_by_density(
+            self.a_product_conj, self
+        )
+        covariance_a = function_utils.multiply_function_by_constant(
+            covariance_a, self.mixing_ratio**2
+        )
+        return covariance_a
+
+    def get_pseudo_covariance_a_matrix(self) -> MathematicalFunction:
+        pseudo_covariance_a = density_integrals.integrate_by_density(
+            self.a_product, self
+        )
+        pseudo_covariance_a = function_utils.multiply_function_by_constant(
+            pseudo_covariance_a, self.mixing_ratio**2
+        )
+        return pseudo_covariance_a
+
 
 @dataclass
 class MediumStatistics:
@@ -93,7 +113,26 @@ class MediumStatistics:
 
     def get_mean_a_matrix(self) -> MathematicalFunction:
         """Computes <A> over the contained particle terms and A functions"""
+
         partial_results = []
         for particle_term in self.particle_terms:
             partial_results.append(particle_term.get_mean_a_matrix())
+        return function_utils.add_functions(partial_results)
+
+    def get_covariance_a_matrix(self) -> MathematicalFunction:
+        """Computes <AA*> over the contained particle terms and A functions"""
+
+        partial_results = []
+        for particle_term in self.particle_terms:
+            partial_results.append(particle_term.get_covariance_a_matrix())
+        return function_utils.add_functions(partial_results)
+
+    def get_pseudo_covariance_a_matrix(self) -> MathematicalFunction:
+        """Computes <AA> over the contained particle terms and A functions"""
+
+        partial_results = []
+        for particle_term in self.particle_terms:
+            partial_results.append(
+                particle_term.get_pseudo_covariance_a_matrix()
+            )
         return function_utils.add_functions(partial_results)
