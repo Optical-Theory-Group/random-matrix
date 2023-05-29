@@ -146,7 +146,7 @@ def integrate_by_regular_density_function(
                 *integration_args
             )
 
-        # Given the inner function a signature containing its integration
+        # Give the inner function a signature containing its integration
         # variables
         integrand.__signature__ = function_utils.get_new_signature(
             integration_variables
