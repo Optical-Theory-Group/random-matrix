@@ -10,3 +10,4 @@ dependencies:
   - scikit-spatial=6.8.1
   - h5py=3.8.0
   - shapely=2.0.1
+  - numba=0.57.0

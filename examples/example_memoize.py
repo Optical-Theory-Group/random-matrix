@@ -71,9 +71,3 @@ from random_matrix.utils.memoize import memoize
 # product(matrices)
 # end = time.perf_counter()
 # print(f"Function ran in {end-start} seconds.")
-
-# -----------------------------------------------------------------------------
-# T3
-# -----------------------------------------------------------------------------
-a_matrix = isotropic_sphere.get_A
-a_matrix(np.array([0,0,1]),np.array([0,0,1]),1.0,1.2)
