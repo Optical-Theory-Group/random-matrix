@@ -210,9 +210,3 @@ def get_A_product(
     A_uv = get_A(k_u, k_v, x, m)
     prod = np.outer(A_ij, A_uv)
     return np.ravel(prod)
-
-start = time.perf_counter()
-for _ in range(10**4):
-    get_T3(1.0,4.0,1.3)
-end = time.perf_counter()
-print(end-start)

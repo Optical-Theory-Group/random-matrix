@@ -548,6 +548,7 @@ def minkowski_sum(points_one: FloatLike, points_two: FloatLike) -> FloatLike:
     points_one = np.roll(points_one, -2 * min_x_index)
     points_one = np.append(points_one, [points_one[0]], axis=0)
 
+
     points_two = order_points(points_two)
     y_coordinates = points_two[:, 1]
     x_coordinates = points_two[:, 0]
@@ -558,6 +559,7 @@ def minkowski_sum(points_one: FloatLike, points_two: FloatLike) -> FloatLike:
     min_x_index = min_y_values[np.argmin(x_coordinates[min_y_values])]
     points_two = np.roll(points_two, -2 * min_x_index)
     points_two = np.append(points_two, [points_two[0]], axis=0)
+
 
     num_points_one = len(points_one)
     num_points_two = len(points_two)
@@ -638,3 +640,7 @@ def cartesian_product(polygon1: FloatLike, polygon2: FloatLike) -> FloatLike:
     )
 
     return cartesian_product
+
+def reflect_through_point(shape: FloatLike, point: FloatLike) -> FloatLike:
+    reflected = point - (shape - point)
+    return reflected

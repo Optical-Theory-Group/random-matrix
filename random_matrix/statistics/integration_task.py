@@ -6,10 +6,17 @@ import numpy as np
 import scipy
 
 from random_matrix.modes import mode_grid
-from random_matrix.statistics import (density_integrals, medium_parameters,
-                                      medium_statistics)
-from random_matrix.utils import (function_utils, geometry_utils,
-                                 integration_utils, special_functions)
+from random_matrix.statistics import (
+    density_integrals,
+    medium_parameters,
+    medium_statistics,
+)
+from random_matrix.utils import (
+    function_utils,
+    geometry_utils,
+    integration_utils,
+    special_functions,
+)
 from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 
@@ -137,6 +144,7 @@ class IntegrationTask:
 
         # Results should be added over the slices. This corresponds to adding
         # integrals over the triangular subregions of the integration domain
+
         output_dim, num_outputs = np.shape(integral)
         slices = [s[0] for s in self.sub_block_locations]
         locations = [s[1] for s in self.sub_block_locations]
@@ -199,7 +207,7 @@ class IntegrationTaskConfig:
         task. If None, there will be no limit.
     """
 
-    integrals_per_task: int | None = 10**4
+    integrals_per_task: int | None = None
 
 
 class IntegrationTaskPreparer:
@@ -226,20 +234,18 @@ class IntegrationTaskPreparer:
         """
 
         master_task_list = IntegrationTaskList()
-        print("Preparing mean tasks")
         master_task_list.merge_task_list(
             self._get_mean_integration_tasks(indices["mean"])
         )
-        print("Preparing covariance tasks")
         master_task_list.merge_task_list(
             self._get_covariance_integration_tasks(indices["covariance"])
         )
-        print("Preparing pseudo-covariance tasks")
-        master_task_list.merge_task_list(
-            self._get_covariance_integration_tasks(
-                indices["pseudo_covariance"]
-            )
-        )
+        # print("Preparing pseudo-covariance tasks")
+        # master_task_list.merge_task_list(
+        #     self._get_covariance_integration_tasks(
+        #         indices["pseudo_covariance"]
+        #     )
+        # )
 
         return master_task_list
 
@@ -281,6 +287,7 @@ class IntegrationTaskPreparer:
                     if (
                         self.integration_task_config.integrals_per_task
                         is not None
+                        and stack_length > 0
                         and new_stack_length
                         > self.integration_task_config.integrals_per_task
                     ):
@@ -335,27 +342,31 @@ class IntegrationTaskPreparer:
         L = self.medium_parameters.L
 
         def mean_integrand(k_x: FloatLike, k_y: FloatLike) -> FloatLike:
-            k_z = np.sqrt(1 - k_x**2 - k_y**2)
+            ki_x = k_x
+            ki_y = k_y
+
+            kj_x = k_x
+            kj_y = k_y
+
+            ki_z = np.sqrt(1 - ki_x**2 - ki_y**2)
+            kj_z = np.sqrt(1 - kj_x**2 - kj_y**2)
 
             # Sort out signs of k_iz and k_jz
             if block in {"r2", "t2"}:
-                ki_z = -k_z
-            else:
-                ki_z = k_z
+                ki_z = -ki_z
             if block in {"r", "t2"}:
-                kj_z = -k_z
-            else:
-                kj_z = k_z
-
-            k_i = np.array([k_x, k_y, ki_z])
-            k_j = np.array([k_x, k_y, kj_z])
+                kj_z = -kj_z
 
             sinc_factor = 1.0
             if block in {"r", "r2"}:
-                sinc_factor = special_functions.sinc(k * L * k_z)
+                sinc_factor = special_functions.sinc(k * L * ki_z)
 
-            sec_factor = 1.0 / k_z
-            output = mean_a_matrix(k_i, k_j) * sinc_factor * sec_factor
+            sec_factor = 1.0 / ki_z
+            output = (
+                mean_a_matrix(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z)
+                * sinc_factor
+                * sec_factor
+            )
             return output
 
         return mean_integrand
@@ -371,7 +382,7 @@ class IntegrationTaskPreparer:
         """Main method for preparing covariance integral tasks"""
 
         # Factor common to all covariance integrals
-        const_factor = self.medium_parameters.mean_const_factor
+        const_factor = self.medium_parameters.cov_const_factor
         main_task_list = IntegrationTaskList()
 
         # wave block will look like "pp,pp", "pp,ep" etc.
@@ -398,11 +409,13 @@ class IntegrationTaskPreparer:
                 for indices in index_set:
                     # Get the triangulation of the mode
                     i, j, u, v = indices
+
                     mode_i = self.mode_grid.by_index(i).vertices
                     mode_j = self.mode_grid.by_index(j).vertices
                     mode_u = self.mode_grid.by_index(u).vertices
                     mode_v = self.mode_grid.by_index(v).vertices
 
+                    # mean sets
                     mean_ij = (
                         geometry_utils.minkowski_sum(mode_i, mode_j)
                     ) / 2
@@ -410,16 +423,60 @@ class IntegrationTaskPreparer:
                         geometry_utils.minkowski_sum(mode_u, mode_v)
                     ) / 2
 
-                    diff_ij = geometry_utils.minkowski_difference(
-                        mode_i, mode_j
-                    )
-                    diff_uv = geometry_utils.minkowski_difference(
-                        mode_u, mode_v
-                    )
-                    diff = geometry_utils.intersection(diff_ij, diff_uv)
+                    c_i = np.mean(mode_i, axis=0)
+                    c_j = np.mean(mode_j, axis=0)
+                    c_ij = (c_i + c_j) / 2
+                    c_u = np.mean(mode_u, axis=0)
+                    c_v = np.mean(mode_v, axis=0)
+                    c_uv = (c_u + c_v) / 2
 
+                    # Differences
+                    mode_j_ref = geometry_utils.reflect_through_point(
+                        mode_j, c_ij
+                    )
+                    ij_intersect = geometry_utils.intersection(
+                        mode_i, mode_j_ref
+                    )
+                    new = geometry_utils.translate_points(ij_intersect, -c_i)
+                    new = 2 * new
+                    new_ij = geometry_utils.translate_points(new, c_i - c_j)
+
+                    mode_v_ref = geometry_utils.reflect_through_point(
+                        mode_v, c_uv
+                    )
+                    uv_intersect = geometry_utils.intersection(
+                        mode_u, mode_v_ref
+                    )
+                    new = geometry_utils.translate_points(uv_intersect, -c_u)
+                    new = 2 * new
+                    new_uv = geometry_utils.translate_points(new, c_u - c_v)
+
+                    final = geometry_utils.intersection(new_ij, new_uv)
+
+                    # Build the pyramid
                     domain = geometry_utils.cartesian_product(mean_ij, mean_uv)
-                    domain = geometry_utils.cartesian_product(domain, diff)
+                    length = len(domain)
+
+                    col_5 = (np.ones(length) * (c_i - c_j)[0]).reshape(
+                        (length, 1)
+                    )
+                    col_6 = (np.ones(length) * (c_i - c_j)[1]).reshape(
+                        (length, 1)
+                    )
+                    domain = np.hstack((domain, col_5, col_6))
+                    for point in final:
+                        new_row = np.array(
+                            [
+                                c_ij[0],
+                                c_ij[1],
+                                c_uv[0],
+                                c_uv[1],
+                                point[0],
+                                point[1],
+                            ]
+                        )
+                        domain = np.vstack((domain, new_row))
+
                     delaunay = scipy.spatial.Delaunay(domain)
                     new_simplices = domain[delaunay.simplices]
 
@@ -431,6 +488,7 @@ class IntegrationTaskPreparer:
                     if (
                         self.integration_task_config.integrals_per_task
                         is not None
+                        and stack_length > 0
                         and new_stack_length
                         > self.integration_task_config.integrals_per_task
                     ):
@@ -496,14 +554,26 @@ class IntegrationTaskPreparer:
             d_x: FloatLike,
             d_y: FloatLike,
         ) -> FloatLike:
+            # Convert to complex arrays
+            k1_x = np.array(k1_x, dtype=complex)
+            k1_y = np.array(k1_y, dtype=complex)
+            k2_x = np.array(k2_x, dtype=complex)
+            k2_y = np.array(k2_y, dtype=complex)
+            d_x = np.array(d_x, dtype=complex)
+            d_y = np.array(d_y, dtype=complex)
+
             ki_x = k1_x + d_x / 2
             ki_y = k1_y + d_y / 2
+
             kj_x = k1_x - d_x / 2
             kj_y = k1_y - d_y / 2
+
             ku_x = k2_x + d_x / 2
             ku_y = k2_y + d_y / 2
+
             kv_x = k2_x - d_x / 2
             kv_y = k2_y - d_y / 2
+
             ki_z = np.sqrt(1 - ki_x**2 - ki_y**2)
             kj_z = np.sqrt(1 - kj_x**2 - kj_y**2)
             ku_z = np.sqrt(1 - ku_x**2 - ku_y**2)
@@ -519,19 +589,27 @@ class IntegrationTaskPreparer:
             if block_two in {"r", "t2"}:
                 kv_z = -kv_z
 
-            k_i = np.array([ki_x, ki_y, ki_z])
-            k_j = np.array([kj_x, kj_y, kj_z])
-            k_u = np.array([ku_x, ku_y, ku_z])
-            k_v = np.array([kv_x, kv_y, kv_z])
-
             sinc_factor = special_functions.sinc(
                 k * L * (ki_z - kj_z - ku_z + kv_z)
             )
 
-            sec_factor = 1.0 / np.abs(ki_z * kj_z * ku_z * kv_z)
+            sec_factor = 1.0 / np.abs(np.sqrt(ki_z * kj_z * ku_z * kv_z))
 
             output = (
-                covariance_a_matrix(k_i, k_j, k_u, k_v)
+                covariance_a_matrix(
+                    ki_x,
+                    ki_y,
+                    ki_z,
+                    kj_x,
+                    kj_y,
+                    kj_z,
+                    ku_x,
+                    ku_y,
+                    ku_z,
+                    kv_x,
+                    kv_y,
+                    kv_z,
+                )
                 * sinc_factor
                 * sec_factor
             )

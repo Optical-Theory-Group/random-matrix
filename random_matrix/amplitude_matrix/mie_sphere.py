@@ -4,28 +4,21 @@ import scipy
 import time
 from random_matrix.utils.types import FloatLike
 
-@numba.njit
-def get_A_from_mus(inputs: FloatLike) -> FloatLike:
-    """Inputs:
 
-    inputs[0] = mu
-    input[1] = x
-    input[2] = m
-    """
+#@numba.njit(fastmath=False, parallel=True)
+def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
+    input_shape = np.shape(mus)
 
-    mus = inputs[0]
-    xs = inputs[1]
-    ms = inputs[2]
-
-    num_inputs = len(mus)
-
-    S_2 = np.zeros(num_inputs, dtype=np.complex128)
-    S_1 = np.zeros(num_inputs, dtype=np.complex128)
-    S_3 = np.zeros(num_inputs, dtype=np.complex128)
-    S_4 = np.zeros(num_inputs, dtype=np.complex128)
+    S_2 = np.zeros(input_shape, dtype=np.complex128)
+    S_1 = np.zeros(input_shape, dtype=np.complex128)
+    S_3 = np.zeros(input_shape, dtype=np.complex128)
+    S_4 = np.zeros(input_shape, dtype=np.complex128)
 
     # Get stopping index for sum
-    num_stop = int(np.max(np.floor(xs + 4.05 * xs**0.33333 + 2.0) + 1))
+    if isinstance(xs, np.float64):
+        num_stop = int(np.floor(xs + 4.05 * xs**0.33333 + 2.0) + 1)
+    else:
+        num_stop = int(np.max(np.floor(xs + 4.05 * xs**0.33333 + 2.0) + 1))
 
     # Initialise variables
     # 1 and 2 subscripts are for recurrence relations, 2 is ahead of 1
@@ -56,8 +49,8 @@ def get_A_from_mus(inputs: FloatLike) -> FloatLike:
     xix = psix + 1j * phix
     dxix = dpsix + 1j * dphix
 
-    pi_0 = np.zeros(num_inputs, dtype=np.float64)
-    pi_1 = np.ones(num_inputs, dtype=np.float64)
+    pi_0 = np.zeros(input_shape, dtype=np.float64)
+    pi_1 = np.ones(input_shape, dtype=np.float64)
 
     tau = mus
 
@@ -127,31 +120,95 @@ def get_A_from_mus(inputs: FloatLike) -> FloatLike:
         )
 
     # Prepare output
-    output = np.vstack((S_2, S_3, S_4, S_1))
+    # top_row = np.concatenate((S_2[np.newaxis, :], S_3[np.newaxis, :]))
+    # bottom_row = np.concatenate((S_4[np.newaxis, :], S_1[np.newaxis, :]))
+    # combined_array = np.concatenate(
+    #     (top_row[np.newaxis, :], bottom_row[np.newaxis, :])
+    # )
+
+    combined_array = np.concatenate(
+        (
+            S_2[np.newaxis, :],
+            S_3[np.newaxis, :],
+            S_4[np.newaxis, :],
+            S_1[np.newaxis, :],
+        )
+    )
+
+    return combined_array
+
+
+#@numba.njit(fastmath=True, parallel=True)
+def get_A(
+    ki_x: FloatLike,
+    ki_y: FloatLike,
+    ki_z: FloatLike,
+    kj_x: FloatLike,
+    kj_y: FloatLike,
+    kj_z: FloatLike,
+    x: FloatLike,
+    m: FloatLike,
+) -> FloatLike:
+    xs = x
+    ms = m
+    mus = ki_x * kj_x + ki_y * kj_y + ki_z * kj_z
+
+    return get_A_from_mus(mus, xs, ms)
+
+
+get_A.particle_type = "sphere"
+
+
+#@numba.njit(fastmath=True, parallel=True)
+def get_A_product_conj(
+    ki_x: FloatLike,
+    ki_y: FloatLike,
+    ki_z: FloatLike,
+    kj_x: FloatLike,
+    kj_y: FloatLike,
+    kj_z: FloatLike,
+    ku_x: FloatLike,
+    ku_y: FloatLike,
+    ku_z: FloatLike,
+    kv_x: FloatLike,
+    kv_y: FloatLike,
+    kv_z: FloatLike,
+    x: FloatLike,
+    m: FloatLike,
+) -> FloatLike:
+    A_ij = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
+    A_uv = get_A(ku_x, ku_y, ku_z, kv_x, kv_y, kv_z, x, m)
+    shape = np.shape(A_ij[0])
+
+    output = np.zeros((16, shape[0], shape[1]), dtype=np.complex128)
+    for i in range(4):
+        for j in range(4):
+            output[4 * i + j] = A_ij[i] * np.conj(A_uv[j])
 
     return output
 
 
-@numba.njit
-def get_A(inputs: FloatLike) -> FloatLike:
-    """Inputs:
-
-    inputs[0] = ki_x
-    inputs[1] = ki_y
-    inputs[2] = ki_z
-    inputs[3] = kj_x
-    inputs[4] = kj_y
-    inputs[5] = kj_z
-    inputs[6] = x
-    inputs[7] = m
-    """
-
-    kis = inputs[0:3]
-    kjs = inputs[3:6]
-    xs = inputs[6]
-    ms = inputs[7]
-
-    mus = np.sum(np.multiply(kis, kjs), axis=0)
-    new_inputs = np.vstack((mus, xs, ms))
-
-    return get_A_from_mus(new_inputs)
+#@numba.njit(fastmath=True, parallel=True)
+def get_A_product(
+    ki_x: FloatLike,
+    ki_y: FloatLike,
+    ki_z: FloatLike,
+    kj_x: FloatLike,
+    kj_y: FloatLike,
+    kj_z: FloatLike,
+    ku_x: FloatLike,
+    ku_y: FloatLike,
+    ku_z: FloatLike,
+    kv_x: FloatLike,
+    kv_y: FloatLike,
+    kv_z: FloatLike,
+    x: FloatLike,
+    m: FloatLike,
+) -> FloatLike:
+    A_ij = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
+    A_uv = get_A(ku_x, ku_y, ku_z, kv_x, kv_y, kv_z, x, m)
+    output = np.zeros((16, *np.shape(A_ij[0])), dtype=np.complex128)
+    for i in range(4):
+        for j in range(4):
+            output[4 * i + j] = A_ij[i] * A_uv[j]
+    return output
