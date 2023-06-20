@@ -4,20 +4,25 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-from random_matrix.amplitude_matrix import isotropic_sphere
+from random_matrix.amplitude_matrix import mie_sphere
 from random_matrix.modes import mode_grid, mode_grid_generator
 from random_matrix.statistics import density_function, density_integrals
-from random_matrix.statistics.density_function import (DeltaDensityFactor,
-                                                       DensityFunction,
-                                                       DensityFunctionTerm,
-                                                       RegularDensityFactor)
+from random_matrix.statistics.density_function import (
+    DeltaDensityFactor,
+    DensityFunction,
+    DensityFunctionTerm,
+    RegularDensityFactor,
+)
 from random_matrix.statistics.index_finder import IndexFinder
 from random_matrix.statistics.integration_task import IntegrationTaskPreparer
 from random_matrix.statistics.medium_parameters import MediumParameters
-from random_matrix.statistics.medium_statistics import (MediumStatistics,
-                                                        ParticleStatistics)
-from random_matrix.statistics.scattering_statistics import \
-    InputStatisticsManager
+from random_matrix.statistics.medium_statistics import (
+    MediumStatistics,
+    ParticleStatistics,
+)
+from random_matrix.statistics.scattering_statistics import (
+    InputStatisticsManager,
+)
 from random_matrix.utils import function_utils, matrix_utils
 
 
@@ -48,8 +53,6 @@ def mode_sample_cartesian(dx, dy):
     return mode_list, weight
 
 
-fig, ax = plt.subplots()
-
 # -----------------------------------------------------------------------------
 # Old data
 # -----------------------------------------------------------------------------
@@ -57,10 +60,10 @@ fig, ax = plt.subplots()
 # old_data_path = pathlib.Path(
 #     "/var/home/niall/Code/Science/random-matrix/data/old_simulations/mean_t.npy"
 # )
-
-mode_list = mode_sample_cartesian(0.1715, 0.1715)[0]
 # mean_t_old = np.load(old_data_path.resolve())
-mean_t_old = statistics
+mode_list, weight = mode_sample_cartesian(0.1715, 0.1715)
+mean_t_old = mean_t
+cov_t_old = cov_t
 old_ys = []
 old_xs = []
 
@@ -68,13 +71,11 @@ for mode, mean in zip(mode_list, mean_t_old):
     # Get x data
     new_x = np.linalg.norm(mode)
     old_xs.append(new_x)
-
+    
     # Get y data
     new_y = np.linalg.norm(mean)
     old_ys.append(new_y)
-
-ax.scatter(old_xs, old_ys, color="black", marker="+", s=200.0)
-
+    
 # -----------------------------------------------------------------------------
 # New data
 # -----------------------------------------------------------------------------
@@ -97,46 +98,88 @@ medium_parameters = MediumParameters(
     number_density=number_density,
     slab_thickness=slab_thickness,
 )
-term = DensityFunctionTerm.from_delta({"x": 2.0, "m": 1.2})
-A_matrix = isotropic_sphere.get_A
-particle_statistics = ParticleStatistics(term, A_matrix)
+term = DensityFunctionTerm.from_delta({"x": 4.0, "m": 1.2})
+a_matrix = mie_sphere.get_A
+a_prod = mie_sphere.get_A_product
+a_prod_conj = mie_sphere.get_A_product_conj
+particle_statistics = ParticleStatistics(term, a_matrix, a_prod, a_prod_conj)
 medium_statistics = MediumStatistics([particle_statistics])
 input_statistics_manager = InputStatisticsManager(
     medium_parameters, medium_statistics, my_grid
 )
-mean_S = input_statistics_manager.get_statistics()
 
-ys = []
-xs = []
-indices = range(-68, 68 + 1, 1)
+indices = input_statistics_manager._get_indices()
+tasks = input_statistics_manager._get_integration_tasks(indices)
 
-for index in indices:
+mean_task = tasks.tasks[0]
+cov_task = tasks.tasks[4]
+
+mean_result = mean_task.execute_task()
+cov_result = cov_task.execute_task()
+
+# MEAN GRAPH
+new_xs = []
+new_ys = []
+
+for integral, location in zip(
+    mean_result.integral, mean_result.sub_block_locations
+):
+    integral = np.linalg.norm(integral.reshape(2, 2))
+    i = location[0]
+
+    weight = my_grid.by_index(i).weight
+    integral = integral / weight
+
+    center = my_grid.by_index(i).center
+    radius = np.linalg.norm(center)
+    new_xs.append(radius)
+    new_ys.append(integral)
+
+fig, ax = plt.subplots()
+ax.scatter(new_xs, new_ys, color="blue", marker="o", s=50.0)
+ax.scatter(old_xs, old_ys, color="black", marker="+", s=200.0)
+ax.set_xlabel("|kappa|")
+ax.set_ylabel("Mean")
+
+# ----------------------------------
+# COV GRAPH
+# -----------------------------------
+old_ys = []
+old_xs = []
+
+for mode, cov in zip(mode_list, cov_t_old):
     # Get x data
-    mode = my_grid.by_index(index)
-    mode_center = mode.center
-    new_x = np.linalg.norm(mode_center)
-    xs.append(new_x)
-
+    new_x = np.linalg.norm(mode)
+    old_xs.append(new_x)
+    
     # Get y data
-    q, p = matrix_utils.get_sub_block_indices(
-        "t", (index, index), True, my_grid.num_propagating
-    )
-    sub_block = mean_S[q : q + 2, p : p + 2]
-    new_y = np.linalg.norm(sub_block)
-    ys.append(new_y)
-
-new = ys[0]
-
-# PLOT
-ax.scatter(xs, ys, color="blue", marker="o", s=50.0)
-# ax.set_ylim([0.0, 0.01])
+    new_y = np.trace(cov)
+    old_ys.append(new_y)
 
 
-for i, oldx in enumerate(old_xs):
-    if np.isclose(oldx, 0):
-        break
+# ---
+# NEW
+# MEAN GRAPH
+new_xs = []
+new_ys = []
+
+for integral, location in zip(
+    cov_result.integral, cov_result.sub_block_locations
+):
+    integral = np.trace(integral.reshape(4, 4))
+    i = location[1]
+
+    weight = my_grid.by_index(i).weight
+    integral = integral / (weight*my_grid.by_index(0).weight)
+
+    center = my_grid.by_index(i).center
+    radius = np.linalg.norm(center)
+    new_xs.append(radius)
+    new_ys.append(integral*2*np.pi)
 
 
-for j, x in enumerate(xs):
-    if np.isclose(x, 0):
-        break
+fig, ax = plt.subplots()
+ax.scatter(new_xs, new_ys, color="blue", marker="o", s=50.0)
+ax.scatter(old_xs, old_ys, color="black", marker="+", s=200.0)
+ax.set_xlabel("|kappa|")
+ax.set_ylabel("Cov")

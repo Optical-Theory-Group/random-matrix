@@ -1,25 +1,32 @@
 import numpy as np
+import time
 
 from random_matrix.amplitude_matrix import isotropic_sphere
 from random_matrix.modes import mode_grid, mode_grid_generator
 from random_matrix.statistics import density_function, density_integrals
-from random_matrix.statistics.density_function import (DeltaDensityFactor,
-                                                       DensityFunction,
-                                                       DensityFunctionTerm,
-                                                       RegularDensityFactor)
+from random_matrix.statistics.density_function import (
+    DeltaDensityFactor,
+    DensityFunction,
+    DensityFunctionTerm,
+    RegularDensityFactor,
+)
 from random_matrix.statistics.index_finder import IndexFinder
 from random_matrix.statistics.integration_task import IntegrationTaskPreparer
 from random_matrix.statistics.medium_parameters import MediumParameters
-from random_matrix.statistics.medium_statistics import (MediumStatistics,
-                                                        ParticleStatistics)
-from random_matrix.statistics.scattering_statistics import \
-    InputStatisticsManager
+from random_matrix.statistics.medium_statistics import (
+    MediumStatistics,
+    ParticleStatistics,
+)
+from random_matrix.statistics.scattering_statistics import (
+    InputStatisticsManager,
+)
 from random_matrix.utils import function_utils
+from random_matrix.amplitude_matrix import mie_sphere
 
 print("Preparing Grid")
 my_grid = mode_grid_generator.from_tiling(
     tiling_type="rectangles",
-    side_length=(0.9, 0.9),
+    side_length=(0.1715, 0.1715),
     r_lim=1.2,
     grid_wave_type="propagating",
     rotation_angle=0.0,
@@ -38,12 +45,11 @@ medium_parameters = MediumParameters(
 
 
 term = DensityFunctionTerm.from_delta({"x": 2.0, "m": 1.2})
-A_matrix = isotropic_sphere.get_A
 particle_statistics = ParticleStatistics(
     term,
-    isotropic_sphere.get_A,
-    isotropic_sphere.get_A_product,
-    isotropic_sphere.get_A_product_conj,
+    mie_sphere.get_A,
+    mie_sphere.get_A_product,
+    mie_sphere.get_A_product_conj,
 )
 medium_statistics = MediumStatistics([particle_statistics])
 input_statistics_manager = InputStatisticsManager(
@@ -55,7 +61,19 @@ indices = input_statistics_manager._get_indices()
 print("Preparing tasks")
 tasks = input_statistics_manager._get_integration_tasks(indices)
 print("Performing integrals")
-#results = tasks.execute_tasks()
+
+start = time.perf_counter()
+results = tasks.execute_tasks()
+end = time.perf_counter()
+print(f"Time taken: {end- start}")
+
+# for i, a in zip(
+#     results.results[4].sub_block_locations, results.results[4].integral
+# ):
+#     print(i)
+#     print(a)
+#     print("---")
+
 
 # for i, pair in enumerate(t_result.sub_block_locations):
 #     if pair == (0, 0):

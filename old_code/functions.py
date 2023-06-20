@@ -621,12 +621,10 @@ def get_statistics(params):
     mean_t = []
     mean_r = []
     mean_r2 = []
-
+    cov_t = []
+    
     for i in range(N):
         kin_z = tkey[i, i][1][2]
-        print(At_array[i, i])
-        print(2*np.pi*n*L/(k*k))
-        print(kin_z)
         new_mean_t = 2 * np.pi * n * L / (k * k * kin_z) * At_array[i, i]
         new_mean_r = (
             2
@@ -650,6 +648,44 @@ def get_statistics(params):
         mean_t.append(new_mean_t)
         mean_r.append(new_mean_r)
         mean_r2.append(new_mean_r2)
+
+        in_first_t = np.array(tkey[i, 50][1])
+        out_first_t = np.array(tkey[i, 50][0])
+        kzi = in_first_t[2]
+        kzj = out_first_t[2]
+        kzp = in_first_t[2]
+        kzq = out_first_t[2]
+
+        A_vec_ji = np.array(
+            [
+                At_array[i, 50][0, 0],
+                At_array[i, 50][0, 1],
+                At_array[i, 50][1, 0],
+                At_array[i, 50][1, 1],
+            ]
+        )
+        A_vec_qp = np.array(
+            [
+                At_array[i, 50][0, 0],
+                At_array[i, 50][0, 1],
+                At_array[i, 50][1, 0],
+                At_array[i, 50][1, 1],
+            ]
+        )
+
+        # Regular
+        C = np.outer(A_vec_ji, np.conj(A_vec_qp))
+        H = (
+            C
+            * n
+            * L
+            / k**2
+            * weight
+            * 1
+            / np.sqrt(kzi * kzj * kzp * kzq)
+            * sinc(k * L / 2 * ((kzi - kzj) - (kzp - kzq)))
+        )
+        cov_t.append(H)
 
     # ####################
     # # Helper functions #
@@ -1832,7 +1868,7 @@ def get_statistics(params):
     #     "chol r2": chol_r2,
     # }
 
-    return mean_t, L
+    return mean_t, cov_t, L
 
 
 """

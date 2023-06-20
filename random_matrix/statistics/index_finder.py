@@ -22,7 +22,7 @@ class IndexFinder:
         indices = {}
         indices["mean"] = self._get_mean_indices()
         indices["covariance"] = self._get_covariance_indices()
-        indices["pseudo_covariance"] = self._get_pseudo_covariance_indices()
+        # indices["pseudo_covariance"] = self._get_pseudo_covariance_indices()
         return indices
 
     # -------------------------------------------------------------------------
@@ -183,7 +183,11 @@ class IndexFinder:
         self, block_one: str, block_two: str
     ) -> set[tuple[int, int, int, int]]:
         elements = set()
-
+        
+        for i in range(-67,68):
+            elements.add((0,i,0,i))
+        return elements        
+        
         for index_one in range(
             len(self.independent_element_indices["pp"][block_one])
         ):
@@ -204,7 +208,7 @@ class IndexFinder:
                     index_two
                 ]
 
-                if i == u and j == v:
+                if i == 0 and u == 0 and j == v:
                     elements.add((i, j, u, v))
 
                 # mode_i = self.mode_grid.by_index(i).vertices

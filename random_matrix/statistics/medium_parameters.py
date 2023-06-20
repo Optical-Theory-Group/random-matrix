@@ -18,6 +18,7 @@ class MediumParameters:
     k: float = field(init=False)
 
     mean_const_factor: FloatLike = field(init=False)
+    cov_const_factor: FloatLike = field(init=False)
 
     def __post_init__(self) -> None:
         # Physics abbreviations
@@ -29,3 +30,4 @@ class MediumParameters:
 
         # Constant factors used in integration
         self.mean_const_factor = 2 * np.pi * self.n * self.L / self.k**2
+        self.cov_const_factor = self.n * self.L / self.k**2

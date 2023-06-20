@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import quadpy
+import numba
 
 from random_matrix.statistics import density_function
 from random_matrix.utils import function_utils, integration_utils

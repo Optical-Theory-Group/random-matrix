@@ -196,11 +196,11 @@ def main():
         "n cores": 1,
     }
 
-    Mie1 = {
+    Mie2 = {
         "name": "Mie2",
         "lam": lam,
         "k": k,
-        "x": 1.0,
+        "x": 2.0,
         "m": 1.2,
         "vol_frac": 0.01,
         "type": "mie",
@@ -295,12 +295,12 @@ def main():
         #    os.mkdir(pathname)
 
         print("Generating statistics...")
-        statistics, dL = get_statistics(params)
+        mean_t, cov_t, dL = get_statistics(params)
         params["dL"] = dL
         print(f"dL = {dL}")
         print(f"n = {n}")
         print(f"k = {k}")
-        return statistics
+        return mean_t, cov_t
 
         # with open(pathname + "statistics.npy", "wb") as f:
         #     np.save(f, statistics)
@@ -739,4 +739,4 @@ def main():
 
 
 if __name__ == "__main__":
-    statistics = main()
+    mean_t, cov_t = main()

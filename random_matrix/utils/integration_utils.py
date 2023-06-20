@@ -110,7 +110,7 @@ def basic_triangle_integral(
     # by a vector. This is to make quadpy happy.
     num_args = len(inspect.signature(function).parameters)
     if num_args > 1:
-        function = function_utils.vectorize_functions_args(function)
+        function = function_utils.vectorize_arguments(function)
 
     if scheme is None:
         scheme = quadpy.t2.get_good_scheme(12)
@@ -158,10 +158,10 @@ def basic_simplex_integral(
     # by a vector. This is to make quadpy happy.
     num_args = len(inspect.signature(function).parameters)
     if num_args > 1:
-        function = function_utils.vectorize_functions_args(function)
+        function = function_utils.vectorize_arguments(function)
 
     if scheme is None:
-        scheme = quadpy.tn.grundmann_moeller(dim, 3)
+        scheme = quadpy.tn.grundmann_moeller(dim, 1)
 
     # Reshape domain stack if necessary
     # again to make quadpy happy
