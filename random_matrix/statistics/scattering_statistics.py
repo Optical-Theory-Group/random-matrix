@@ -5,7 +5,7 @@ import numpy as np
 from random_matrix.modes import mode_grid
 from random_matrix.statistics import (index_finder, integration_task,
                                       medium_parameters, medium_statistics)
-from random_matrix.utils import matrix_utils
+from random_matrix.utils import matrix_utils, geometry_utils
 from random_matrix.utils.types import FloatLike
 
 
@@ -119,3 +119,5 @@ class InputStatisticsManager:
         weights = np.kron(weights, np.identity(2))
         weights = np.kron(np.identity(2), weights)
         return weights
+
+        

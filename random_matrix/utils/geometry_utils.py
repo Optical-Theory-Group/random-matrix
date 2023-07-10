@@ -644,3 +644,30 @@ def cartesian_product(polygon1: FloatLike, polygon2: FloatLike) -> FloatLike:
 def reflect_through_point(shape: FloatLike, point: FloatLike) -> FloatLike:
     reflected = point - (shape - point)
     return reflected
+
+def get_angle_plane(v1, v2, n):
+    """
+    """
+
+    # Special cases
+    cosine = np.dot(v1, v2)
+
+    if cosine >= 1.0 or np.isclose(cosine, 1.0):
+        return 0.0
+    elif cosine <= -1.0 or np.isclose(cosine, -1.0):
+        return np.pi
+
+    theta = np.arccos(cosine)
+
+    # check if n is in the same direction as v1xv2
+    k = np.cross(v1, v2)
+    k = k / np.linalg.norm(k)
+
+    alignment = np.dot(k, n)
+    if np.isclose(alignment, 1.0):
+        alpha = theta
+    else:
+        alpha = -theta
+
+    return alpha
+

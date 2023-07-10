@@ -99,7 +99,7 @@ def getT(k1, k2, params, N_lim=5):
 
     if np.allclose(k2, np.array([0, 0, -1])):
         e_theta_s = np.array([1, 0, 0])
-        # e_phi_s = np.array([0,-1,0])
+        e_phi_s = np.array([0,-1,0])
     else:
         e_theta_s = np.array(
             [
@@ -108,7 +108,7 @@ def getT(k1, k2, params, N_lim=5):
                 -np.sin(theta_s),
             ]
         )
-        # e_phi_s = np.array([-np.sin(phi_s), np.cos(phi_s), 0])
+        e_phi_s = np.array([-np.sin(phi_s), np.cos(phi_s), 0])
 
     if np.allclose(k1, k2):
         e_par_i = e_theta_i

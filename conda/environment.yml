@@ -12,4 +12,3 @@ dependencies:
   - shapely=2.0.1
   - numba=0.57.0
   - scikit-sparse=0.4.8
-  - pathos=0.3.0
