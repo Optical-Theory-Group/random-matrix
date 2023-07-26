@@ -49,26 +49,26 @@ class IndexFinder:
         """Get the independent elements of the propagating-propagating block
         of the scattering matrix."""
 
-        t_elements = set()
-        t2_elements = set()
-        r_elements = set()
-        r2_elements = set()
+        t_elements = []
+        t2_elements = []
+        r_elements = []
+        r2_elements = []
 
         indices = self.mode_grid.propagating_indices
         for i in indices:
             for j in indices:
-                t_elements.add((j, i))
+                t_elements.append((j, i))
 
                 if not self.mode_grid.is_reciprocal:
-                    t2_elements.add((j, i))
-                    r_elements.add((j, i))
-                    r2_elements.add((j, i))
+                    t2_elements.append((j, i))
+                    r_elements.append((j, i))
+                    r2_elements.append((j, i))
                 else:
                     # Only accept elements above or on the anti-diagonal
                     # No elements of t2 are accepted
                     if i + j <= 0:
-                        r_elements.add((j, i))
-                        r2_elements.add((j, i))
+                        r_elements.append((j, i))
+                        r2_elements.append((j, i))
 
         elements = {
             "t": t_elements,
@@ -100,10 +100,10 @@ class IndexFinder:
 
         Currently only uses a delta function implementation.
         """
-        t_elements = set()
-        t2_elements = set()
-        r_elements = set()
-        r2_elements = set()
+        t_elements = []
+        t2_elements = []
+        r_elements = []
+        r2_elements = []
 
         indices = self.mode_grid.propagating_indices
         independent_elements = self.independent_element_indices["pp"]
@@ -111,13 +111,13 @@ class IndexFinder:
         for index in indices:
             new_indices = (index, index)
             if new_indices in independent_elements["t"]:
-                t_elements.add(new_indices)
+                t_elements.append(new_indices)
             if new_indices in independent_elements["r"]:
-                r_elements.add(new_indices)
+                r_elements.append(new_indices)
             if new_indices in independent_elements["t2"]:
-                t2_elements.add(new_indices)
+                t2_elements.append(new_indices)
             if new_indices in independent_elements["r2"]:
-                r2_elements.add(new_indices)
+                r2_elements.append(new_indices)
 
         mean_indices = {
             "t": t_elements,
@@ -183,11 +183,7 @@ class IndexFinder:
         self, block_one: str, block_two: str
     ) -> set[tuple[int, int, int, int]]:
         elements = set()
-        
-        for i in range(-67,68):
-            elements.add((0,i,0,i))
-        return elements        
-        
+
         for index_one in range(
             len(self.independent_element_indices["pp"][block_one])
         ):
@@ -208,18 +204,9 @@ class IndexFinder:
                     index_two
                 ]
 
-                if i == 0 and u == 0 and j == v:
+                if i == u and j == v:
                     elements.add((i, j, u, v))
 
-                # mode_i = self.mode_grid.by_index(i).vertices
-                # mode_j = self.mode_grid.by_index(j).vertices
-                # mode_u = self.mode_grid.by_index(u).vertices
-                # mode_v = self.mode_grid.by_index(v).vertices
-                # d_ij = geometry_utils.minkowski_difference(mode_i, mode_j)
-                # d_uv = geometry_utils.minkowski_difference(mode_u, mode_v)
-                # intersects = geometry_utils.intersects(d_ij, d_uv)
-                # if intersects:
-                #     elements.add((i, j, u, v))
         return elements
 
     # -------------------------------------------------------------------------
@@ -250,3 +237,19 @@ class IndexFinder:
         self,
     ) -> dict[str, set[tuple[int, int, int, int]]]:
         return {}
+
+    # -------------------------------------------------------------------------
+    # Computed properties
+    # -------------------------------------------------------------------------
+
+    @property
+    def num_independent_elements(self):
+        independent_elements = self.independent_element_indices
+        independent_elements = independent_elements["pp"]
+        total = (
+            len(independent_elements["t"])
+            + len(independent_elements["r"])
+            + len(independent_elements["t2"])
+            + len(independent_elements["r2"])
+        )
+        return total

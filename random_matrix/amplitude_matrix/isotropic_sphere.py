@@ -1,212 +1,475 @@
-import numpy as np
-import scipy
 import time
 
-from random_matrix.utils import memoize
+import numba
+import numpy as np
+import scipy
+
 from random_matrix.utils.types import FloatLike
 
 
-def get_angle_plane(v1: FloatLike, v2: FloatLike, n: FloatLike) -> FloatLike:
-    """
-    Calculate rotation angle used in A matrix calculation
-    See Appendix D for more inforamtion
-    """
+# @numba.njit(fastmath=False, parallel=True)
+def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
+    input_shape = np.shape(mus)
+
+    S_2 = np.zeros(input_shape, dtype=np.complex128)
+    S_1 = np.zeros(input_shape, dtype=np.complex128)
+    S_3 = np.zeros(input_shape, dtype=np.complex128)
+    S_4 = np.zeros(input_shape, dtype=np.complex128)
+
+    # Get stopping index for sum
+    if isinstance(xs, np.float64):
+        num_stop = int(np.floor(xs + 4.05 * xs**0.33333 + 2.0) + 1)
+    else:
+        num_stop = int(np.max(np.floor(xs + 4.05 * xs**0.33333 + 2.0) + 1))
+
+    # Initialise variables
+    # 1 and 2 subscripts are for recurrence relations, 2 is ahead of 1
+    jx_0 = np.sin(xs) / xs
+    jx_1 = np.sin(xs) / xs**2 - np.cos(xs) / xs
+    jmx_0 = np.sin(ms * xs) / (ms * xs)
+    jmx_1 = np.sin(ms * xs) / (ms * xs) ** 2 - np.cos(ms * xs) / (ms * xs)
+
+    djx = ((xs**2.0 - 2.0) * np.sin(xs) + 2.0 * xs * np.cos(xs)) / xs**3.0
+    djmx = (
+        ((ms * xs) ** 2.0 - 2.0) * np.sin(ms * xs)
+        + 2.0 * ms * xs * np.cos(ms * xs)
+    ) / (ms * xs) ** 3
+
+    yx_0 = -np.cos(xs) / xs
+    yx_1 = -np.cos(xs) / xs**2 - np.sin(xs) / xs
+    ymx_0 = -np.cos(ms * xs) / (ms * xs)
+    ymx_1 = -np.cos(ms * xs) / (ms * xs) ** 2 - np.sin(ms * xs) / (ms * xs)
+
+    dyx = (2.0 * xs * np.sin(xs) - (xs**2 - 2.0) * np.cos(xs)) / xs**3
+
+    psix = xs * jx_1
+    psimx = ms * xs * jmx_1
+    dpsix = xs * djx + jx_1
+    dpsimx = ms * xs * djmx + jmx_1
+    phix = xs * yx_1
+    dphix = xs * dyx + yx_1
+    xix = psix + 1j * phix
+    dxix = dpsix + 1j * dphix
+
+    pi_0 = np.zeros(input_shape, dtype=np.float64)
+    pi_1 = np.ones(input_shape, dtype=np.float64)
+
+    tau = mus
+
+    # Initialise S matrix terms. Note that n=1 corresponds to the _2 variables
+    a = (ms * psimx * dpsix - psix * dpsimx) / (
+        ms * psimx * dxix - xix * dpsimx
+    )
+    b = (psimx * dpsix - ms * psix * dpsimx) / (
+        psimx * dxix - ms * xix * dpsimx
+    )
+
+    S_1 = 3.0 / 2.0 * (a * pi_1 + b * tau)
+    S_2 = 3.0 / 2.0 * (a * tau + b * pi_1)
+
+    for n in range(2, num_stop + 1):
+        # Update all variables with recurrence relations
+        # Bessel functions
+        new_jx = (2.0 * n - 1.0) / xs * jx_1 - jx_0
+        jx_0 = jx_1
+        jx_1 = new_jx
+        new_jmx = (2.0 * n - 1.0) / (ms * xs) * jmx_1 - jmx_0
+        jmx_0 = jmx_1
+        jmx_1 = new_jmx
+        new_yx = (2.0 * n - 1.0) / xs * yx_1 - yx_0
+        yx_0 = yx_1
+        yx_1 = new_yx
+        new_ymx = (2.0 * n - 1.0) / (ms * xs) * ymx_1 - ymx_0
+        ymx_0 = ymx_1
+        ymx_1 = new_ymx
+
+        # Derivatives of bessel funtions
+        new_djx = -(n + 1) / xs * jx_1 + jx_0
+        new_djmx = -(n + 1) / (ms * xs) * jmx_1 + jmx_0
+        new_dyx = -(n + 1) / xs * yx_1 + yx_0
+
+        new_psix = xs * new_jx
+        new_psimx = ms * xs * new_jmx
+        new_dpsix = xs * new_djx + new_jx
+        new_dpsimx = ms * xs * new_djmx + new_jmx
+        new_phix = xs * new_yx
+        new_dphix = xs * new_dyx + new_yx
+        new_xix = new_psix + 1j * new_phix
+        new_dxix = new_dpsix + 1j * new_dphix
+
+        # Angular functions
+        new_pi = (2.0 * n - 1.0) / (n - 1.0) * mus * pi_1 - n / (
+            n - 1.0
+        ) * pi_0
+        pi_0 = pi_1
+        pi_1 = new_pi
+
+        new_tau = n * mus * new_pi - (n + 1.0) * pi_0
+
+        # Calculate new S terms
+        a = (ms * new_psimx * new_dpsix - new_psix * new_dpsimx) / (
+            ms * new_psimx * new_dxix - new_xix * new_dpsimx
+        )
+        b = (new_psimx * new_dpsix - ms * new_psix * new_dpsimx) / (
+            new_psimx * new_dxix - ms * new_xix * new_dpsimx
+        )
+
+        S_1 = S_1 + (2.0 * n + 1.0) / (n * (n + 1.0)) * (
+            a * new_pi + b * new_tau
+        )
+        S_2 = S_2 + (2.0 * n + 1.0) / (n * (n + 1.0)) * (
+            a * new_tau + b * new_pi
+        )
+
+    combined_array = np.concatenate(
+        (
+            S_2[np.newaxis, :],
+            S_3[np.newaxis, :],
+            S_4[np.newaxis, :],
+            S_1[np.newaxis, :],
+        )
+    )
+
+    return combined_array
+
+
+# @numba.njit(fastmath=True, parallel=True)
+def get_A(
+    ki_x: FloatLike,
+    ki_y: FloatLike,
+    ki_z: FloatLike,
+    kj_x: FloatLike,
+    kj_y: FloatLike,
+    kj_z: FloatLike,
+    x: FloatLike,
+    m: FloatLike,
+) -> FloatLike:
+    xs = x
+    ms = m
+    mus = ki_x * kj_x + ki_y * kj_y + ki_z * kj_z
+
+    # Array sizes for reshaping
+    num_one, num_two = np.shape(ki_x)
+    num_linear = num_one * num_two
+
+    theta_i = np.arccos(ki_z)
+    phi_i = np.arctan2(np.real(ki_y), np.real(ki_x))
+
+    # Check for (0,0,-1) vector, which is a special case
+    indices = np.where(
+        np.logical_and(
+            np.logical_and(np.isclose(ki_x, 0.0), np.isclose(ki_y, 0.0)),
+            np.isclose(ki_z, -1.0),
+        )
+    )
+    e_theta_i = np.array(
+        [
+            np.cos(theta_i) * np.cos(phi_i),
+            np.cos(theta_i) * np.sin(phi_i),
+            -np.sin(theta_i),
+        ]
+    )
+    e_theta_i = np.transpose(e_theta_i, (1, 2, 0))
+    e_theta_i[indices] = np.array([1.0, 0.0, 0.0])
+
+    e_phi_i = np.array(
+        [-np.sin(phi_i), np.cos(phi_i), np.zeros(np.shape(ki_x))]
+    )
+    e_phi_i = np.transpose(e_phi_i, (1, 2, 0))
+    e_phi_i[indices] = np.array([0, -1, 0])
+
+    # Same for the scattered wavevector
+    theta_s = np.arccos(kj_z)
+    phi_s = np.arctan2(np.real(kj_y), np.real(kj_x))
+
+    indices = np.where(
+        np.logical_and(
+            np.logical_and(np.isclose(kj_x, 0.0), np.isclose(kj_y, 0.0)),
+            np.isclose(kj_z, -1.0),
+        )
+    )
+    e_theta_s = np.array(
+        [
+            np.cos(theta_s) * np.cos(phi_s),
+            np.cos(theta_s) * np.sin(phi_s),
+            -np.sin(theta_s),
+        ]
+    )
+    e_theta_s = np.transpose(e_theta_s, (1, 2, 0))
+    e_theta_s[indices] = np.array([1.0, 0.0, 0.0])
+
+    e_phi_s = np.array(
+        [-np.sin(phi_s), np.cos(phi_s), np.zeros(np.shape(ki_x))]
+    )
+    e_phi_s = np.transpose(e_phi_s, (1, 2, 0))
+    e_phi_s[indices] = np.array([0, -1, 0])
+
+    # Get special case indices for par and per vectors
+    are_close_x = np.isclose(ki_x, kj_x)
+    are_close_y = np.isclose(ki_y, kj_y)
+    are_close_z = np.isclose(ki_z, kj_z)
+    parallel_indices = np.logical_and(
+        are_close_x, np.logical_and(are_close_y, are_close_z)
+    )
+    are_close_x = np.isclose(ki_x, -kj_x)
+    are_close_y = np.isclose(ki_y, -kj_y)
+    are_close_z = np.isclose(ki_z, -kj_z)
+    antiparallel_indices = np.logical_and(
+        are_close_x, np.logical_and(are_close_y, are_close_z)
+    )
+
+    kis = np.zeros((num_one, num_two, 3))
+    kis[:, :, 0] = ki_x
+    kis[:, :, 1] = ki_y
+    kis[:, :, 2] = ki_z
+    kis = np.reshape(kis, (num_linear, 3))
+
+    kjs = np.zeros((num_one, num_two, 3))
+    kjs[:, :, 0] = kj_x
+    kjs[:, :, 1] = kj_y
+    kjs[:, :, 2] = kj_z
+    kjs = np.reshape(kjs, (num_linear, 3))
+
+    e_per = np.cross(kis, kjs)
+    norms = np.linalg.norm(e_per, axis=-1)
+    e_per = e_per / norms[:, np.newaxis]
+
+    e_par_i = np.cross(e_per, kis)
+    norms = np.linalg.norm(e_par_i, axis=-1)
+    e_par_i = e_par_i / norms[:, np.newaxis]
+    e_par_i = np.reshape(e_par_i, (num_one, num_two, 3))
+
+    e_par_s = np.cross(e_per, kjs)
+    norms = np.linalg.norm(e_par_s, axis=-1)
+    e_par_s = e_par_s / norms[:, np.newaxis]
+    e_par_s = np.reshape(e_par_s, (num_one, num_two, 3))
+
+    e_per = np.reshape(e_per, (num_one, num_two, 3))
+    kis = np.reshape(kis, (num_one, num_two, 3))
+    kjs = np.reshape(kjs, (num_one, num_two, 3))
+
+    # Work out rotation angles between coordinate basis vectors and scattering
+    # plane vectors
+    # i case
+    cos_i = (
+        e_theta_i[:, :, 0] * e_par_i[:, :, 0]
+        + e_theta_i[:, :, 1] * e_par_i[:, :, 1]
+        + e_theta_i[:, :, 2] * e_par_i[:, :, 2]
+    )
+
+    cp = np.cross(
+        np.reshape(e_theta_i, (num_linear, 3)),
+        np.reshape(e_par_i, (num_linear, 3)),
+    ).reshape((num_one, num_two, 3))
+    norms = np.linalg.norm(cp, axis=-1)
+    cp = cp / norms[:, :, np.newaxis]
+
+    cos_i = np.where(
+        np.logical_or(np.isclose(cos_i, 1.0), cos_i > 1.0), 1.0, cos_i
+    )
+    cos_i = np.where(
+        np.logical_or(np.isclose(cos_i, -1.0), cos_i < -1.0), -1.0, cos_i
+    )
+    theta = np.arccos(cos_i)
+
+    # cp, ki
+    alignment = (
+        cp[:, :, 0] * kis[:, :, 0]
+        + cp[:, :, 1] * kis[:, :, 1]
+        + cp[:, :, 2] * kis[:, :, 2]
+    )
+
+    alpha_i = np.where(np.isclose(alignment, 1.0), theta, -theta)
+
+    # same for j
+    cos_j = (
+        e_theta_s[:, :, 0] * e_par_s[:, :, 0]
+        + e_theta_s[:, :, 1] * e_par_s[:, :, 1]
+        + e_theta_s[:, :, 2] * e_par_s[:, :, 2]
+    )
+
+    cp = np.cross(
+        np.reshape(e_par_s, (num_linear, 3)),
+        np.reshape(e_theta_s, (num_linear, 3)),
+    ).reshape((num_one, num_two, 3))
+    norms = np.linalg.norm(cp, axis=-1)
+    cp = cp / norms[:, :, np.newaxis]
+
+    cos_j = np.where(
+        np.logical_or(np.isclose(cos_j, 1.0), cos_j > 1.0), 1.0, cos_j
+    )
+    cos_j = np.where(
+        np.logical_or(np.isclose(cos_j, -1.0), cos_j < -1.0), -1.0, cos_j
+    )
+    theta = np.arccos(cos_j)
+
+    # cp, ki
+    alignment = (
+        cp[:, :, 0] * kjs[:, :, 0]
+        + cp[:, :, 1] * kjs[:, :, 1]
+        + cp[:, :, 2] * kjs[:, :, 2]
+    )
+
+    alpha_j = np.where(np.isclose(alignment, 1.0), theta, -theta)
 
     # Special cases
-    cosine = np.dot(v1, v2)
+    e_par_i[parallel_indices] = e_theta_i[parallel_indices]
+    e_par_s[parallel_indices] = e_theta_s[parallel_indices]
+    e_per[parallel_indices] = e_phi_i[parallel_indices]
+    alpha_i[parallel_indices] = 0.0
+    alpha_j[parallel_indices] = 0.0
 
-    if cosine >= 1 or np.isclose(cosine, 1):
-        return 0
-    elif cosine <= -1 or np.isclose(cosine, -1):
-        return np.pi
+    e_par_i[antiparallel_indices] = e_theta_i[antiparallel_indices]
+    e_par_s[antiparallel_indices] = -e_theta_s[antiparallel_indices]
+    e_per[antiparallel_indices] = e_phi_i[antiparallel_indices]
+    alpha_i[antiparallel_indices] = 0.0
+    alpha_j[antiparallel_indices] = np.pi
 
-    theta = np.arccos(cosine)
+    T_i = np.zeros((num_one, num_two, 2, 2))
+    T_i[:, :, 0, 0] = np.cos(alpha_i)
+    T_i[:, :, 0, 1] = np.sin(alpha_i)
+    T_i[:, :, 1, 0] = np.sin(alpha_i)
+    T_i[:, :, 1, 1] = -np.cos(alpha_i)
 
-    # check if n is in the same direction as v1xv2
-    k = np.cross(v1, v2)
-    k = k / np.linalg.norm(k)
+    T_j = np.zeros((num_one, num_two, 2, 2))
+    T_j[:, :, 0, 0] = np.cos(alpha_j)
+    T_j[:, :, 0, 1] = -np.sin(alpha_j)
+    T_j[:, :, 1, 0] = -np.sin(alpha_j)
+    T_j[:, :, 1, 1] = -np.cos(alpha_j)
 
-    alignment = np.dot(k, n)
-    if np.isclose(alignment, 1):
-        alpha = theta
-    else:
-        alpha = -theta
-
-    return alpha
-
-
-def get_A(
-    k_inc: FloatLike, k_sca: FloatLike, x: FloatLike, m: FloatLike
-) -> FloatLike:
-    """
-    Calculate far-field single scattering matrix (A) using Mie theory
-    k_inc = incident wavevector
-    k_sca = outgoing wavevector
-    params must contain:
-        'x': size parameter
-        'm': relative refractive index
-        'type': scattering type (rayleigh, mie or chiral)
-            if 'type' is 'chiral' then params must also contain 'mL' and 'mR',
-            the relative refractive indices for left and right handed circularly polarized light
-
-    N_lim is the number of terms used in calculating the scattering coefficients. Increase for greater accuracy.
-    """
-
-    N_lim = 10
-    k_inc = k_inc / np.linalg.norm(k_inc)
-    k_sca = k_sca / np.linalg.norm(k_sca)
-
-    for i, component in enumerate(k_inc):
-        if np.isclose(component, 0):
-            k_inc[i] = 0
-    for i, component in enumerate(k_sca):
-        if np.isclose(component, 0):
-            k_sca[i] = 0
-
-    theta_i = np.arccos(k_inc[2])
-    phi_i = np.arctan2(k_inc[1], k_inc[0])
-    theta_s = np.arccos(k_sca[2])
-    phi_s = np.arctan2(k_sca[1], k_sca[0])
-    cos_theta_scattering = np.dot(k_inc, k_sca)
-
-    if np.allclose(k_inc, np.array([0, 0, -1])):
-        e_theta_i = np.array([1, 0, 0])
-        e_phi_i = np.array([0, -1, 0])
-    else:
-        e_theta_i = np.array(
-            [
-                np.cos(theta_i) * np.cos(phi_i),
-                np.cos(theta_i) * np.sin(phi_i),
-                -np.sin(theta_i),
-            ]
-        )
-        e_phi_i = np.array([-np.sin(phi_i), np.cos(phi_i), 0])
-
-    if np.allclose(k_sca, np.array([0, 0, -1])):
-        e_theta_s = np.array([1, 0, 0])
-        # e_phi_s = np.array([0,-1,0])
-    else:
-        e_theta_s = np.array(
-            [
-                np.cos(theta_s) * np.cos(phi_s),
-                np.cos(theta_s) * np.sin(phi_s),
-                -np.sin(theta_s),
-            ]
-        )
-        # e_phi_s = np.array([-np.sin(phi_s), np.cos(phi_s), 0])
-
-    if np.allclose(k_inc, k_sca):
-        e_par_i = e_theta_i
-        e_par_s = e_theta_s
-        e_per = e_phi_i
-        alpha1 = 0
-        alpha2 = 0
-    elif np.allclose(k_inc, -k_sca):
-        e_par_i = e_theta_i
-        e_par_s = -e_theta_s
-        e_per = e_phi_i
-        alpha1 = 0
-        alpha2 = np.pi
-
-    else:
-        e_per = np.cross(k_inc, k_sca)
-        e_per = e_per / np.linalg.norm(e_per)
-
-        e_par_i = np.cross(e_per, k_inc)
-        e_par_i = e_par_i / np.linalg.norm(e_par_i)
-
-        e_par_s = np.cross(e_per, k_sca)
-        e_par_s = e_par_s / np.linalg.norm(e_par_s)
-
-        alpha1 = get_angle_plane(e_theta_i, e_par_i, k_inc)
-        alpha2 = get_angle_plane(e_par_s, e_theta_s, k_sca)
-
-    T1 = np.array(
-        [[np.cos(alpha1), np.sin(alpha1)], [-np.sin(alpha1), np.cos(alpha1)]]
-    )
-    T2 = np.array([[1, 0], [0, -1]])
-    T4 = np.array([[1, 0], [0, -1]])
-    T5 = np.array(
-        [[np.cos(alpha2), np.sin(alpha2)], [-np.sin(alpha2), np.cos(alpha2)]]
+    A_scattering_plane = np.transpose(
+        get_A_from_mus(mus, xs, ms).reshape(2, 2, num_one, num_two),
+        (2, 3, 0, 1),
     )
 
-    mu = np.dot(k_inc, k_sca)
+    final = (
+        (np.reshape(T_j, (num_linear, 2, 2)))
+        @ (np.reshape(A_scattering_plane, (num_linear, 2, 2)))
+        @ (np.reshape(T_i, (num_linear, 2, 2)))
+    )
+    final = -np.transpose(np.reshape(final, (num_one, num_two, 4)), (2, 0, 1))
 
-    T3 = get_T3(mu, x, m)
-
-    T = -T5 @ T4 @ T3 @ T2 @ T1
-
-    return T.flatten()
-
-
-get_A.particle_type = "isotropic_sphere"
+    return final
 
 
-def get_T3(mu, x, m):
-    N_lim = 10
-    psi_x = scipy.special.riccati_jn(N_lim, x)
-    psi_mx = scipy.special.riccati_jn(N_lim, m * x)
-    phi_x = scipy.special.riccati_yn(N_lim, x)
-    xi_x = [psi + 1j * phi for psi, phi in zip(psi_x, phi_x)]
-    S1 = 0
-    S2 = 0
-
-    for n in range(1, N_lim):
-        a = (m * psi_mx[0][n] * psi_x[1][n] - psi_x[0][n] * psi_mx[1][n]) / (
-            m * psi_mx[0][n] * xi_x[1][n] - xi_x[0][n] * psi_mx[1][n]
-        )
-        b = (psi_mx[0][n] * psi_x[1][n] - m * psi_x[0][n] * psi_mx[1][n]) / (
-            psi_mx[0][n] * xi_x[1][n] - m * xi_x[0][n] * psi_mx[1][n]
-        )
-        S1 = S1 + (2 * n + 1) / (n * (n + 1)) * (
-            a * pi(n, mu) + b * tau(n, mu)
-        )
-        S2 = S2 + (2 * n + 1) / (n * (n + 1)) * (
-            a * tau(n, mu) + b * pi(n, mu)
-        )
-
-    T3 = np.array([[S2, 0], [0, S1]])
-    return T3
+get_A.particle_type = "sphere"
 
 
-def pi(n: FloatLike, mu: FloatLike) -> FloatLike:
-    if n == 0:
-        return 0
-    elif n == 1:
-        return 1
-    else:
-        return (2 * n - 1) / (n - 1) * mu * pi(n - 1, mu) - n / (n - 1) * pi(
-            n - 2, mu
-        )
-
-
-def tau(n: FloatLike, mu: FloatLike) -> FloatLike:
-    return n * mu * pi(n, mu) - (n + 1) * pi(n - 1, mu)
-
-
+# @numba.njit(fastmath=True, parallel=True)
 def get_A_product_conj(
-    k_i: FloatLike,
-    k_j: FloatLike,
-    k_u: FloatLike,
-    k_v: FloatLike,
+    ki_x: FloatLike,
+    ki_y: FloatLike,
+    ki_z: FloatLike,
+    kj_x: FloatLike,
+    kj_y: FloatLike,
+    kj_z: FloatLike,
+    ku_x: FloatLike,
+    ku_y: FloatLike,
+    ku_z: FloatLike,
+    kv_x: FloatLike,
+    kv_y: FloatLike,
+    kv_z: FloatLike,
     x: FloatLike,
     m: FloatLike,
 ) -> FloatLike:
-    A_ij = get_A(k_i, k_j, x, m)
-    A_uv = get_A(k_u, k_v, x, m)
-    prod = np.outer(A_ij, np.conj(A_uv))
-    return np.ravel(prod)
+    A_ij = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
+    A_uv = get_A(ku_x, ku_y, ku_z, kv_x, kv_y, kv_z, x, m)
+    shape = np.shape(A_ij[0])
+
+    output = np.zeros((16, shape[0], shape[1]), dtype=np.complex128)
+    for i in range(4):
+        for j in range(4):
+            output[4 * i + j] = A_ij[i] * np.conj(A_uv[j])
+
+    return output
 
 
+# @numba.njit(fastmath=True, parallel=True)
 def get_A_product(
-    k_i: FloatLike,
-    k_j: FloatLike,
-    k_u: FloatLike,
-    k_v: FloatLike,
+    ki_x: FloatLike,
+    ki_y: FloatLike,
+    ki_z: FloatLike,
+    kj_x: FloatLike,
+    kj_y: FloatLike,
+    kj_z: FloatLike,
+    ku_x: FloatLike,
+    ku_y: FloatLike,
+    ku_z: FloatLike,
+    kv_x: FloatLike,
+    kv_y: FloatLike,
+    kv_z: FloatLike,
     x: FloatLike,
     m: FloatLike,
 ) -> FloatLike:
-    A_ij = get_A(k_i, k_j, x, m)
-    A_uv = get_A(k_u, k_v, x, m)
-    prod = np.outer(A_ij, A_uv)
-    return np.ravel(prod)
+    A_ij = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
+    A_uv = get_A(ku_x, ku_y, ku_z, kv_x, kv_y, kv_z, x, m)
+    output = np.zeros((16, *np.shape(A_ij[0])), dtype=np.complex128)
+    for i in range(4):
+        for j in range(4):
+            output[4 * i + j] = A_ij[i] * A_uv[j]
+    return output
+
+
+# Test
+num_one = 1000
+num_two = 8
+x = 1.0 * np.ones((num_one, num_two))
+m = 1.2 * np.ones((num_one, num_two))
+
+ks = np.random.randn(num_one, num_two, 3)
+norms = np.linalg.norm(ks, axis=2)
+ks = ks / norms[:, :, np.newaxis]
+ki_x = ks[:, :, 0]
+ki_y = ks[:, :, 1]
+ki_z = ks[:, :, 2]
+
+ks = np.random.randn(num_one, num_two, 3)
+norms = np.linalg.norm(ks, axis=2)
+ks = ks / norms[:, :, np.newaxis]
+kj_x = ks[:, :, 0]
+kj_y = ks[:, :, 1]
+kj_z = ks[:, :, 2]
+
+# ks = np.random.randn(num_one, num_two, 3)
+# norms = np.linalg.norm(ks, axis=2)
+# ks = ks / norms[:, :, np.newaxis]
+# ku_x = ks[:, :, 0]
+# ku_y = ks[:, :, 1]
+# ku_z = ks[:, :, 2]
+
+# ks = np.random.randn(num_one, num_two, 3)
+# norms = np.linalg.norm(ks, axis=2)
+# ks = ks / norms[:, :, np.newaxis]
+# kv_x = ks[:, :, 0]
+# kv_y = ks[:, :, 1]
+# kv_z = ks[:, :, 2]
+
+
+A = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
+# A = get_A_product(
+#     ki_x,
+#     ki_y,
+#     ki_z,
+#     kj_x,
+#     kj_y,
+#     kj_z,
+#     ku_x,
+#     ku_y,
+#     ku_z,
+#     kv_x,
+#     kv_y,
+#     kv_z,
+#     x,
+#     m,
+# )
+
+# x = np.array([[1]])
+# m = np.array([[1.2]])
+# ki_x = np.array([[0]])
+# ki_y = np.array([[0]])
+# ki_z = np.array([[1]])
+
+# kj_x = np.array([[0]])
+# kj_y = np.array([[-0.8575]])
+# kj_z = np.array([[np.sqrt(1-0.8575**2)]])
+# A = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)

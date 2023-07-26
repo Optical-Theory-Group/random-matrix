@@ -17,6 +17,7 @@ def test_product_integral_1d() -> None:
     integral = integration_utils.basic_product_integral(function, domain)
     assert np.isclose(integral, 1.0)
 
+
 # 2D integral
 def test_product_integral_2d() -> None:
     def function(x: float, y: float) -> float:
@@ -26,6 +27,7 @@ def test_product_integral_2d() -> None:
 
     integral = integration_utils.basic_product_integral(function, domain)
     assert np.isclose(integral, 1.0)
+
 
 # High dimensional integral
 def test_product_integral_highd() -> None:

@@ -1,8 +1,10 @@
-import numpy as np
 import time
-import matplotlib.pyplot as plt
 
-from random_matrix.amplitude_matrix import isotropic_sphere
+import matplotlib.pyplot as plt
+import numpy as np
+from old_code.functions import getT
+
+from random_matrix.amplitude_matrix import isotropic_sphere, mie_sphere
 from random_matrix.modes import mode_grid, mode_grid_generator
 from random_matrix.statistics import density_function, density_integrals
 from random_matrix.statistics.density_function import (
@@ -22,8 +24,6 @@ from random_matrix.statistics.scattering_statistics import (
     InputStatisticsManager,
 )
 from random_matrix.utils import function_utils
-from random_matrix.amplitude_matrix import mie_sphere
-from old_code.functions import getT
 
 print("Preparing Grid")
 # my_grid = mode_grid_generator.from_tiling(
@@ -87,8 +87,10 @@ fig, ax = plt.subplots()
 ax.scatter(scattering_angle, parallel, color="tab:blue")
 ax.scatter(scattering_angle, perp, color="tab:orange")
 # ax.scatter(scattering_angle, unpol, color="tab:green")
-ax.set_yscale('log')
+ax.set_yscale("log")
 ax.set_xlim(0, 180)
 ax.set_ylim(-0.1, 1.1)
 ax.set_xlabel("Scattering angle")
-fig.savefig('/var/home/niall/Code/Science/random-matrix/tests/physical_tests/mie.png')
+fig.savefig(
+    "/var/home/niall/Code/Science/random-matrix/tests/physical_tests/mie.png"
+)

@@ -13,6 +13,7 @@ import skspatial.objects
 
 from random_matrix.modes.mode import Mode
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
+from random_matrix.utils.types import FloatLike
 
 
 @dataclass(slots=True)
@@ -63,6 +64,8 @@ class ModeGrid:
     is_reciprocal: bool = field(init=False)
     modes: dict[tuple[str, str], Mode] = field(init=False)
 
+    rec_mat: FloatLike = field(init=False)
+
     # --------------------------------------------------------------------------
     # Constructor method
     # --------------------------------------------------------------------------
@@ -74,6 +77,9 @@ class ModeGrid:
 
         self.is_reciprocal = self._get_is_reciprocal(mode_list)
         self.modes = self._get_mode_dictionary(mode_list, self.is_reciprocal)
+
+        # Matrices associated with symmetries
+        self.rec_mat = self._get_rec_mat()
 
     # --------------------------------------------------------------------------
     # Input validation and processing
@@ -284,6 +290,20 @@ class ModeGrid:
         ]
         return mode_list_propagating, mode_list_evanescent
 
+    def _get_rec_mat(self) -> FloatLike:
+        """The scattering matrix satisfies
+
+        S = rec_mat @ S^T @ rec_mat
+
+        """
+
+        I = np.eye(2)
+        J = np.eye(self.num_propagating)
+        J = np.flip(J, axis=0)
+        sig = np.array([[1.0, 0.0], [0.0, -1.0]])
+        rec_mat = np.kron(I, np.kron(J, sig))
+        return rec_mat
+
     # -------------------------------------------------------------------------
     # Property methods
     # -------------------------------------------------------------------------
@@ -326,6 +346,13 @@ class ModeGrid:
         evanescent_indices.sort()
         return evanescent_indices
 
+    @property
+    def max_index(self) -> int:
+        return (
+            int((self.num_propagating - 1) / 2)
+            if self.is_reciprocal
+            else self.num_propagating - 1
+        )
 
     # --------------------------------------------------------------------------
     # Public methods
