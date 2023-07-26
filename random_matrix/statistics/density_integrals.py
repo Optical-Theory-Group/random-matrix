@@ -6,17 +6,14 @@ import inspect
 import time
 from typing import Any
 
+import numba
 import numpy as np
 import numpy.typing as npt
 import quadpy
-import numba
 
 from random_matrix.statistics import density_function
 from random_matrix.utils import function_utils, integration_utils
-from random_matrix.utils.types import (
-    FloatLike,
-    MathematicalFunction,
-)
+from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 
 def integrate_by_delta_density_function(

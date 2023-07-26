@@ -12,6 +12,7 @@ from random_matrix.statistics import (
     medium_statistics,
 )
 from random_matrix.utils import (
+    array_utils,
     function_utils,
     geometry_utils,
     integration_utils,
@@ -68,7 +69,11 @@ class IntegrationResultList:
         string = f"Number of results: {len(self.results)}\n" f"Results key:\n"
 
         for i, result in enumerate(self.results):
-            string += f"{i} {result.statistic_type} {result.block_location}\n"
+            string += (
+                f"{i}, {result.statistic_type}, "
+                f"{len(result.integral)} integrals, "
+                f"{result.block_location}\n"
+            )
 
         return string
 
@@ -249,6 +254,47 @@ class IntegrationTaskPreparer:
 
         return master_task_list
 
+    # -------------------------------------------------------------------------
+    # Mean
+    # -------------------------------------------------------------------------
+
+    def _get_mean_integrand(
+        self, wave_block: str, block: str
+    ) -> MathematicalFunction:
+        mean_a_matrix = self.medium_statistics.get_mean_a_matrix()
+        k = self.medium_parameters.k
+        L = self.medium_parameters.L
+
+        def mean_integrand(k_x: FloatLike, k_y: FloatLike) -> FloatLike:
+            ki_x = k_x
+            ki_y = k_y
+
+            kj_x = k_x
+            kj_y = k_y
+
+            ki_z = np.sqrt(1.0 - ki_x**2 - ki_y**2)
+            kj_z = np.sqrt(1.0 - kj_x**2 - kj_y**2)
+
+            # Sort out signs of k_iz and k_jz
+            if block in {"r2", "t2"}:
+                ki_z = -ki_z
+            if block in {"r", "t2"}:
+                kj_z = -kj_z
+
+            sinc_factor = 1.0
+            if block in {"r", "r2"}:
+                sinc_factor = special_functions.sinc(k * L * ki_z)
+
+            sec_factor = 1.0 / ki_z
+            output = (
+                mean_a_matrix(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z)
+                * sinc_factor
+                * sec_factor
+            )
+            return output
+
+        return mean_integrand
+
     def _get_mean_integration_tasks(
         self, mean_indices: dict[str, dict[str, tuple[int, int]]]
     ) -> IntegrationTaskList:
@@ -334,206 +380,9 @@ class IntegrationTaskPreparer:
 
         return main_task_list
 
-    def _get_mean_integrand(
-        self, wave_block: str, block: str
-    ) -> MathematicalFunction:
-        mean_a_matrix = self.medium_statistics.get_mean_a_matrix()
-        k = self.medium_parameters.k
-        L = self.medium_parameters.L
-
-        def mean_integrand(k_x: FloatLike, k_y: FloatLike) -> FloatLike:
-            ki_x = k_x
-            ki_y = k_y
-
-            kj_x = k_x
-            kj_y = k_y
-
-            ki_z = np.sqrt(1 - ki_x**2 - ki_y**2)
-            kj_z = np.sqrt(1 - kj_x**2 - kj_y**2)
-
-            # Sort out signs of k_iz and k_jz
-            if block in {"r2", "t2"}:
-                ki_z = -ki_z
-            if block in {"r", "t2"}:
-                kj_z = -kj_z
-
-            sinc_factor = 1.0
-            if block in {"r", "r2"}:
-                sinc_factor = special_functions.sinc(k * L * ki_z)
-
-            sec_factor = 1.0 / ki_z
-            output = (
-                mean_a_matrix(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z)
-                * sinc_factor
-                * sec_factor
-            )
-            return output
-
-        return mean_integrand
-
     # -------------------------------------------------------------------------
     # Covariance
     # -------------------------------------------------------------------------
-
-    def _get_covariance_integration_tasks(
-        self,
-        covariance_indices: dict[str, dict[str, tuple[int, int, int, int]]],
-    ) -> IntegrationTaskList:
-        """Main method for preparing covariance integral tasks"""
-
-        # Factor common to all covariance integrals
-        const_factor = self.medium_parameters.cov_const_factor
-        main_task_list = IntegrationTaskList()
-
-        # wave block will look like "pp,pp", "pp,ep" etc.
-        for wave_block, d in covariance_indices.items():
-            wave_block_one, wave_block_two = wave_block.split(",")
-            sub_task_list = IntegrationTaskList()
-
-            # block will look like "t,t", "r,r" etc.
-            for block, index_set in d.items():
-                block_one, block_two = block.split(",")
-                # The integrand depends only on the matrix blocks.
-                integrand = self._get_covariance_integrand(
-                    wave_block_one, wave_block_two, block_one, block_two
-                )
-                integration_tasks = IntegrationTaskList()
-
-                # Variables that will be used for constructing tasks
-                # These reset each time we go to a new block
-
-                sub_block_locations = []
-                simplex_stack = np.zeros((0, 7, 6), dtype=np.float64)
-                stack_length = 0
-
-                for indices in index_set:
-                    # Get the triangulation of the mode
-                    i, j, u, v = indices
-
-                    mode_i = self.mode_grid.by_index(i).vertices
-                    mode_j = self.mode_grid.by_index(j).vertices
-                    mode_u = self.mode_grid.by_index(u).vertices
-                    mode_v = self.mode_grid.by_index(v).vertices
-
-                    # mean sets
-                    mean_ij = (
-                        geometry_utils.minkowski_sum(mode_i, mode_j)
-                    ) / 2
-                    mean_uv = (
-                        geometry_utils.minkowski_sum(mode_u, mode_v)
-                    ) / 2
-
-                    c_i = np.mean(mode_i, axis=0)
-                    c_j = np.mean(mode_j, axis=0)
-                    c_ij = (c_i + c_j) / 2
-                    c_u = np.mean(mode_u, axis=0)
-                    c_v = np.mean(mode_v, axis=0)
-                    c_uv = (c_u + c_v) / 2
-
-                    # Differences
-                    mode_j_ref = geometry_utils.reflect_through_point(
-                        mode_j, c_ij
-                    )
-                    ij_intersect = geometry_utils.intersection(
-                        mode_i, mode_j_ref
-                    )
-                    new = geometry_utils.translate_points(ij_intersect, -c_i)
-                    new = 2 * new
-                    new_ij = geometry_utils.translate_points(new, c_i - c_j)
-
-                    mode_v_ref = geometry_utils.reflect_through_point(
-                        mode_v, c_uv
-                    )
-                    uv_intersect = geometry_utils.intersection(
-                        mode_u, mode_v_ref
-                    )
-                    new = geometry_utils.translate_points(uv_intersect, -c_u)
-                    new = 2 * new
-                    new_uv = geometry_utils.translate_points(new, c_u - c_v)
-
-                    final = geometry_utils.intersection(new_ij, new_uv)
-
-                    # Build the pyramid
-                    domain = geometry_utils.cartesian_product(mean_ij, mean_uv)
-                    length = len(domain)
-
-                    col_5 = (np.ones(length) * (c_i - c_j)[0]).reshape(
-                        (length, 1)
-                    )
-                    col_6 = (np.ones(length) * (c_i - c_j)[1]).reshape(
-                        (length, 1)
-                    )
-                    domain = np.hstack((domain, col_5, col_6))
-                    for point in final:
-                        new_row = np.array(
-                            [
-                                c_ij[0],
-                                c_ij[1],
-                                c_uv[0],
-                                c_uv[1],
-                                point[0],
-                                point[1],
-                            ]
-                        )
-                        domain = np.vstack((domain, new_row))
-
-                    delaunay = scipy.spatial.Delaunay(domain)
-                    new_simplices = domain[delaunay.simplices]
-
-                    # Check how long the stack will become if the new triangles
-                    # are added. If this length exceeds the limit, we begin
-                    # working on a new task
-                    new_stack_length = stack_length + len(new_simplices)
-
-                    if (
-                        self.integration_task_config.integrals_per_task
-                        is not None
-                        and stack_length > 0
-                        and new_stack_length
-                        > self.integration_task_config.integrals_per_task
-                    ):
-                        new_task = IntegrationTask(
-                            integrand,
-                            simplex_stack,
-                            statistic_type="covariance",
-                            block_location=(wave_block, block),
-                            sub_block_locations=sub_block_locations,
-                            const_factor=const_factor,
-                        )
-                        integration_tasks.append_task(new_task)
-
-                        # Reset the triangle stack and stack length
-                        simplex_stack = np.zeros((0, 7, 6), dtype=np.float64)
-                        stack_length = 0
-                        sub_block_locations = []
-
-                    # Add location to sub_block_locations
-                    new_slice = slice(stack_length, new_stack_length)
-                    new_indices = indices
-                    new_sub_block_location = (new_slice, new_indices)
-                    sub_block_locations.append(new_sub_block_location)
-
-                    # Add new triangles to stack
-                    simplex_stack = np.vstack((simplex_stack, new_simplices))
-                    stack_length += len(new_simplices)
-
-                # Once this point has been reached, we have exahusted all
-                # triangles for a certing block of the scattering matrix
-                # We now make the final task for the group
-                new_task = IntegrationTask(
-                    integrand,
-                    simplex_stack,
-                    statistic_type="covariance",
-                    block_location=(wave_block, block),
-                    sub_block_locations=sub_block_locations,
-                    const_factor=const_factor,
-                )
-                integration_tasks.append_task(new_task)
-                sub_task_list.merge_task_list(integration_tasks)
-
-            main_task_list.merge_task_list(sub_task_list)
-
-        return main_task_list
 
     def _get_covariance_integrand(
         self,
@@ -616,6 +465,186 @@ class IntegrationTaskPreparer:
             return output
 
         return covariance_integrand
+
+    def _get_covariance_integration_tasks(
+        self,
+        covariance_indices: dict[str, dict[str, tuple[int, int, int, int]]],
+    ) -> IntegrationTaskList:
+        """Main method for preparing covariance integral tasks"""
+
+        # Factor common to all covariance integrals
+        const_factor = self.medium_parameters.cov_const_factor
+        main_task_list = IntegrationTaskList()
+
+        # wave block will look like "pp,pp", "pp,ep" etc.
+        for wave_block, d in covariance_indices.items():
+            wave_block_one, wave_block_two = wave_block.split(",")
+            sub_task_list = IntegrationTaskList()
+
+            # block will look like "t,t", "r,r" etc.
+            for block, index_set in d.items():
+                block_one, block_two = block.split(",")
+                # The integrand depends only on the matrix blocks.
+                integrand = self._get_covariance_integrand(
+                    wave_block_one, wave_block_two, block_one, block_two
+                )
+                integration_tasks = IntegrationTaskList()
+
+                # Variables that will be used for constructing tasks
+                # These reset each time we go to a new block
+
+                sub_block_locations = []
+                simplex_stack = np.zeros((0, 7, 6), dtype=np.float64)
+                stack_length = 0
+
+                for indices in index_set:
+                    # Get the triangulation of the mode
+                    i, j, u, v = indices
+                    mode_i = self.mode_grid.by_index(i).vertices
+                    mode_j = self.mode_grid.by_index(j).vertices
+                    mode_u = self.mode_grid.by_index(u).vertices
+                    mode_v = self.mode_grid.by_index(v).vertices
+
+                    mode_i = my_grid.by_index(i).vertices
+                    mode_j = my_grid.by_index(j).vertices
+                    mode_u = my_grid.by_index(u).vertices
+                    mode_v = my_grid.by_index(v).vertices
+                    print(i,j,u,v)
+                    # Build the base 4D space
+                    mean_ij = (
+                        geometry_utils.minkowski_sum(mode_i, mode_j)
+                    ) / 2
+                    mean_uv = (
+                        geometry_utils.minkowski_sum(mode_u, mode_v)
+                    ) / 2
+
+                    # Add mid points
+                    for first, second in array_utils.get_pairs(
+                        mean_ij, cyclic=True
+                    ):
+                        mid = (first + second) / 2
+                        mean_ij = np.vstack((mean_ij, mid))
+                    for first, second in array_utils.get_pairs(
+                        mean_uv, cyclic=True
+                    ):
+                        mid = (first + second) / 2
+                        mean_uv = np.vstack((mean_uv, mid))
+
+                    base_domain = geometry_utils.cartesian_product(
+                        mean_ij, mean_uv
+                    )
+
+                    # Add internal points from internal simplex centroids
+                    # Can later be extended to incorporate generic cubature
+                    # schemes
+                    interior_delaunay = scipy.spatial.Delaunay(base_domain)
+                    interior_simplices = base_domain[
+                        interior_delaunay.simplices
+                    ]
+                    interior_points = np.mean(interior_simplices, axis=1)
+                    base_domain = np.vstack((base_domain, interior_points))
+
+                    # For sample points, calculate final two dimensions
+                    integration_tower = self._raise_base_domain(
+                        base_domain, mode_i, mode_j, mode_u, mode_v
+                    )
+
+                    # Get the boundary points of the convex hull of the 
+                    # resultant 6 dimensional shape
+                    hull = scipy.spatial.ConvexHull(integration_tower)
+                    boundary = integration_tower[hull.vertices]
+                    
+                    # Triangulate integration domain
+                    delaunay = scipy.spatial.Delaunay(boundary)
+                    new_simplices = boundary[delaunay.simplices]
+
+                    # Check how long the stack will become if the new triangles
+                    # are added. If this length exceeds the limit, we begin
+                    # working on a new task
+                    new_stack_length = stack_length + len(new_simplices)
+
+                    if (
+                        self.integration_task_config.integrals_per_task
+                        is not None
+                        and stack_length > 0
+                        and new_stack_length
+                        > self.integration_task_config.integrals_per_task
+                    ):
+                        new_task = IntegrationTask(
+                            integrand,
+                            simplex_stack,
+                            statistic_type="covariance",
+                            block_location=(wave_block, block),
+                            sub_block_locations=sub_block_locations,
+                            const_factor=const_factor,
+                        )
+                        integration_tasks.append_task(new_task)
+
+                        # Reset the triangle stack and stack length
+                        simplex_stack = np.zeros((0, 7, 6), dtype=np.float64)
+                        stack_length = 0
+                        sub_block_locations = []
+
+                    # Add location to sub_block_locations
+                    new_slice = slice(stack_length, new_stack_length)
+                    new_indices = indices
+                    new_sub_block_location = (new_slice, new_indices)
+                    sub_block_locations.append(new_sub_block_location)
+
+                    # Add new triangles to stack
+                    simplex_stack = np.vstack((simplex_stack, new_simplices))
+                    stack_length += len(new_simplices)
+
+                # Once this point has been reached, we have exahusted all
+                # triangles for a certing block of the scattering matrix
+                # We now make the final task for the group
+                new_task = IntegrationTask(
+                    integrand,
+                    simplex_stack,
+                    statistic_type="covariance",
+                    block_location=(wave_block, block),
+                    sub_block_locations=sub_block_locations,
+                    const_factor=const_factor,
+                )
+                integration_tasks.append_task(new_task)
+                sub_task_list.merge_task_list(integration_tasks)
+
+            main_task_list.merge_task_list(sub_task_list)
+
+        return main_task_list
+
+    def _raise_base_domain(self, base_domain, mode_i, mode_j, mode_u, mode_v):
+        output = np.zeros((0, 6))
+        for pp, row in enumerate(base_domain):
+            p_ij = row[0:2]
+            p_uv = row[2:4]
+
+            # Differences
+            mode_j_ref = geometry_utils.reflect_through_point(mode_j, p_ij)
+            ij_intersect = geometry_utils.intersection(mode_i, mode_j_ref)
+            new_ij = 2 * geometry_utils.translate_points(ij_intersect, -p_ij)
+
+            mode_v_ref = geometry_utils.reflect_through_point(mode_v, p_uv)
+            uv_intersect = geometry_utils.intersection(mode_u, mode_v_ref)
+            new_uv = 2 * geometry_utils.translate_points(uv_intersect, -p_uv)
+
+            ijuv_intersect = geometry_utils.intersection(new_ij, new_uv)
+            ijuv_intersect = array_utils.remove_duplicate_points(
+                ijuv_intersect
+            )
+
+            if len(ijuv_intersect) == 0:
+                continue
+            if np.ndim(ijuv_intersect) == 1:
+                ijuv_intersect = ijuv_intersect[np.newaxis, :]
+
+            # if not len(ijuv_intersect) == 0:
+            #     print(pp)
+            #     print(ijuv_intersect)
+            repeated_row = np.tile(row, (len(ijuv_intersect), 1))
+            new_contribution = np.hstack((repeated_row, ijuv_intersect))
+            output = np.vstack((output, new_contribution))
+        return output
 
     # -------------------------------------------------------------------------
     # Pseudo covariance

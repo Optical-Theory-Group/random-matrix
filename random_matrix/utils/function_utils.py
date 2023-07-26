@@ -238,4 +238,3 @@ def vectorize_functions_args(
         return output_array
 
     return vectorized_function
-

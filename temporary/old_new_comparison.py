@@ -71,11 +71,11 @@ for mode, mean in zip(mode_list, mean_t_old):
     # Get x data
     new_x = np.linalg.norm(mode)
     old_xs.append(new_x)
-    
+
     # Get y data
     new_y = np.linalg.norm(mean)
     old_ys.append(new_y)
-    
+
 # -----------------------------------------------------------------------------
 # New data
 # -----------------------------------------------------------------------------
@@ -91,7 +91,7 @@ my_grid = mode_grid_generator.from_tiling(
 
 wavelength = 500e-09
 slab_thickness = 1.9789234379375613e-06
-number_density = 7.40220330081702e+16
+number_density = 7.40220330081702e16
 
 medium_parameters = MediumParameters(
     wavelength=wavelength,
@@ -151,7 +151,7 @@ for mode, cov in zip(mode_list, cov_t_old):
     # Get x data
     new_x = np.linalg.norm(mode)
     old_xs.append(new_x)
-    
+
     # Get y data
     new_y = np.trace(cov)
     old_ys.append(new_y)
@@ -170,12 +170,12 @@ for integral, location in zip(
     i = location[1]
 
     weight = my_grid.by_index(i).weight
-    integral = integral / (weight*my_grid.by_index(0).weight)
+    integral = integral / (weight * my_grid.by_index(0).weight)
 
     center = my_grid.by_index(i).center
     radius = np.linalg.norm(center)
     new_xs.append(radius)
-    new_ys.append(integral*2*np.pi)
+    new_ys.append(integral * 2 * np.pi)
 
 
 fig, ax = plt.subplots()

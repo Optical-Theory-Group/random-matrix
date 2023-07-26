@@ -3,6 +3,14 @@ import numpy as np
 from random_matrix.utils.types import FloatLike
 
 
+def get_sub_block_indices_vector(independent_element_indices):
+    indices = np.empty((0, 3), dtype="object")
+    for wave_block, inner in independent_element_indices.items():
+        for block, sub_block_locations in inner.items():
+            indices = np.vstack(indices, np.array([wave_block, blo]))
+            pass
+
+
 def get_sub_block_indices(
     block: str,
     sub_block: tuple[int, int],
@@ -38,6 +46,33 @@ def get_sub_block_indices(
         col = col + num_propagating - 1
 
     return (row, col)
+
+
+def get_cov_sub_block_index(
+    block: str, sub_block: tuple[int, int], num_propagating: int
+) -> int:
+    """Get the matrix indices from information about the block"""
+
+    i, j = sub_block
+    i += int((num_propagating - 1) / 2)
+    j += int((num_propagating - 1) / 2)
+
+    index = 0
+
+    match block:
+        case "r":
+            pass
+        case "t":
+            index += num_propagating**2
+        case "t2":
+            index += 2 * num_propagating**2
+        case "r2":
+            index += 3 * num_propagating**2
+
+    index += num_propagating * j + i
+    index *= 4
+
+    return index
 
 
 def r_sym(matrix: FloatLike) -> FloatLike:

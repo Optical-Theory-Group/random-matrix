@@ -548,7 +548,6 @@ def minkowski_sum(points_one: FloatLike, points_two: FloatLike) -> FloatLike:
     points_one = np.roll(points_one, -2 * min_x_index)
     points_one = np.append(points_one, [points_one[0]], axis=0)
 
-
     points_two = order_points(points_two)
     y_coordinates = points_two[:, 1]
     x_coordinates = points_two[:, 0]
@@ -559,7 +558,6 @@ def minkowski_sum(points_one: FloatLike, points_two: FloatLike) -> FloatLike:
     min_x_index = min_y_values[np.argmin(x_coordinates[min_y_values])]
     points_two = np.roll(points_two, -2 * min_x_index)
     points_two = np.append(points_two, [points_two[0]], axis=0)
-
 
     num_points_one = len(points_one)
     num_points_two = len(points_two)
@@ -616,12 +614,79 @@ def intersects(points_one: FloatLike, points_two: FloatLike) -> bool:
     polygon_two = shapely.Polygon(points_two)
     return not np.isclose(polygon_one.intersection(polygon_two).area, 0.0)
 
+
 def intersection(points_one, points_two):
-    polygon_one = shapely.Polygon(points_one)
-    polygon_two = shapely.Polygon(points_two)
-    intersection = polygon_one.intersection(polygon_two)
-    intersection = np.array(intersection.exterior.coords)
-    return intersection[:-1]
+    if len(points_one) == len(points_two) and np.allclose(
+        points_one, points_two
+    ):
+        return points_one
+
+    match len(points_one):
+        case 1:
+            polygon_one = shapely.Point(points_one)
+        case 2:
+            polygon_one = shapely.LineString(points_one)
+        case _:
+            polygon_one = shapely.Polygon(points_one)
+
+    match len(points_two):
+        case 1:
+            polygon_two = shapely.Point(points_two)
+        case 2:
+            polygon_two = shapely.LineString(points_two)
+        case _:
+            polygon_two = shapely.Polygon(points_two)
+
+    search = False
+    if polygon_one.intersects(polygon_two):
+        intersection = polygon_one.intersection(polygon_two)
+    else:
+        search = True
+        # There was no intersection. But there might be a numerical error.abs
+        # we search for that here
+        found = False
+        buffer_start = 1e-15
+        num_buffer_steps = 8
+        for buffer in [
+            buffer_start * 10**i for i in range(num_buffer_steps)
+        ]:
+            if not polygon_one.buffer(buffer).intersects(polygon_two):
+                continue
+
+            # Getting here means an intersection was found
+            found = True
+            intersection = polygon_one.buffer(buffer).intersection(polygon_two)
+
+            # Deal with pathological case
+            if isinstance(intersection, shapely.GeometryCollection):
+                intersection = intersection.geoms[0]
+
+            if isinstance(intersection, shapely.Polygon):
+                intersection = np.mean(
+                    np.array(intersection.exterior.coords), axis=0
+                )
+                intersection = shapely.Point(intersection)
+            elif isinstance(intersection, shapely.LineString):
+                intersection = np.mean(np.array(intersection.coords), axis=0)
+                intersection = shapely.Point(intersection)
+
+            break
+
+    # If nothing was found above
+    if search and not found:
+        return np.array([])
+
+    # If we get here, we either didn't search or we searched and found
+    # So we have an intersection
+    if isinstance(intersection, shapely.Point) or isinstance(
+        intersection, shapely.LineString
+    ):
+        intersection = np.array(intersection.coords)
+        return intersection
+    else:
+        intersection = np.array(intersection.exterior.coords)
+        return intersection[:-1]
+
 
 def cartesian_product(polygon1: FloatLike, polygon2: FloatLike) -> FloatLike:
     # Get the number of vertices in each polygon
@@ -641,13 +706,14 @@ def cartesian_product(polygon1: FloatLike, polygon2: FloatLike) -> FloatLike:
 
     return cartesian_product
 
+
 def reflect_through_point(shape: FloatLike, point: FloatLike) -> FloatLike:
     reflected = point - (shape - point)
     return reflected
 
+
 def get_angle_plane(v1, v2, n):
-    """
-    """
+    """ """
 
     # Special cases
     cosine = np.dot(v1, v2)
@@ -670,4 +736,3 @@ def get_angle_plane(v1, v2, n):
         alpha = -theta
 
     return alpha
-

@@ -10,4 +10,5 @@ def get_A(
 ) -> FloatLike:
     return 1.0
 
+
 get_A.particle_type = "chiral sphere"

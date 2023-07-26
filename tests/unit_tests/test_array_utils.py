@@ -84,4 +84,4 @@ def test_is_in_array() -> None:
 
     # scalar within 2D array?
     actual = array_utils.is_in_array(array, 3.0)
-    #assert not actual
+    # assert not actual
