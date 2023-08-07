@@ -79,7 +79,7 @@ input_statistics_manager = InputStatisticsManager(
 # print(f"Time taken: {end- start}")
 
 mean_S, sigma, cov = input_statistics_manager.get_statistics()
-print(cov[0:4,0:4].todense())
+
 # # File path of the existing file
 # file_path = "example_file.txt"
 

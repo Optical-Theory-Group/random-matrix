@@ -550,7 +550,8 @@ class IntegrationTaskPreparer:
                     integration_tower = self._raise_base_domain(
                         base_domain, mode_i, mode_j, mode_u, mode_v
                     )
-
+                    print(np.any(np.isnan(integration_tower)))
+                    
                     # Get the boundary points of the convex hull of the
                     # resultant 6 dimensional shape
                     hull = scipy.spatial.ConvexHull(integration_tower)
