@@ -505,11 +505,11 @@ class IntegrationTaskPreparer:
                     mode_u = self.mode_grid.by_index(u).vertices
                     mode_v = self.mode_grid.by_index(v).vertices
 
-                    mode_i = my_grid.by_index(i).vertices
-                    mode_j = my_grid.by_index(j).vertices
-                    mode_u = my_grid.by_index(u).vertices
-                    mode_v = my_grid.by_index(v).vertices
-                    print(i,j,u,v)
+                    # mode_i = my_grid.by_index(i).vertices
+                    # mode_j = my_grid.by_index(j).vertices
+                    # mode_u = my_grid.by_index(u).vertices
+                    # mode_v = my_grid.by_index(v).vertices
+                    print(i, j, u, v)
                     # Build the base 4D space
                     mean_ij = (
                         geometry_utils.minkowski_sum(mode_i, mode_j)
@@ -537,11 +537,13 @@ class IntegrationTaskPreparer:
                     # Add internal points from internal simplex centroids
                     # Can later be extended to incorporate generic cubature
                     # schemes
+
                     interior_delaunay = scipy.spatial.Delaunay(base_domain)
                     interior_simplices = base_domain[
                         interior_delaunay.simplices
                     ]
                     interior_points = np.mean(interior_simplices, axis=1)
+                    # interior_points = np.mean(base_domain, axis=0)
                     base_domain = np.vstack((base_domain, interior_points))
 
                     # For sample points, calculate final two dimensions
@@ -549,11 +551,11 @@ class IntegrationTaskPreparer:
                         base_domain, mode_i, mode_j, mode_u, mode_v
                     )
 
-                    # Get the boundary points of the convex hull of the 
+                    # Get the boundary points of the convex hull of the
                     # resultant 6 dimensional shape
                     hull = scipy.spatial.ConvexHull(integration_tower)
                     boundary = integration_tower[hull.vertices]
-                    
+
                     # Triangulate integration domain
                     delaunay = scipy.spatial.Delaunay(boundary)
                     new_simplices = boundary[delaunay.simplices]

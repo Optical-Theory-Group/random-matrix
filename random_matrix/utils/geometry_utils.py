@@ -615,41 +615,46 @@ def intersects(points_one: FloatLike, points_two: FloatLike) -> bool:
     return not np.isclose(polygon_one.intersection(polygon_two).area, 0.0)
 
 
+def create_geometry(points):
+    match len(points):
+        case 1:
+            polygon = shapely.Point(points)
+        case 2:
+            polygon = shapely.LineString(points)
+        case _:
+            polygon = shapely.Polygon(points)
+    return polygon
+
+
 def intersection(points_one, points_two):
+    # Shapes are identical. In this case, there's no point intersecting
+    # anything
     if len(points_one) == len(points_two) and np.allclose(
         points_one, points_two
     ):
         return points_one
 
-    match len(points_one):
-        case 1:
-            polygon_one = shapely.Point(points_one)
-        case 2:
-            polygon_one = shapely.LineString(points_one)
-        case _:
-            polygon_one = shapely.Polygon(points_one)
+    # Form a shapely shape depending on the number of points present
+    polygon_one = create_geometry(points_one)
+    polygon_two = create_geometry(points_two)
 
-    match len(points_two):
-        case 1:
-            polygon_two = shapely.Point(points_two)
-        case 2:
-            polygon_two = shapely.LineString(points_two)
-        case _:
-            polygon_two = shapely.Polygon(points_two)
-
-    search = False
+    # Search for intersection between two shapes
+    # The search boolean tracks whether or not we needed to use incremental
+    # buffering. Note that we expect only a single point here.
     if polygon_one.intersects(polygon_two):
+        search = False
         intersection = polygon_one.intersection(polygon_two)
     else:
         search = True
-        # There was no intersection. But there might be a numerical error.abs
-        # we search for that here
+        # There was no intersection. But there might be a numerical error
+        # we try incremental buffering
+
         found = False
         buffer_start = 1e-15
         num_buffer_steps = 8
-        for buffer in [
-            buffer_start * 10**i for i in range(num_buffer_steps)
-        ]:
+        buffers = [buffer_start * 10**i for i in range(num_buffer_steps)]
+
+        for buffer in buffers:
             if not polygon_one.buffer(buffer).intersects(polygon_two):
                 continue
 
@@ -657,35 +662,28 @@ def intersection(points_one, points_two):
             found = True
             intersection = polygon_one.buffer(buffer).intersection(polygon_two)
 
-            # Deal with pathological case
-            if isinstance(intersection, shapely.GeometryCollection):
+            # If resultant object contains multiple shapes, just take one.
+            # Because of how it was found, these shapes must be very similar
+            if hasattr(intersection, "geoms"):
                 intersection = intersection.geoms[0]
 
-            if isinstance(intersection, shapely.Polygon):
-                intersection = np.mean(
-                    np.array(intersection.exterior.coords), axis=0
-                )
-                intersection = shapely.Point(intersection)
-            elif isinstance(intersection, shapely.LineString):
-                intersection = np.mean(np.array(intersection.coords), axis=0)
-                intersection = shapely.Point(intersection)
+            if hasattr(intersection, "exterior"):
+                intersection = np.mean(intersection.exterior.coords, axis=0)
+            else:
+                intersection = np.mean(intersection.coords, axis=0)
 
+            intersection = shapely.Point(intersection)
             break
 
     # If nothing was found above
     if search and not found:
         return np.array([])
 
-    # If we get here, we either didn't search or we searched and found
-    # So we have an intersection
-    if isinstance(intersection, shapely.Point) or isinstance(
-        intersection, shapely.LineString
-    ):
-        intersection = np.array(intersection.coords)
-        return intersection
+    # If we get here, we definitely have something
+    if hasattr(intersection, "exterior"):
+        return np.array(intersection.exterior.coords[:-1])
     else:
-        intersection = np.array(intersection.exterior.coords)
-        return intersection[:-1]
+        return np.array(intersection.coords)
 
 
 def cartesian_product(polygon1: FloatLike, polygon2: FloatLike) -> FloatLike:

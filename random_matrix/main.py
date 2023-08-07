@@ -32,7 +32,7 @@ from random_matrix.utils import (
     special_functions,
 )
 from random_matrix.scattering_matrix import sampler
-
+np.set_printoptions(precision=2)
 
 print("Preparing Grid")
 my_grid = mode_grid_generator.from_tiling(
@@ -67,25 +67,26 @@ input_statistics_manager = InputStatisticsManager(
     medium_parameters, medium_statistics, my_grid
 )
 
-print("Finding indices")
-indices = input_statistics_manager._get_indices()
-print("Preparing tasks")
-tasks = input_statistics_manager._get_integration_tasks(indices)
-print("Performing integrals")
+# print("Finding indices")
+# indices = input_statistics_manager._get_indices()
+# print("Preparing tasks")
+# tasks = input_statistics_manager._get_integration_tasks(indices)
+# print("Performing integrals")
 
-start = time.perf_counter()
-results = tasks.execute_tasks()
-end = time.perf_counter()
-print(f"Time taken: {end- start}")
+# start = time.perf_counter()
+# results = tasks.execute_tasks()
+# end = time.perf_counter()
+# print(f"Time taken: {end- start}")
 
+mean_S, sigma, cov = input_statistics_manager.get_statistics()
+print(cov[0:4,0:4].todense())
+# # File path of the existing file
+# file_path = "example_file.txt"
 
-# File path of the existing file
-file_path = "example_file.txt"
-
-# Open the file in append mode ('a')
-with open(file_path, 'a') as file:
-    # Append each new string to the file
-    file.write(f"{end-start}")  # Adding a newline to separate lines
+# # Open the file in append mode ('a')
+# with open(file_path, 'a') as file:
+#     # Append each new string to the file
+#     file.write(f"{end-start}")  # Adding a newline to separate lines
 
 # mean_results = results.by_statistic_type("mean")
 # cov_results = results.by_statistic_type("covariance")
@@ -120,7 +121,6 @@ with open(file_path, 'a') as file:
 
 
 # print("Calculating statistics")
-# mean_S, sigma, cov = input_statistics_manager.get_statistics()
 # print("Done")
 # size_of_sig, _ = np.shape(sigma)
 # eigs = scipy.sparse.linalg.eigs(sigma)

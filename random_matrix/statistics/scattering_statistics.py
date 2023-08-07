@@ -65,7 +65,7 @@ class InputStatisticsManager:
             ]
         )
 
-        chol = self._get_chol(sigma)
+        # chol = self._get_chol(sigma)
 
         return mean_S, sigma, cov
 
@@ -200,7 +200,7 @@ class InputStatisticsManager:
     # Covariance matrices
     # -------------------------------------------------------------------------
 
-    def _get_covariance_matrix(self, cov_result_list):
+    def _get_covariance_matrix(self, cov_result_list) -> FloatLike:
         """Construct the regular covariance matrix from the covariance results
         list"""
 
@@ -275,6 +275,7 @@ class InputStatisticsManager:
                     )
 
                     sub_block = integral.reshape(4, 4)
+                    sub_block = (sub_block + np.conj(sub_block.T)) / 2
                     cov[row : row + 4, col : col + 4] = sub_block
                     cov[col : col + 4, row : row + 4] = np.conj(sub_block.T)
 
@@ -321,7 +322,7 @@ class InputStatisticsManager:
                 break
             except sksparse.cholmod.CholmodNotPositiveDefiniteError:
                 pass
-        
+
         print(f"10^{i}")
         return chol
 
