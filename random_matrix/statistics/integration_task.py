@@ -538,12 +538,12 @@ class IntegrationTaskPreparer:
                     # Can later be extended to incorporate generic cubature
                     # schemes
 
-                    interior_delaunay = scipy.spatial.Delaunay(base_domain)
-                    interior_simplices = base_domain[
-                        interior_delaunay.simplices
-                    ]
-                    interior_points = np.mean(interior_simplices, axis=1)
-                    # interior_points = np.mean(base_domain, axis=0)
+                    # interior_delaunay = scipy.spatial.Delaunay(base_domain)
+                    # interior_simplices = base_domain[
+                    #     interior_delaunay.simplices
+                    # ]
+                    # interior_points = np.mean(interior_simplices, axis=1)
+                    interior_points = np.mean(base_domain, axis=0)
                     base_domain = np.vstack((base_domain, interior_points))
 
                     # For sample points, calculate final two dimensions
