@@ -37,7 +37,7 @@ np.set_printoptions(precision=2)
 print("Preparing Grid")
 my_grid = mode_grid_generator.from_tiling(
     tiling_type="rectangles",
-    side_length=(0.8, 0.8),
+    side_length=(0.1715, 0.1715),
     r_lim=2.0,
     grid_wave_type="propagating",
     rotation_angle=0.0,
