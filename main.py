@@ -1,4 +1,5 @@
 import time
+import pickle
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -32,19 +33,19 @@ from random_matrix.utils import (
     special_functions,
 )
 from random_matrix.scattering_matrix import sampler
+
 np.set_printoptions(precision=2)
 
 print("Preparing Grid")
-my_grid = mode_grid_generator.from_tiling(
+mode_grid = mode_grid_generator.from_tiling(
     tiling_type="rectangles",
     side_length=(0.1715, 0.1715),
-    r_lim=2.0,
+    r_lim=1.2,
     grid_wave_type="propagating",
     rotation_angle=0.0,
     translation_vector=np.array([0.0, 0.0]),
 )
 # my_grid.plot()
-print(my_grid.num_propagating)
 wavelength = 500e-9
 slab_thickness = 1.8992695221776513e-06
 number_density = 5.921762640653617e17
@@ -64,21 +65,61 @@ particle_statistics = ParticleStatistics(
 )
 medium_statistics = MediumStatistics([particle_statistics])
 input_statistics_manager = InputStatisticsManager(
-    medium_parameters, medium_statistics, my_grid
+    medium_parameters, medium_statistics, mode_grid
 )
+# mode_grid.plot(show_indices=True)
+
+start = time.perf_counter()
+cov = input_statistics_manager.get_statistics()
+end = time.perf_counter()
+print(f"Time taken: {end - start}")
+
+c = np.abs(np.array(cov.todense()))
+c = np.where(np.isclose(c, 0.0), 0.0, c)
+plt.figure()
+plt.spy(c)
+
+
+
+
+
+
+# diag = np.real(np.diag(np.array(cov.todense())))
+
+# pseudo_cov = input_statistics_manager._get_pseudo_covariance_matrix(
+#     pseudo_cov_result_list
+# )
+
+# # plt.figure()
+# # plt.spy(mean_S)
+# sigma = 0.5 * scipy.sparse.bmat(
+#     [
+#         [np.real(cov + pseudo_cov), np.imag(-cov + pseudo_cov)],
+#         [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
+#     ]
+# )
+
+# plt.figure()
+# plt.spy(np.abs(sigma))
+# # chol = self._get_chol(sigma)
+
+
+# indices = input_statistics_manager._get_indices()
+# tasks = input_statistics_manager._get_integration_tasks(indices)
+
+
+#
 
 # print("Finding indices")
-# indices = input_statistics_manager._get_indices()
 # print("Preparing tasks")
-# tasks = input_statistics_manager._get_integration_tasks(indices)
-# print("Performing integrals")
+#  print("Performing integrals")
 
 # start = time.perf_counter()
 # results = tasks.execute_tasks()
 # end = time.perf_counter()
 # print(f"Time taken: {end- start}")
 
-mean_S, sigma, cov = input_statistics_manager.get_statistics()
+# mean_S, sigma, cov = input_statistics_manager.get_statistics()
 
 # # File path of the existing file
 # file_path = "example_file.txt"

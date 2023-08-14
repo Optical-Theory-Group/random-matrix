@@ -7,6 +7,14 @@ import numpy.typing as npt
 import scipy.spatial
 
 
+def split_list(old_list: list[Any], num_parts: int) -> list[Any]:
+    new_list = [[] for _ in range(num_parts)]
+    for i, val in enumerate(old_list):
+        index = i % num_parts
+        new_list[index].append(val)
+    return new_list
+
+
 def remove_duplicate_points(
     points: npt.NDArray[np.float64],
     tolerance: float = 1e-8,

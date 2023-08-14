@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import os
+import pickle
 
 import numpy as np
 import scipy.sparse
@@ -44,10 +46,12 @@ class InputStatisticsManager:
 
         # Prepare and execute integration tasks
         indices = self._get_indices()
+        with open('indices.pkl', 'wb') as f:
+            pickle.dump(indices, f)
         integration_task_list = self._get_integration_tasks(indices)
         result_list = integration_task_list.execute_tasks()
 
-        # Extract results from the list and build up statistical matrices
+        # # Extract results from the list and build up statistical matrices
         mean_result_list = result_list.by_statistic_type("mean")
         cov_result_list = result_list.by_statistic_type("covariance")
         pseudo_cov_result_list = result_list.by_statistic_type(
@@ -55,7 +59,6 @@ class InputStatisticsManager:
         )
 
         mean_S = self._get_mean_S(mean_result_list)
-
         cov = self._get_covariance_matrix(cov_result_list)
         pseudo_cov = self._get_pseudo_covariance_matrix(pseudo_cov_result_list)
         sigma = 0.5 * scipy.sparse.bmat(
@@ -64,10 +67,12 @@ class InputStatisticsManager:
                 [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
             ]
         )
+        with open('cov.pkl', 'wb') as f:
+            pickle.dump(cov, f)
 
         # chol = self._get_chol(sigma)
 
-        return mean_S, sigma, cov
+        return cov
 
     def _get_indices(self) -> dict[str, dict[str, set[tuple[int, int]]]]:
         return self.index_finder.get_indices()
@@ -273,7 +278,9 @@ class InputStatisticsManager:
                     col = matrix_utils.get_cov_sub_block_index(
                         block_uv, (u, v), self.mode_grid.num_propagating
                     )
-
+                    print(sub_block_location)
+                    print(block_ij, block_uv)
+                    print(row, col)
                     sub_block = integral.reshape(4, 4)
                     sub_block = (sub_block + np.conj(sub_block.T)) / 2
                     cov[row : row + 4, col : col + 4] = sub_block

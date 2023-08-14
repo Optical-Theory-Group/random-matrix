@@ -177,7 +177,15 @@ class IntegrationTaskList:
     tasks: list[IntegrationTask] = field(default_factory=list)
 
     def __str__(self) -> str:
-        string = f"Number of tasks: {len(self.tasks)}"
+        string = f"Number of tasks: {len(self.tasks)}\n" f"Tasks key:\n"
+
+        for i, task in enumerate(self.tasks):
+            string += (
+                f"{i}, {task.statistic_type}, "
+                f"{len(task.domain_stack)} triangles, "
+                f"{task.block_location}\n"
+            )
+
         return string
 
     def append_task(self, new_task: IntegrationTask) -> None:
@@ -484,6 +492,7 @@ class IntegrationTaskPreparer:
             # block will look like "t,t", "r,r" etc.
             for block, index_set in d.items():
                 block_one, block_two = block.split(",")
+                print(block_one, block_two)
                 # The integrand depends only on the matrix blocks.
                 integrand = self._get_covariance_integrand(
                     wave_block_one, wave_block_two, block_one, block_two
@@ -497,7 +506,8 @@ class IntegrationTaskPreparer:
                 simplex_stack = np.zeros((0, 7, 6), dtype=np.float64)
                 stack_length = 0
 
-                for indices in index_set:
+                for numm, indices in enumerate(index_set):
+                    # print(f"{numm}/{len(index_set)}", flush=True)
                     # Get the triangulation of the mode
                     i, j, u, v = indices
                     mode_i = self.mode_grid.by_index(i).vertices
@@ -509,7 +519,7 @@ class IntegrationTaskPreparer:
                     # mode_j = my_grid.by_index(j).vertices
                     # mode_u = my_grid.by_index(u).vertices
                     # mode_v = my_grid.by_index(v).vertices
-                    print(i, j, u, v)
+                    # print(i, j, u, v)
                     # Build the base 4D space
                     mean_ij = (
                         geometry_utils.minkowski_sum(mode_i, mode_j)
@@ -530,6 +540,8 @@ class IntegrationTaskPreparer:
                         mid = (first + second) / 2
                         mean_uv = np.vstack((mean_uv, mid))
 
+                    mean_ij = geometry_utils.order_points(mean_ij)
+                    mean_uv = geometry_utils.order_points(mean_uv)
                     base_domain = geometry_utils.cartesian_product(
                         mean_ij, mean_uv
                     )
@@ -550,15 +562,18 @@ class IntegrationTaskPreparer:
                     integration_tower = self._raise_base_domain(
                         base_domain, mode_i, mode_j, mode_u, mode_v
                     )
-                    print(np.any(np.isnan(integration_tower)))
-                    
+
                     # Get the boundary points of the convex hull of the
                     # resultant 6 dimensional shape
-                    hull = scipy.spatial.ConvexHull(integration_tower)
+                    hull = scipy.spatial.ConvexHull(
+                        integration_tower, qhull_options="QJ"
+                    )
                     boundary = integration_tower[hull.vertices]
 
                     # Triangulate integration domain
-                    delaunay = scipy.spatial.Delaunay(boundary)
+                    delaunay = scipy.spatial.Delaunay(
+                        boundary, qhull_options="QJ"
+                    )
                     new_simplices = boundary[delaunay.simplices]
 
                     # Check how long the stack will become if the new triangles
@@ -619,6 +634,7 @@ class IntegrationTaskPreparer:
     def _raise_base_domain(self, base_domain, mode_i, mode_j, mode_u, mode_v):
         output = np.zeros((0, 6))
         for pp, row in enumerate(base_domain):
+            # print(pp)
             p_ij = row[0:2]
             p_uv = row[2:4]
 

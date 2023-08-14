@@ -493,47 +493,47 @@ def get_angularly_separated_edge_points(
     return output
 
 
-def minkowski_sum(polygon_one: FloatLike, polygon_two: FloatLike) -> FloatLike:
-    points_one = order_points(polygon_one)
-    points_two = order_points(polygon_two)
-    num_points_one = len(points_one)
-    num_points_two = len(points_two)
-    i = 0
-    j = 0
+# def minkowski_sum(polygon_one: FloatLike, polygon_two: FloatLike) -> FloatLike:
+#     points_one = order_points(polygon_one)
+#     points_two = order_points(polygon_two)
+#     num_points_one = len(points_one)
+#     num_points_two = len(points_two)
+#     i = 0
+#     j = 0
 
-    new_points = []
+#     new_points = []
 
-    while i <= num_points_one and j <= num_points_two:
-        first_point = points_one[i % num_points_one]
-        second_point = points_two[j % num_points_two]
+#     while i <= num_points_one and j <= num_points_two:
+#         first_point = points_one[i % num_points_one]
+#         second_point = points_two[j % num_points_two]
 
-        next_first = points_one[(i + 1) % num_points_one]
-        next_second = points_two[(j + 1) % num_points_two]
+#         next_first = points_one[(i + 1) % num_points_one]
+#         next_second = points_two[(j + 1) % num_points_two]
 
-        new_points.append(first_point + second_point)
+#         new_points.append(first_point + second_point)
 
-        theta_one = (
-            np.arctan2(
-                next_first[1] - first_point[1], next_first[0] - first_point[0]
-            )
-            + np.pi
-        )
-        theta_two = (
-            np.arctan2(
-                next_second[1] - second_point[1],
-                next_second[0] - second_point[0],
-            )
-            + np.pi
-        )
-        if np.isclose(theta_one, theta_two):
-            i += 1
-            j += 1
-        elif theta_one > theta_two:
-            j += 1
-        else:
-            i += 1
+#         theta_one = (
+#             np.arctan2(
+#                 next_first[1] - first_point[1], next_first[0] - first_point[0]
+#             )
+#             + np.pi
+#         )
+#         theta_two = (
+#             np.arctan2(
+#                 next_second[1] - second_point[1],
+#                 next_second[0] - second_point[0],
+#             )
+#             + np.pi
+#         )
+#         if np.isclose(theta_one, theta_two):
+#             i += 1
+#             j += 1
+#         elif theta_one > theta_two:
+#             j += 1
+#         else:
+#             i += 1
 
-    return np.array(new_points)
+#     return np.array(new_points)
 
 
 def minkowski_sum(points_one: FloatLike, points_two: FloatLike) -> FloatLike:
@@ -641,7 +641,12 @@ def intersection(points_one, points_two):
     # Search for intersection between two shapes
     # The search boolean tracks whether or not we needed to use incremental
     # buffering. Note that we expect only a single point here.
-    if polygon_one.intersects(polygon_two):
+    try:
+        is_intersection = polygon_one.intersects(polygon_two)
+    except shapely.GEOSException:
+        is_intersection = polygon_one.buffer(1e-6).intersects(polygon_two)
+
+    if is_intersection:
         search = False
         intersection = polygon_one.intersection(polygon_two)
     else:
@@ -680,6 +685,9 @@ def intersection(points_one, points_two):
         return np.array([])
 
     # If we get here, we definitely have something
+    if hasattr(intersection, "geoms"):
+        intersection = intersection.geoms[0]
+
     if hasattr(intersection, "exterior"):
         return np.array(intersection.exterior.coords[:-1])
     else:
@@ -734,3 +742,9 @@ def get_angle_plane(v1, v2, n):
         alpha = -theta
 
     return alpha
+
+
+def get_polygon_area(polygon):
+    if len(polygon) < 3:
+        return 0.0
+    return shapely.Polygon(polygon).area
