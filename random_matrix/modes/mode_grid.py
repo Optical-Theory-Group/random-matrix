@@ -354,6 +354,10 @@ class ModeGrid:
             else self.num_propagating - 1
         )
 
+    @property
+    def central_index(self) -> int:
+        return 0 if self.is_reciprocal else int((self.num_propagating - 1) / 2)
+
     # --------------------------------------------------------------------------
     # Public methods
     # --------------------------------------------------------------------------
