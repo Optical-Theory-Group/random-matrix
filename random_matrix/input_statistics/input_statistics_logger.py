@@ -135,3 +135,30 @@ class IntegrationTaskPreparerLogger(InputStatisticsLogger):
 
     def show_report(self) -> None:
         print(self.time_report(), flush=True)
+
+
+class InputStatisticsManagerLogger(InputStatisticsLogger):
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages = {
+            "tasks": "Execute tasks",
+            "mean": "Get mean matrix",
+            "covariance": "Get covariance matrix",
+            "psuedo_covariance": "Get pseudo covariance matrix",
+        }
+
+    def time_report(self):
+        out = (
+            f"{self.messages['tasks']}: "
+            f"{self.times.get('tasks', -1)}\n"
+            f"{self.messages['mean']}: "
+            f"{self.times.get('mean', -1)}\n"
+            f"{self.messages['covariance']}: "
+            f"{self.times.get('covariance', -1)}\n"
+            f"{self.messages['psuedo_covariance']}: "
+            f"{self.times.get('psuedo_covariance', -1)}\n"
+        )
+        return out
+
+    def show_report(self) -> None:
+        print(self.time_report(), flush=True)
