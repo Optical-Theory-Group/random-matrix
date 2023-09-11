@@ -93,9 +93,7 @@ class ModeGrid:
             raise ValueError("Your mode_list is an empty list.")
 
     @staticmethod
-    def _get_reciprocal_partner_index(
-        mode: Mode, mode_list: list[Mode]
-    ) -> int:
+    def _get_reciprocal_partner_index(mode: Mode, mode_list: list[Mode]) -> int:
         """Find the index of a mode's reciprocal partner in mode_list
 
         Parameters
@@ -311,18 +309,14 @@ class ModeGrid:
     @property
     def num_propagating(self) -> int:
         propagating_modes = [
-            mode
-            for mode in self.modes.values()
-            if mode.wave_type == "propagating"
+            mode for mode in self.modes.values() if mode.wave_type == "propagating"
         ]
         return len(propagating_modes)
 
     @property
     def num_evanescent(self) -> int:
         evanescent_modes = [
-            mode
-            for mode in self.modes.values()
-            if mode.wave_type == "evanescent"
+            mode for mode in self.modes.values() if mode.wave_type == "evanescent"
         ]
         return len(evanescent_modes)
 
@@ -345,6 +339,18 @@ class ModeGrid:
         ]
         evanescent_indices.sort()
         return evanescent_indices
+
+    @property
+    def propagating_modes_list(self) -> list[Mode]:
+        return [self.by_index(index) for index in self.propagating_indices]
+
+    @property
+    def evanescent_modes_list(self) -> list[Mode]:
+        return [self.by_index(index) for index in self.evanescent_indices]
+
+    @property
+    def mode_list(self) -> list[Mode]:
+        return self.propagating_modes_list + self.evanescent_modes_list
 
     @property
     def max_index(self) -> int:

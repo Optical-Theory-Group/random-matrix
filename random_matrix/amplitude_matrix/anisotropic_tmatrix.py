@@ -196,9 +196,7 @@ class AmatrixGenerator:
 
         ax = fig.add_subplot(2, 2, 4)
         surf = ax.imshow(
-            np.squeeze(
-                np.abs(E[0]) ** 2 + np.abs(E[1]) ** 2 + np.abs(E[2]) ** 2
-            ),
+            np.squeeze(np.abs(E[0]) ** 2 + np.abs(E[1]) ** 2 + np.abs(E[2]) ** 2),
             cmap="RdBu",
         )
         fig.colorbar(surf, ax=ax)
@@ -258,9 +256,9 @@ class AmatrixGenerator:
             )
         elif l == 1:  # hankel function - outward propagating
             zl = np.sqrt(np.pi / (2 * k * R)) * hankel1(n + 1 / 2, k * R)
-            zldot = (1 + n) * zl / (k * R) - np.sqrt(
-                np.pi / (2 * k * R)
-            ) * hankel1(n + 1 + 1 / 2, k * R)
+            zldot = (1 + n) * zl / (k * R) - np.sqrt(np.pi / (2 * k * R)) * hankel1(
+                n + 1 + 1 / 2, k * R
+            )
 
         M_lmn_sp = np.array([zl * m_mn[kk] for kk in range(3)])
         N_lmn_sp = np.array(
@@ -329,12 +327,12 @@ class AmatrixGenerator:
 
             zn3 = np.sqrt(np.pi / (2 * k * R)) * jv(n1 + 1 / 2, k * R)
             zn1 = np.sqrt(np.pi / (2 * k * R)) * hankel1(n1 + 1 / 2, k * R)
-            zn3dot = (1 + n1) * zn3 / (k * R) - np.sqrt(
-                np.pi / (2 * k * R)
-            ) * jv(n1 + 1 + 1 / 2, k * R)
-            zn1dot = (1 + n1) * zn1 / (k * R) - np.sqrt(
-                np.pi / (2 * k * R)
-            ) * hankel1(n1 + 1 + 1 / 2, k * R)
+            zn3dot = (1 + n1) * zn3 / (k * R) - np.sqrt(np.pi / (2 * k * R)) * jv(
+                n1 + 1 + 1 / 2, k * R
+            )
+            zn1dot = (1 + n1) * zn1 / (k * R) - np.sqrt(np.pi / (2 * k * R)) * hankel1(
+                n1 + 1 + 1 / 2, k * R
+            )
             m1m1_anal[jj1, jj1] = (
                 zn1**2
                 * 4
@@ -559,12 +557,8 @@ class AmatrixGenerator:
         w2e = l12[1] * v12[1] + np.array(
             [lrt + f2 * lrp, np.zeros(T.shape), np.zeros(T.shape)]
         )
-        w1h = (omega / k1) * np.array(
-            [np.zeros(T.shape), -np.ones(T.shape), f1]
-        )
-        w2h = (omega / k2) * np.array(
-            [np.zeros(T.shape), -f2, np.ones(T.shape)]
-        )
+        w1h = (omega / k1) * np.array([np.zeros(T.shape), -np.ones(T.shape), f1])
+        w2h = (omega / k2) * np.array([np.zeros(T.shape), -f2, np.ones(T.shape)])
 
         # convert w vectors to cartesian basis
         w1ec = AmatrixGenerator.sph2cart_comp_vec(w1e, T, P)
@@ -579,12 +573,8 @@ class AmatrixGenerator:
             xs = Xs[posinds]
             ys = Ys[posinds]
             zs = Zs[posinds]
-            expk1r = prefac * np.exp(
-                1j * (xs * k1vc[0] + ys * k1vc[1] + zs * k1vc[2])
-            )
-            expk2r = prefac * np.exp(
-                1j * (xs * k2vc[0] + ys * k2vc[1] + zs * k2vc[2])
-            )
+            expk1r = prefac * np.exp(1j * (xs * k1vc[0] + ys * k1vc[1] + zs * k1vc[2]))
+            expk2r = prefac * np.exp(1j * (xs * k2vc[0] + ys * k2vc[1] + zs * k2vc[2]))
 
             Amn_expk1r = Amn * expk1r
             Apmn_expk2r = Apmn * expk2r
@@ -593,18 +583,10 @@ class AmatrixGenerator:
 
             for jj in range(3):
                 jjinds = (jj,) + posinds
-                Xe_mn[jjinds] = np.sum(
-                    w1ec[jj] * Amn_expk1r + w2ec[jj] * Bmn_expk2r
-                )
-                Ye_mn[jjinds] = np.sum(
-                    w1ec[jj] * Bpmn_expk1r + w2ec[jj] * Apmn_expk2r
-                )
-                Xh_mn[jjinds] = np.sum(
-                    w1hc[jj] * Amn_expk1r + w2hc[jj] * Bmn_expk2r
-                )
-                Yh_mn[jjinds] = np.sum(
-                    w1hc[jj] * Bpmn_expk1r + w2hc[jj] * Apmn_expk2r
-                )
+                Xe_mn[jjinds] = np.sum(w1ec[jj] * Amn_expk1r + w2ec[jj] * Bmn_expk2r)
+                Ye_mn[jjinds] = np.sum(w1ec[jj] * Bpmn_expk1r + w2ec[jj] * Apmn_expk2r)
+                Xh_mn[jjinds] = np.sum(w1hc[jj] * Amn_expk1r + w2hc[jj] * Bmn_expk2r)
+                Yh_mn[jjinds] = np.sum(w1hc[jj] * Bpmn_expk1r + w2hc[jj] * Apmn_expk2r)
 
         # remove nans
         Xe_mn[~np.isfinite(Xe_mn)] = 0
@@ -654,9 +636,7 @@ class AmatrixGenerator:
         Dl = np.zeros((2 * l + 1, 2 * l + 1), dtype="complex")
         if beta <= np.finfo(np.float64).eps:
             dl = np.eye(2 * l + 1)
-            Dl = np.diag(
-                np.exp(-1j * (alpha + gamma) * np.array(range(-l, l + 1)))
-            )
+            Dl = np.diag(np.exp(-1j * (alpha + gamma) * np.array(range(-l, l + 1))))
         else:
             dl = np.zeros((2 * l + 1, 2 * l + 1), dtype="complex")
             for m in range(-l, l + 1):
@@ -669,10 +649,7 @@ class AmatrixGenerator:
                     # print("fctrl is")
                     # print([fctrl[l+n-k] ,fctrl[l-m-k] , fctrl[k+m-n] , fctrl[k]])
                     fact_t = np.sqrt(
-                        fctrl[l + n]
-                        * fctrl[l - n]
-                        * fctrl[l + m]
-                        * fctrl[l - m]
+                        fctrl[l + n] * fctrl[l - n] * fctrl[l + m] * fctrl[l - m]
                     ) / (
                         fctrl[l + n - k]
                         * fctrl[l - m - k]
@@ -686,9 +663,7 @@ class AmatrixGenerator:
                     )
                     dl[n + l, m + l] = d_l_mn
                     Dl[n + l, m + l] = (
-                        np.exp(-1j * alpha * m)
-                        * d_l_mn
-                        * np.exp(-1j * gamma * n)
+                        np.exp(-1j * alpha * m) * d_l_mn * np.exp(-1j * gamma * n)
                     )
 
         # Interestingly, if the Wigner-D are used directly they result in an active
@@ -820,9 +795,7 @@ class AmatrixGenerator:
 
         # define angular coordinates for angular spectrum caclulation of X and Y modes
         as_coords, as_weights, _ = AmatrixGenerator.define_sphere(1, Nt, Np)
-        P, T, _ = AmatrixGenerator.cart2sph(
-            as_coords[0], as_coords[1], as_coords[2]
-        )
+        P, T, _ = AmatrixGenerator.cart2sph(as_coords[0], as_coords[1], as_coords[2])
 
         Ps, Ts, Rs = AmatrixGenerator.cart2sph(
             psurf_coords[0], psurf_coords[1], psurf_coords[2]
@@ -870,12 +843,8 @@ class AmatrixGenerator:
                 omega, eps_p, mu, m, n, T, P, as_weights, psurf_coords
             )
 
-            M3_mn[jj], N3_mn[jj] = AmatrixGenerator.MN_lmn(
-                k_s, 3, m, n, Rs, Ts, Ps
-            )
-            M1_mn[jj], N1_mn[jj] = AmatrixGenerator.MN_lmn(
-                k_s, 1, m, n, Rs, Ts, Ps
-            )
+            M3_mn[jj], N3_mn[jj] = AmatrixGenerator.MN_lmn(k_s, 3, m, n, Rs, Ts, Ps)
+            M1_mn[jj], N1_mn[jj] = AmatrixGenerator.MN_lmn(k_s, 1, m, n, Rs, Ts, Ps)
 
         Q1_11 = np.zeros((nummodes, nummodes), dtype=complex)
         Q1_12 = np.zeros((nummodes, nummodes), dtype=complex)
@@ -972,60 +941,28 @@ class AmatrixGenerator:
                 )
 
                 Q1_11[jj1, jj2] = (
-                    k_s
-                    * omega
-                    * mu
-                    * (-1) ** m1
-                    * np.sum(q1_11kern * psurf_weights)
+                    k_s * omega * mu * (-1) ** m1 * np.sum(q1_11kern * psurf_weights)
                 )
                 Q1_12[jj1, jj2] = (
-                    k_s
-                    * omega
-                    * mu
-                    * (-1) ** m1
-                    * np.sum(q1_12kern * psurf_weights)
+                    k_s * omega * mu * (-1) ** m1 * np.sum(q1_12kern * psurf_weights)
                 )
                 Q1_21[jj1, jj2] = (
-                    k_s
-                    * omega
-                    * mu
-                    * (-1) ** m1
-                    * np.sum(q1_21kern * psurf_weights)
+                    k_s * omega * mu * (-1) ** m1 * np.sum(q1_21kern * psurf_weights)
                 )
                 Q1_22[jj1, jj2] = (
-                    k_s
-                    * omega
-                    * mu
-                    * (-1) ** m1
-                    * np.sum(q1_22kern * psurf_weights)
+                    k_s * omega * mu * (-1) ** m1 * np.sum(q1_22kern * psurf_weights)
                 )
                 Q3_11[jj1, jj2] = (
-                    k_s
-                    * omega
-                    * mu
-                    * (-1) ** m1
-                    * np.sum(q3_11kern * psurf_weights)
+                    k_s * omega * mu * (-1) ** m1 * np.sum(q3_11kern * psurf_weights)
                 )
                 Q3_12[jj1, jj2] = (
-                    k_s
-                    * omega
-                    * mu
-                    * (-1) ** m1
-                    * np.sum(q3_12kern * psurf_weights)
+                    k_s * omega * mu * (-1) ** m1 * np.sum(q3_12kern * psurf_weights)
                 )
                 Q3_21[jj1, jj2] = (
-                    k_s
-                    * omega
-                    * mu
-                    * (-1) ** m1
-                    * np.sum(q3_21kern * psurf_weights)
+                    k_s * omega * mu * (-1) ** m1 * np.sum(q3_21kern * psurf_weights)
                 )
                 Q3_22[jj1, jj2] = (
-                    k_s
-                    * omega
-                    * mu
-                    * (-1) ** m1
-                    * np.sum(q3_22kern * psurf_weights)
+                    k_s * omega * mu * (-1) ** m1 * np.sum(q3_22kern * psurf_weights)
                 )
 
         # remove monopole terms and combine
@@ -1094,9 +1031,7 @@ class AmatrixGenerator:
             beta = params["euler_beta"]
             gamma = params["euler_gamma"]
 
-            RTMAT = AmatrixGenerator.rotate_Tmatrix(
-                Tmat, nmax, alpha, beta, gamma
-            )
+            RTMAT = AmatrixGenerator.rotate_Tmatrix(Tmat, nmax, alpha, beta, gamma)
 
         return RTMAT
 
@@ -1168,9 +1103,9 @@ class AmatrixGenerator:
 
     @staticmethod
     def driccati_xi_n(n, z):
-        return np.sqrt(np.pi / (2 * z)) * (n + 1) * hankel1(
-            n + 1 / 2, z
-        ) - np.sqrt(np.pi * z / 2) * hankel1(n + 3 / 2, z)
+        return np.sqrt(np.pi / (2 * z)) * (n + 1) * hankel1(n + 1 / 2, z) - np.sqrt(
+            np.pi * z / 2
+        ) * hankel1(n + 3 / 2, z)
 
     @staticmethod
     def calc_eta_zeta_mn(n, k1, k2, r):
@@ -1300,9 +1235,7 @@ class AmatrixGenerator:
                     (-1) ** (np.abs(ms * 0) + np.abs(mi * 0))
                     * (1j) ** (ni - ns - 1)
                     * np.sqrt(
-                        (2 * ni + 1)
-                        * (2 * ns + 1)
-                        / (ni * ns * (ni + 1) * (ns + 1))
+                        (2 * ni + 1) * (2 * ns + 1) / (ni * ns * (ni + 1) * (ns + 1))
                     )
                 )
 
@@ -1439,15 +1372,15 @@ class AmatrixGenerator:
         elif n == 1:
             return 1
         else:
-            return (2 * n - 1) / (n - 1) * mu * AmatrixGenerator.pi(
-                n - 1, mu
-            ) - n / (n - 1) * AmatrixGenerator.pi(n - 2, mu)
+            return (2 * n - 1) / (n - 1) * mu * AmatrixGenerator.pi(n - 1, mu) - n / (
+                n - 1
+            ) * AmatrixGenerator.pi(n - 2, mu)
 
     @staticmethod
     def tau(n, mu):
-        return n * mu * AmatrixGenerator.pi(n, mu) - (
-            n + 1
-        ) * AmatrixGenerator.pi(n - 1, mu)
+        return n * mu * AmatrixGenerator.pi(n, mu) - (n + 1) * AmatrixGenerator.pi(
+            n - 1, mu
+        )
 
     @staticmethod
     def mie_cross_section(x, m, k, N_lim=20):
@@ -1459,15 +1392,13 @@ class AmatrixGenerator:
         C_sca = 0
         C_ext = 0
         for n in range(1, N_lim):
-            a = (
-                m * psi_mx[0][n] * psi_x[1][n] - psi_x[0][n] * psi_mx[1][n]
-            ) / (m * psi_mx[0][n] * xi_x[1][n] - xi_x[0][n] * psi_mx[1][n])
-            b = (
-                psi_mx[0][n] * psi_x[1][n] - m * psi_x[0][n] * psi_mx[1][n]
-            ) / (psi_mx[0][n] * xi_x[1][n] - m * xi_x[0][n] * psi_mx[1][n])
-            C_sca = C_sca + (2 * n + 1) * (
-                np.absolute(a) ** 2 + np.absolute(b) ** 2
+            a = (m * psi_mx[0][n] * psi_x[1][n] - psi_x[0][n] * psi_mx[1][n]) / (
+                m * psi_mx[0][n] * xi_x[1][n] - xi_x[0][n] * psi_mx[1][n]
             )
+            b = (psi_mx[0][n] * psi_x[1][n] - m * psi_x[0][n] * psi_mx[1][n]) / (
+                psi_mx[0][n] * xi_x[1][n] - m * xi_x[0][n] * psi_mx[1][n]
+            )
+            C_sca = C_sca + (2 * n + 1) * (np.absolute(a) ** 2 + np.absolute(b) ** 2)
             C_ext = C_ext + (2 * n + 1) * np.real(a + b)
 
         C_sca = 2 * np.pi * C_sca / k**2
@@ -1662,19 +1593,17 @@ class AmatrixGenerator:
             S1 = 0
             S2 = 0
             for n in range(1, N_lim):
-                a = (
-                    m * psi_mx[0][n] * psi_x[1][n] - psi_x[0][n] * psi_mx[1][n]
-                ) / (m * psi_mx[0][n] * xi_x[1][n] - xi_x[0][n] * psi_mx[1][n])
-                b = (
-                    psi_mx[0][n] * psi_x[1][n] - m * psi_x[0][n] * psi_mx[1][n]
-                ) / (psi_mx[0][n] * xi_x[1][n] - m * xi_x[0][n] * psi_mx[1][n])
+                a = (m * psi_mx[0][n] * psi_x[1][n] - psi_x[0][n] * psi_mx[1][n]) / (
+                    m * psi_mx[0][n] * xi_x[1][n] - xi_x[0][n] * psi_mx[1][n]
+                )
+                b = (psi_mx[0][n] * psi_x[1][n] - m * psi_x[0][n] * psi_mx[1][n]) / (
+                    psi_mx[0][n] * xi_x[1][n] - m * xi_x[0][n] * psi_mx[1][n]
+                )
                 S1 = S1 + (2 * n + 1) / (n * (n + 1)) * (
-                    a * AmatrixGenerator.pi(n, mu)
-                    + b * AmatrixGenerator.tau(n, mu)
+                    a * AmatrixGenerator.pi(n, mu) + b * AmatrixGenerator.tau(n, mu)
                 )
                 S2 = S2 + (2 * n + 1) / (n * (n + 1)) * (
-                    a * AmatrixGenerator.tau(n, mu)
-                    + b * AmatrixGenerator.pi(n, mu)
+                    a * AmatrixGenerator.tau(n, mu) + b * AmatrixGenerator.pi(n, mu)
                 )
 
             T3 = np.array([[S2, 0], [0, S1]])
@@ -1695,45 +1624,21 @@ class AmatrixGenerator:
                 new_pi = AmatrixGenerator.pi(n, mu)
                 new_tau = AmatrixGenerator.tau(n, mu)
 
-                WL = (
-                    m * psi_mLx[0][n] * xi_x[1][n] - xi_x[0][n] * psi_mLx[1][n]
-                )
-                WR = (
-                    m * psi_mRx[0][n] * xi_x[1][n] - xi_x[0][n] * psi_mRx[1][n]
-                )
-                VL = (
-                    psi_mLx[0][n] * xi_x[1][n] - m * xi_x[0][n] * psi_mLx[1][n]
-                )
-                VR = (
-                    psi_mRx[0][n] * xi_x[1][n] - m * xi_x[0][n] * psi_mRx[1][n]
-                )
-                AL = (
-                    m * psi_mLx[0][n] * psi_x[1][n]
-                    - psi_x[0][n] * psi_mLx[1][n]
-                )
-                AR = (
-                    m * psi_mRx[0][n] * psi_x[1][n]
-                    - psi_x[0][n] * psi_mRx[1][n]
-                )
-                BL = (
-                    psi_mLx[0][n] * psi_x[1][n]
-                    - m * psi_x[0][n] * psi_mLx[1][n]
-                )
-                BR = (
-                    psi_mRx[0][n] * psi_x[1][n]
-                    - m * psi_x[0][n] * psi_mRx[1][n]
-                )
+                WL = m * psi_mLx[0][n] * xi_x[1][n] - xi_x[0][n] * psi_mLx[1][n]
+                WR = m * psi_mRx[0][n] * xi_x[1][n] - xi_x[0][n] * psi_mRx[1][n]
+                VL = psi_mLx[0][n] * xi_x[1][n] - m * xi_x[0][n] * psi_mLx[1][n]
+                VR = psi_mRx[0][n] * xi_x[1][n] - m * xi_x[0][n] * psi_mRx[1][n]
+                AL = m * psi_mLx[0][n] * psi_x[1][n] - psi_x[0][n] * psi_mLx[1][n]
+                AR = m * psi_mRx[0][n] * psi_x[1][n] - psi_x[0][n] * psi_mRx[1][n]
+                BL = psi_mLx[0][n] * psi_x[1][n] - m * psi_x[0][n] * psi_mLx[1][n]
+                BR = psi_mRx[0][n] * psi_x[1][n] - m * psi_x[0][n] * psi_mRx[1][n]
 
                 a = (VR * AL + VL * AR) / (WL * VR + VL * WR)
                 b = (WL * BR + WR * BL) / (WL * VR + VL * WR)
                 c = 1j * (WR * AL - WL * AR) / (WL * VR + VL * WR)
 
-                S1 = S1 + (2 * n + 1) / (n * (n + 1)) * (
-                    a * new_pi + b * new_tau
-                )
-                S2 = S2 + (2 * n + 1) / (n * (n + 1)) * (
-                    a * new_tau + b * new_pi
-                )
+                S1 = S1 + (2 * n + 1) / (n * (n + 1)) * (a * new_pi + b * new_tau)
+                S2 = S2 + (2 * n + 1) / (n * (n + 1)) * (a * new_tau + b * new_pi)
                 S3 = S3 + (2 * n + 1) / (n * (n + 1)) * c * (new_pi + new_tau)
             T3 = np.array([[S2, S3], [-S3, S1]])
 

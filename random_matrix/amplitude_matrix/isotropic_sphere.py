@@ -410,66 +410,66 @@ def get_A_product(
     return output
 
 
-# Test
-num_one = 1000
-num_two = 8
-x = 1.0 * np.ones((num_one, num_two))
-m = 1.2 * np.ones((num_one, num_two))
-
-ks = np.random.randn(num_one, num_two, 3)
-norms = np.linalg.norm(ks, axis=2)
-ks = ks / norms[:, :, np.newaxis]
-ki_x = ks[:, :, 0]
-ki_y = ks[:, :, 1]
-ki_z = ks[:, :, 2]
-
-ks = np.random.randn(num_one, num_two, 3)
-norms = np.linalg.norm(ks, axis=2)
-ks = ks / norms[:, :, np.newaxis]
-kj_x = ks[:, :, 0]
-kj_y = ks[:, :, 1]
-kj_z = ks[:, :, 2]
+# # Test
+# num_one = 1000
+# num_two = 8
+# x = 1.0 * np.ones((num_one, num_two))
+# m = 1.2 * np.ones((num_one, num_two))
 
 # ks = np.random.randn(num_one, num_two, 3)
 # norms = np.linalg.norm(ks, axis=2)
 # ks = ks / norms[:, :, np.newaxis]
-# ku_x = ks[:, :, 0]
-# ku_y = ks[:, :, 1]
-# ku_z = ks[:, :, 2]
+# ki_x = ks[:, :, 0]
+# ki_y = ks[:, :, 1]
+# ki_z = ks[:, :, 2]
 
 # ks = np.random.randn(num_one, num_two, 3)
 # norms = np.linalg.norm(ks, axis=2)
 # ks = ks / norms[:, :, np.newaxis]
-# kv_x = ks[:, :, 0]
-# kv_y = ks[:, :, 1]
-# kv_z = ks[:, :, 2]
+# kj_x = ks[:, :, 0]
+# kj_y = ks[:, :, 1]
+# kj_z = ks[:, :, 2]
+
+# # ks = np.random.randn(num_one, num_two, 3)
+# # norms = np.linalg.norm(ks, axis=2)
+# # ks = ks / norms[:, :, np.newaxis]
+# # ku_x = ks[:, :, 0]
+# # ku_y = ks[:, :, 1]
+# # ku_z = ks[:, :, 2]
+
+# # ks = np.random.randn(num_one, num_two, 3)
+# # norms = np.linalg.norm(ks, axis=2)
+# # ks = ks / norms[:, :, np.newaxis]
+# # kv_x = ks[:, :, 0]
+# # kv_y = ks[:, :, 1]
+# # kv_z = ks[:, :, 2]
 
 
-A = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
-# A = get_A_product(
-#     ki_x,
-#     ki_y,
-#     ki_z,
-#     kj_x,
-#     kj_y,
-#     kj_z,
-#     ku_x,
-#     ku_y,
-#     ku_z,
-#     kv_x,
-#     kv_y,
-#     kv_z,
-#     x,
-#     m,
-# )
-
-# x = np.array([[1]])
-# m = np.array([[1.2]])
-# ki_x = np.array([[0]])
-# ki_y = np.array([[0]])
-# ki_z = np.array([[1]])
-
-# kj_x = np.array([[0]])
-# kj_y = np.array([[-0.8575]])
-# kj_z = np.array([[np.sqrt(1-0.8575**2)]])
 # A = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
+# # A = get_A_product(
+# #     ki_x,
+# #     ki_y,
+# #     ki_z,
+# #     kj_x,
+# #     kj_y,
+# #     kj_z,
+# #     ku_x,
+# #     ku_y,
+# #     ku_z,
+# #     kv_x,
+# #     kv_y,
+# #     kv_z,
+# #     x,
+# #     m,
+# # )
+
+# # x = np.array([[1]])
+# # m = np.array([[1.2]])
+# # ki_x = np.array([[0]])
+# # ki_y = np.array([[0]])
+# # ki_z = np.array([[1]])
+
+# # kj_x = np.array([[0]])
+# # kj_y = np.array([[-0.8575]])
+# # kj_z = np.array([[np.sqrt(1-0.8575**2)]])
+# # A = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)

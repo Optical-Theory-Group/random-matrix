@@ -2,7 +2,7 @@ from typing import Any
 
 import numpy as np
 
-from random_matrix.statistics import density_function, density_integrals
+from random_matrix.input_statistics import density_function, density_integrals
 
 
 # Function to be integrated
@@ -19,9 +19,7 @@ print("Example one\n")
 print("p(a,b) = delta(a - 1) * delta(b - 0.5)\n")
 # p(a,b) = delta(a-1) * delta(b-0.5)
 
-dirac_density = density_function.DensityFunction.from_delta(
-    {"a": 1.0, "b": 0.5}
-)
+dirac_density = density_function.DensityFunction.from_delta({"a": 1.0, "b": 0.5})
 
 g = density_integrals.integrate_by_density(f, dirac_density)
 
@@ -86,9 +84,7 @@ print(
 # Term 1
 # ----------
 
-term_one = density_function.DensityFunctionTerm.from_delta(
-    {"a": 0.5, "b": 0.5}, 0.3
-)
+term_one = density_function.DensityFunctionTerm.from_delta({"a": 0.5, "b": 0.5}, 0.3)
 
 # ----------
 # Term 2

@@ -43,9 +43,7 @@ def reorder_block(elements: FloatLike) -> FloatLike:
     return final
 
 
-def S_sampler(
-    mean_S: FloatLike, chol: FloatLike, num_matrices: int = 1
-) -> FloatLike:
+def S_sampler(mean_S: FloatLike, chol: FloatLike, num_matrices: int = 1) -> FloatLike:
     size_of_S, _ = np.shape(mean_S)
     size_of_block = int(size_of_S / 2)
     num_random_numbers, _ = np.shape(chol)
@@ -54,9 +52,7 @@ def S_sampler(
     random_numbers = np.random.randn(num_random_numbers, num_matrices)
     random_numbers = chol @ random_numbers
     reals = random_numbers[0 : int(num_random_numbers / 2)]
-    imags = random_numbers[
-        int(num_random_numbers / 2) : int(num_random_numbers)
-    ]
+    imags = random_numbers[int(num_random_numbers / 2) : int(num_random_numbers)]
 
     # Extract matrix elements from random numbers
     num_random_numbers = int(num_random_numbers / 2)
@@ -70,8 +66,7 @@ def S_sampler(
     )
     t2 = (
         reals[int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)]
-        + 1j
-        * imags[int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)]
+        + 1j * imags[int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)]
     )
     r2 = (
         reals[int(num_random_numbers * 3 / 4) : num_random_numbers]

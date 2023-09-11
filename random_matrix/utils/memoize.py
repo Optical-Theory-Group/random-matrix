@@ -54,9 +54,7 @@ class Memoize:
 
         # Convert cache_path to Path object if given as a string
         self.cache_path = (
-            pathlib.Path(cache_path)
-            if isinstance(cache_path, str)
-            else cache_path
+            pathlib.Path(cache_path) if isinstance(cache_path, str) else cache_path
         )
 
         # Handle loading of the cache
@@ -120,13 +118,10 @@ class Memoize:
 
         # Round float-like arguments
         rounded_args = [
-            self._round(arg) if isinstance(arg, float_types) else arg
-            for arg in args
+            self._round(arg) if isinstance(arg, float_types) else arg for arg in args
         ]
         rounded_kwargs = {
-            key: self._round(value)
-            if isinstance(value, float_types)
-            else value
+            key: self._round(value) if isinstance(value, float_types) else value
             for key, value in kwargs.items()
         }
 

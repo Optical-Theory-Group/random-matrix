@@ -11,7 +11,7 @@ import numpy as np
 import numpy.typing as npt
 import quadpy
 
-from random_matrix.statistics import density_function
+from random_matrix.input_statistics import density_function
 from random_matrix.utils import function_utils, integration_utils
 from random_matrix.utils.types import FloatLike, MathematicalFunction
 
@@ -81,9 +81,7 @@ def integrate_by_delta_density_factor(
 
     delta_functions = delta_density_factor.density_function
     constant_factor = delta_density_factor.const_factor
-    integrated_function = integrate_by_delta_density_function(
-        function, delta_functions
-    )
+    integrated_function = integrate_by_delta_density_function(function, delta_functions)
     return function_utils.multiply_function_by_constant(
         integrated_function, constant_factor
     )
@@ -140,9 +138,7 @@ def integrate_by_regular_density_function(
                     new_args.append(next(integration_args_iter))
                 else:
                     new_args.append(next(remaining_args_iter))
-            return function(*new_args) * regular_density_function(
-                *integration_args
-            )
+            return function(*new_args) * regular_density_function(*integration_args)
 
         # Give the inner function a signature containing its integration
         # variables
@@ -178,9 +174,7 @@ def integrate_by_regular_density_factor(
 ) -> MathematicalFunction:
     density = regular_density_factor.density_function
     domain = regular_density_factor.domain
-    return integrate_by_regular_density_function(
-        function, density, domain, scheme
-    )
+    return integrate_by_regular_density_function(function, density, domain, scheme)
 
 
 def integrate_by_density(

@@ -74,9 +74,7 @@ def multiply_functions(
     """Multiply together a list of functions, returning a new function."""
 
     if not isinstance(functions, list):
-        raise ValueError(
-            "Input to multiply_functions must be a list ofvfunctions."
-        )
+        raise ValueError("Input to multiply_functions must be a list ofvfunctions.")
     if len(functions) == 1:
         return functions[0]
 

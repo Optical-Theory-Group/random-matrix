@@ -1,18 +1,19 @@
-from dataclasses import dataclass
 import os
 import pickle
+from dataclasses import dataclass
 
 import numpy as np
 import scipy.sparse
 import sksparse.cholmod
 
-from random_matrix.modes import mode_grid
-from random_matrix.statistics import (
+from random_matrix.input_statistics import (
     index_finder,
     integration_task,
     medium_parameters,
     medium_statistics,
+    shape_classifier,
 )
+from random_matrix.modes import mode_grid
 from random_matrix.utils import geometry_utils, matrix_utils
 from random_matrix.utils.types import FloatLike
 
@@ -34,6 +35,8 @@ class InputStatisticsManager:
         self.index_finder = index_finder.IndexFinder(
             mode_grid, medium_parameters
         )
+        self.shape_classifier = shape_classifier.ShapeClassifier(mode_grid)
+
         self.integration_task_preparer = (
             integration_task.IntegrationTaskPreparer(
                 mode_grid, medium_parameters, medium_statistics
@@ -44,14 +47,29 @@ class InputStatisticsManager:
         """Compute the mean, covariance and pseudo-covariance for the elements
         of the scattering matrix."""
 
+        # Find indices
+        independent_elements, indices = self._get_indices()
+
+        # Classify shapes
+        quadruples, quadruple_templates, singles = self._classify_shapes(
+            indices["covariance"]["pp,pp"]["t,t"]
+        )
+
+        # Find integration domains
+        quadruples = self._get_domains(
+            quadruples, quadruple_templates, singles
+        )
+
         # Prepare and execute integration tasks
-        indices = self._get_indices()
-        with open('indices.pkl', 'wb') as f:
-            pickle.dump(indices, f)
-        integration_task_list = self._get_integration_tasks(indices)
+        integration_task_list = self._get_integration_tasks(
+            quadruples, independent_elements, indices
+        )
+
+        return integration_task_list
+
         result_list = integration_task_list.execute_tasks()
 
-        # # Extract results from the list and build up statistical matrices
+        # Extract results from the list and build up statistical matrices
         mean_result_list = result_list.by_statistic_type("mean")
         cov_result_list = result_list.by_statistic_type("covariance")
         pseudo_cov_result_list = result_list.by_statistic_type(
@@ -67,7 +85,7 @@ class InputStatisticsManager:
                 [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
             ]
         )
-        with open('cov.pkl', 'wb') as f:
+        with open("cov.pkl", "wb") as f:
             pickle.dump(cov, f)
 
         # chol = self._get_chol(sigma)
@@ -77,10 +95,28 @@ class InputStatisticsManager:
     def _get_indices(self) -> dict[str, dict[str, set[tuple[int, int]]]]:
         return self.index_finder.get_indices()
 
+    def _classify_shapes(self, quadruple_indices):
+        return self.shape_classifier.classify_shapes(quadruple_indices)
+
+    def _get_domains(self, quadruples, quadruple_templates, singles) -> None:
+        return self.shape_classifier.get_domains(
+            quadruples, quadruple_templates, singles
+        )
+
     def _get_integration_tasks(
-        self, indices: dict[str, dict[str, set[tuple[int, int]]]]
+        self,
+        quadruples,
+        independent_elements,
+        indices: dict[str, dict[str, set[tuple[int, int]]]],
     ) -> integration_task.IntegrationTaskList:
-        return self.integration_task_preparer.get_integration_tasks(indices)
+        return self.integration_task_preparer.get_integration_tasks(
+            quadruples, independent_elements, indices
+        )
+
+    def show_report(self):
+        self.index_finder.show_report()
+        self.shape_classifier.show_report()
+        self.integration_task_preparer.show_report()
 
     # -------------------------------------------------------------------------
     # Mean
@@ -359,7 +395,7 @@ class InputStatisticsManager:
     def _get_cov_weight_matrix(self) -> FloatLike:
         """Get a matrix whose elements are like 1/sqrt(wi wj)
 
-        Used to distribute weights across the cov matrix.
+        Used to distribute weights across the cov matrices.
         """
 
         max_index = self.mode_grid.max_index

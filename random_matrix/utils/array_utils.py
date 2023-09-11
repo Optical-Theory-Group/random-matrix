@@ -47,6 +47,10 @@ def remove_duplicate_points(
     duplicates = tree.query_ball_point(points, r=tolerance)
     unique_indices = sorted(set([min(d) for d in duplicates]))
     new_points = points[unique_indices].squeeze()
+
+    if not isinstance(new_points, np.ndarray):
+        new_points = np.array([new_points])
+
     return new_points
 
 
@@ -158,6 +162,24 @@ def is_equal_array(
 
     are_equal = bool(np.all(np.isclose(first_array, second_array)))
     return are_equal
+
+
+def is_equal_cyclic(
+    first_array: npt.NDArray[np.float64],
+    second_array: npt.NDArray[np.float64],
+):
+    """Assumed that the arrays are both 2D"""
+
+    if not np.all(np.isclose(np.shape(first_array), np.shape(second_array))):
+        return False
+
+    max_roll, roll_size = np.shape(first_array)
+    for roll in (-i * roll_size for i in range(max_roll)):
+        rolled_second = np.roll(second_array, roll)
+        equal = np.allclose(first_array, rolled_second)
+        if equal:
+            return True
+    return False
 
 
 def get_array_index(val: np.float64, array: npt.NDArray[np.float64]) -> int:

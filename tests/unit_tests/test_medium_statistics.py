@@ -1,6 +1,6 @@
 import pytest
 
-from random_matrix.statistics import density_function, medium_statistics
+from random_matrix.input_statistics import density_function, medium_statistics
 
 
 def test_particle_statistics_variable_consistency():
@@ -24,9 +24,7 @@ def test_particle_statistics_variable_consistency():
     term = density_function.DensityFunctionTerm.from_regular(
         density_function_good, domain_good
     )
-    particle_stats = medium_statistics.ParticleStatistics(
-        term, A_matrix, mixing_ratio
-    )
+    particle_stats = medium_statistics.ParticleStatistics(term, A_matrix, mixing_ratio)
 
     with pytest.raises(ValueError, match="inconsistent with the A_matrix"):
         # Bad case.

@@ -25,9 +25,7 @@ def test_remove_duplicate_points() -> None:
     np.testing.assert_allclose(actual, desired)
 
     # 2D - repetitions
-    array = np.array(
-        [[-1.0, 2.0], [4.0, 3.0], [-1.0, 2.0], [0.0, 0.0], [4.0, 3.0]]
-    )
+    array = np.array([[-1.0, 2.0], [4.0, 3.0], [-1.0, 2.0], [0.0, 0.0], [4.0, 3.0]])
     actual = array_utils.remove_duplicate_points(array)
     desired = np.array([[-1.0, 2.0], [4.0, 3.0], [0.0, 0.0]])
     np.testing.assert_allclose(actual, desired)

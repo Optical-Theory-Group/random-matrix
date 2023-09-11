@@ -2,7 +2,7 @@ import inspect
 
 import numpy as np
 
-from random_matrix.statistics import density_function, density_integrals
+from random_matrix.input_statistics import density_function, density_integrals
 
 
 def test_integrate_by_delta_density_factor_pass() -> None:
@@ -15,10 +15,8 @@ def test_integrate_by_delta_density_factor_pass() -> None:
 
     delta_one = {"x": 1.0}
     delta_dist_one = density_function.DeltaDensityFactor(delta_one)
-    integrated_function_one = (
-        density_integrals.integrate_by_delta_density_factor(
-            function, delta_dist_one
-        )
+    integrated_function_one = density_integrals.integrate_by_delta_density_factor(
+        function, delta_dist_one
     )
 
     random_yz = np.random.randn(100, 2)
@@ -29,10 +27,8 @@ def test_integrate_by_delta_density_factor_pass() -> None:
 
     delta_two = {"z": 3.0, "y": 1.2}
     delta_dist_two = density_function.DeltaDensityFactor(delta_two)
-    integrated_function_two = (
-        density_integrals.integrate_by_delta_density_factor(
-            function, delta_dist_two
-        )
+    integrated_function_two = density_integrals.integrate_by_delta_density_factor(
+        function, delta_dist_two
     )
 
     random_x = np.random.randn(100)
@@ -43,10 +39,8 @@ def test_integrate_by_delta_density_factor_pass() -> None:
 
     delta_three = {"y": 1.0, "x": 3.0, "z": 5.0}
     delta_dist_three = density_function.DeltaDensityFactor(delta_three)
-    integrated_function_three = (
-        density_integrals.integrate_by_delta_density_factor(
-            function, delta_dist_three
-        )
+    integrated_function_three = density_integrals.integrate_by_delta_density_factor(
+        function, delta_dist_three
     )
 
     assert np.isclose(integrated_function_three(), function(3.0, 1.0, 5.0))
@@ -67,14 +61,10 @@ def test_integrate_by_regular_density_factor_pass() -> None:
         return z**2
 
     domain_one = {"z": [0.0, 1.0]}
-    regular_dist_one = density_function.RegularDensityFactor(
-        density_one, domain_one
-    )
+    regular_dist_one = density_function.RegularDensityFactor(density_one, domain_one)
 
-    integrated_function_one = (
-        density_integrals.integrate_by_regular_density_factor(
-            function, regular_dist_one
-        )
+    integrated_function_one = density_integrals.integrate_by_regular_density_factor(
+        function, regular_dist_one
     )
 
     # Total integrand is
@@ -97,14 +87,10 @@ def test_integrate_by_regular_density_factor_pass() -> None:
 
     domain_two = {"z": [0.0, 1.0], "x": [1.0, 2.0]}
 
-    regular_dist_two = density_function.RegularDensityFactor(
-        density_two, domain_two
-    )
+    regular_dist_two = density_function.RegularDensityFactor(density_two, domain_two)
 
-    integrated_function_two = (
-        density_integrals.integrate_by_regular_density_factor(
-            function, regular_dist_two
-        )
+    integrated_function_two = density_integrals.integrate_by_regular_density_factor(
+        function, regular_dist_two
     )
 
     # Answer is -9/2 e^y ( 5sin1 - 9sin2 + cos1 + 6cos2)
@@ -141,10 +127,8 @@ def test_integrate_by_regular_density_factor_pass() -> None:
         density_three, integration_domain
     )
 
-    integrated_function_three = (
-        density_integrals.integrate_by_regular_density_factor(
-            function_three, distribution
-        )
+    integrated_function_three = density_integrals.integrate_by_regular_density_factor(
+        function_three, distribution
     )
 
     a = 0.12
@@ -178,9 +162,7 @@ def test_integrate_by_density_diracs():
         return x * y**2 * z**3
 
     integral = density_integrals.integrate_by_density(f, density)
-    answer = 0.4 * (1.0 * 2**2 * 3**3) + 0.6 * (
-        2.0 * (-1.0) ** 2 * 1.0**3
-    )
+    answer = 0.4 * (1.0 * 2**2 * 3**3) + 0.6 * (2.0 * (-1.0) ** 2 * 1.0**3)
 
     assert np.isclose(integral(), answer)
 
@@ -227,9 +209,7 @@ def test_integrate_by_density_general():
 
     domain = {"x": [0.0, 1.0], "m": [0.0, 1.0]}
 
-    term_three = density_function.DensityFunctionTerm.from_regular(
-        regular, domain
-    )
+    term_three = density_function.DensityFunctionTerm.from_regular(regular, domain)
 
     # -------------------------------------------------------------------------
     # Combined
