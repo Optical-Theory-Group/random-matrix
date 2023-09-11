@@ -72,7 +72,16 @@ input_statistics_manager = InputStatisticsManager(
     medium_parameters, medium_statistics, mode_grid
 )
 # mode_grid.plot(show_indices=True)
-integration_task_list = input_statistics_manager.get_statistics()
+cov, pcov, sigma = input_statistics_manager.get_statistics()
+
+plt.figure()
+plt.spy(cov)
+
+plt.figure()
+plt.spy(pcov)
+
+plt.figure()
+plt.spy(sigma)
 
 input_statistics_manager.show_report()
 # Prepare and execute integration tasks

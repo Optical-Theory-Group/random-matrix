@@ -9,8 +9,9 @@ import numpy.typing as npt
 import scipy.stats
 import shapely
 
-from random_matrix.input_statistics.input_statistics_logger import \
-    IndexFinderLogger
+from random_matrix.input_statistics.input_statistics_logger import (
+    IndexFinderLogger,
+)
 from random_matrix.input_statistics.medium_parameters import MediumParameters
 from random_matrix.modes.mode import Mode
 from random_matrix.modes.mode_grid import ModeGrid
@@ -281,6 +282,7 @@ class IndexFinder:
                 is_autocorrelation = i == u and j == v
 
                 if not is_autocorrelation:
+                    pass
                     # Here we are looking at off-diagonal terms of the
                     # correlation matrix. These will be memory effect type
                     # correlations.

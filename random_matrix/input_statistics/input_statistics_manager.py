@@ -16,6 +16,9 @@ from random_matrix.input_statistics import (
 from random_matrix.modes import mode_grid
 from random_matrix.utils import geometry_utils, matrix_utils
 from random_matrix.utils.types import FloatLike
+from random_matrix.input_statistics.input_statistics_logger import (
+    InputStatisticsManagerLogger,
+)
 
 
 class InputStatisticsManager:
@@ -24,12 +27,14 @@ class InputStatisticsManager:
         medium_parameters: medium_parameters.MediumParameters,
         medium_statistics: medium_statistics.MediumStatistics,
         mode_grid: mode_grid.ModeGrid,
+        logger=InputStatisticsManagerLogger(),
     ) -> None:
         """Input statistics manager class"""
 
         self.medium_parameters = medium_parameters
         self.medium_statistics = medium_statistics
         self.mode_grid = mode_grid
+        self.logger = logger
 
         # Attributes calculated from the input data
         self.index_finder = index_finder.IndexFinder(
@@ -65,9 +70,8 @@ class InputStatisticsManager:
             quadruples, independent_elements, indices
         )
 
-        return integration_task_list
-
-        result_list = integration_task_list.execute_tasks()
+        with self.logger.log("tasks"):
+            result_list = integration_task_list.execute_tasks()
 
         # Extract results from the list and build up statistical matrices
         mean_result_list = result_list.by_statistic_type("mean")
@@ -76,15 +80,25 @@ class InputStatisticsManager:
             "pseudo_covariance"
         )
 
-        mean_S = self._get_mean_S(mean_result_list)
-        cov = self._get_covariance_matrix(cov_result_list)
-        pseudo_cov = self._get_pseudo_covariance_matrix(pseudo_cov_result_list)
+        with self.logger.log("mean"):
+            mean_S = self._get_mean_S(mean_result_list)
+
+        with self.logger.log("covariance"):
+            cov = self._get_covariance_matrix(cov_result_list)
+
+        with self.logger.log("pseudo_covariance"):
+            pseudo_cov = self._get_covariance_matrix(
+                pseudo_cov_result_list, is_pseudo=True
+            )
+
         sigma = 0.5 * scipy.sparse.bmat(
             [
                 [np.real(cov + pseudo_cov), np.imag(-cov + pseudo_cov)],
                 [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
             ]
         )
+        
+        return cov, pseudo_cov, sigma
         with open("cov.pkl", "wb") as f:
             pickle.dump(cov, f)
 
@@ -117,6 +131,7 @@ class InputStatisticsManager:
         self.index_finder.show_report()
         self.shape_classifier.show_report()
         self.integration_task_preparer.show_report()
+        self.logger.show_report()
 
     # -------------------------------------------------------------------------
     # Mean
@@ -241,7 +256,9 @@ class InputStatisticsManager:
     # Covariance matrices
     # -------------------------------------------------------------------------
 
-    def _get_covariance_matrix(self, cov_result_list) -> FloatLike:
+    def _get_covariance_matrix(
+        self, cov_result_list, is_pseudo=False
+    ) -> FloatLike:
         """Construct the regular covariance matrix from the covariance results
         list"""
 
@@ -314,34 +331,21 @@ class InputStatisticsManager:
                     col = matrix_utils.get_cov_sub_block_index(
                         block_uv, (u, v), self.mode_grid.num_propagating
                     )
-                    print(sub_block_location)
-                    print(block_ij, block_uv)
-                    print(row, col)
                     sub_block = integral.reshape(4, 4)
                     sub_block = (sub_block + np.conj(sub_block.T)) / 2
                     cov[row : row + 4, col : col + 4] = sub_block
-                    cov[col : col + 4, row : row + 4] = np.conj(sub_block.T)
+                    if not is_pseudo:
+                        cov[col : col + 4, row : row + 4] = np.conj(
+                            sub_block.T
+                        )
+                    else:
+                        cov[col : col + 4, row : row + 4] = sub_block.T
 
         # Multiply by weights
         cov_weight_matrix = self._get_cov_weight_matrix()
         cov = cov_weight_matrix @ cov @ cov_weight_matrix
 
         return cov
-
-    def _get_pseudo_covariance_matrix(self, pseudo_cov_result_list):
-        """Construct the pseudo covariance matrix from the psuedo covariance
-        results list"""
-
-        # Four for the fourst matrices, another 4 for polarisation
-        # 4x4 correlation matrices
-
-        size_of_pseudo_cov = (self.mode_grid.num_propagating) ** 2 * 4 * 4
-
-        pseudo_cov = scipy.sparse.dok_array(
-            (size_of_pseudo_cov, size_of_pseudo_cov), dtype=np.complex128
-        )
-
-        return pseudo_cov
 
     # -------------------------------------------------------------------------
     # Cholesky
