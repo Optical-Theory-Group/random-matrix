@@ -5,24 +5,19 @@ import numpy as np
 from old_code.functions import getT
 
 from random_matrix.amplitude_matrix import isotropic_sphere, mie_sphere
+from random_matrix.input_statistics import density_function, density_integrals
+from random_matrix.input_statistics.density_function import (
+    DeltaDensityFactor, DensityFunction, DensityFunctionTerm,
+    RegularDensityFactor)
+from random_matrix.input_statistics.index_finder import IndexFinder
+from random_matrix.input_statistics.input_statistics_manager import \
+    InputStatisticsManager
+from random_matrix.input_statistics.integration_task import \
+    IntegrationTaskPreparer
+from random_matrix.input_statistics.medium_parameters import MediumParameters
+from random_matrix.input_statistics.medium_statistics import (
+    MediumStatistics, ParticleStatistics)
 from random_matrix.modes import mode_grid, mode_grid_generator
-from random_matrix.statistics import density_function, density_integrals
-from random_matrix.statistics.density_function import (
-    DeltaDensityFactor,
-    DensityFunction,
-    DensityFunctionTerm,
-    RegularDensityFactor,
-)
-from random_matrix.statistics.index_finder import IndexFinder
-from random_matrix.statistics.integration_task import IntegrationTaskPreparer
-from random_matrix.statistics.medium_parameters import MediumParameters
-from random_matrix.statistics.medium_statistics import (
-    MediumStatistics,
-    ParticleStatistics,
-)
-from random_matrix.statistics.scattering_statistics import (
-    InputStatisticsManager,
-)
 from random_matrix.utils import function_utils
 
 print("Preparing Grid")
@@ -91,6 +86,4 @@ ax.set_yscale("log")
 ax.set_xlim(0, 180)
 ax.set_ylim(-0.1, 1.1)
 ax.set_xlabel("Scattering angle")
-fig.savefig(
-    "/var/home/niall/Code/Science/random-matrix/tests/physical_tests/mie.png"
-)
+fig.savefig("/var/home/niall/Code/Science/random-matrix/tests/physical_tests/mie.png")

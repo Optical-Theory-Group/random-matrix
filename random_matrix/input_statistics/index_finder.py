@@ -1,40 +1,69 @@
-import numpy as np
-import multiprocess as mp
-import shapely
-import os
 import functools
+import multiprocessing as mp
+import os
+from dataclasses import dataclass, field
+from typing import NoReturn, Self
+
+import numpy as np
+import numpy.typing as npt
+import scipy.stats
+import shapely
+
+from random_matrix.input_statistics.input_statistics_logger import \
+    IndexFinderLogger
+from random_matrix.input_statistics.medium_parameters import MediumParameters
+from random_matrix.modes.mode import Mode
 from random_matrix.modes.mode_grid import ModeGrid
-from random_matrix.statistics.medium_parameters import MediumParameters
-from random_matrix.utils import geometry_utils, array_utils
+from random_matrix.utils import array_utils, geometry_utils
 
 
 class IndexFinder:
     def __init__(
-        self, mode_grid: ModeGrid, medium_parameters: MediumParameters
+        self,
+        mode_grid: ModeGrid,
+        medium_parameters: MediumParameters,
+        logger: IndexFinderLogger = IndexFinderLogger(),
     ) -> None:
         self.mode_grid = mode_grid
-
-        # Only necessary if delta functions are later relaxed
-        # but left in for now
         self.medium_parameters = medium_parameters
+        self.logger = logger
 
-    def get_indices(self) -> dict[str, dict[str, set[tuple[int, int]]]]:
-        # Determine the independent element indices
-        self.independent_element_indices = (
-            self._get_independent_element_indices()
-        )
+    def get_indices(
+        self,
+    ) -> tuple[
+        dict[str, dict[str, set[tuple[int, int]]]],
+        dict[str, dict[str, set[tuple[int, int]]]],
+    ]:
+        with self.logger.log("independent_elements"):
+            independent_elements = self.get_independent_element_indices()
 
         indices = {}
-        indices["mean"] = self._get_mean_indices()
-        indices["covariance"] = self._get_covariance_indices()
-        # indices["pseudo_covariance"] = self._get_pseudo_covariance_indices()
-        return indices
+        with self.logger.log("mean"):
+            indices["mean"] = self._get_mean_indices(independent_elements)
+
+        with self.logger.log("covariance"):
+            indices["covariance"] = self._get_covariance_indices(
+                independent_elements
+            )
+
+        with self.logger.log("pseudo_covariance"):
+            indices["pseudo_covariance"] = self._get_pseudo_covariance_indices(
+                independent_elements
+            )
+
+        self.independent_elements = independent_elements
+        self.indices = indices
+
+        return independent_elements, indices
+
+    def show_report(self) -> None:
+        self.logger.show_report(self.independent_elements, self.indices)
 
     # -------------------------------------------------------------------------
     # Methods for finding the independent elements (based on reciprocity)
     # -------------------------------------------------------------------------
 
-    def _get_independent_element_indices(
+    def get_independent_element_indices(
         self,
     ) -> dict[str, dict[str, set[tuple[int, int]]]]:
         """Return a nested dictionary ultimately containing lists of
@@ -50,7 +79,7 @@ class IndexFinder:
 
     def _get_independent_element_indices_pp(
         self,
-    ) -> dict[str, set[tuple[int, int]]]:
+    ) -> dict[str, list[tuple[int, int]]]:
         """Get the independent elements of the propagating-propagating block
         of the scattering matrix."""
 
@@ -87,31 +116,35 @@ class IndexFinder:
     # Methods for finding the indices where the mean is non-zero
     # -------------------------------------------------------------------------
 
-    def _get_mean_indices(self) -> dict[str, set[tuple[int, int]]]:
+    def _get_mean_indices(
+        self, independent_elements
+    ) -> dict[str, set[tuple[int, int]]]:
         """Get indices of the scattering matrix for which the mean needs to
         be calculated."""
 
         mean_indices = {
-            "pp": self._get_mean_indices_pp(),
+            "pp": self._get_mean_indices_pp(independent_elements["pp"]),
             "pe": {},
             "ep": {},
             "ee": {},
         }
         return mean_indices  # type:ignore
 
-    def _get_mean_indices_pp(self) -> dict[str, set[tuple[int, int]]]:
+    def _get_mean_indices_pp(
+        self, independent_elements
+    ) -> dict[str, list[tuple[int, int]]]:
         """Get indices of 2x2 blocks in the pp section of the scattering
         matrix for which the mean needs to be calculated.
 
         Currently only uses a delta function implementation.
         """
+
         t_elements = []
         t2_elements = []
         r_elements = []
         r2_elements = []
 
         indices = self.mode_grid.propagating_indices
-        independent_elements = self.independent_element_indices["pp"]
 
         for index in indices:
             new_indices = (index, index)
@@ -137,13 +170,15 @@ class IndexFinder:
     # -------------------------------------------------------------------------
 
     def _get_covariance_indices(
-        self,
+        self, independent_elements
     ) -> dict[str, dict[str, set[tuple[int, int, int, int]]]]:
         """Get indices of the scattering matrix for which the covariance needs
         tobe calculated."""
 
         covariance_indices = {
-            "pp,pp": self._get_covariance_indices_pppp(),
+            "pp,pp": self._get_covariance_indices_pppp(
+                independent_elements["pp"]
+            ),
             "pp,pe": {},
             "pp,ep": {},
             "pp,ee": {},
@@ -157,13 +192,14 @@ class IndexFinder:
         return covariance_indices  # type: ignore
 
     def _get_covariance_indices_pppp(
-        self,
+        self, independent_elements
     ) -> dict[str, set[tuple[int, int, int, int]]]:
         """Get indices of 2x2 blocks in the pp section of the scattering
         matrix for which the mean needs to be calculated.
 
         Currently only uses a delta function implementation.
         """
+
         covariance_indices = {
             "t,t": set(),
             "t,r": set(),
@@ -179,7 +215,6 @@ class IndexFinder:
 
         indices = self.mode_grid.propagating_indices
         num_indices = len(indices)
-        independent_elements = self.independent_element_indices["pp"]
 
         elements = [
             (index_i * num_indices + index_j, i, j)
@@ -190,7 +225,6 @@ class IndexFinder:
 
         # Multiprocessing parameters
         num_processes = min(num_elements, os.cpu_count())
-        print(f"Number of processes: {num_processes}")
 
         parallelised_function = functools.partial(
             self._get_covariance_indices_pppp_partial,
@@ -305,6 +339,8 @@ class IndexFinder:
                     covariance_indices["t,t2"].add((i, j, u, v))
                 if (u, v) in independent_elements["r2"]:
                     covariance_indices["t,r2"].add((i, j, u, v))
+
+                # Correlations of r with others
                 if (i, j) in independent_elements["r"]:
                     if (u, v) in independent_elements["r"]:
                         covariance_indices["r,r"].add((i, j, u, v))
@@ -312,60 +348,35 @@ class IndexFinder:
                         covariance_indices["r,t2"].add((i, j, u, v))
                     if (u, v) in independent_elements["r2"]:
                         covariance_indices["r,r2"].add((i, j, u, v))
+
+                # Correlations of t2 with others
                 if (i, j) in independent_elements["t2"]:
                     if (u, v) in independent_elements["t2"]:
                         covariance_indices["t2,t2"].add((i, j, u, v))
                     if (u, v) in independent_elements["r2"]:
                         covariance_indices["t2,r2"].add((i, j, u, v))
+
+                # Correlations of r2 with others
                 if (i, j) in independent_elements["r2"]:
                     if (u, v) in independent_elements["r2"]:
                         covariance_indices["r2,r2"].add((i, j, u, v))
 
         return covariance_indices
 
-    def _get_covariance_block_indices(
-        self, block_one: str, block_two: str
-    ) -> set[tuple[int, int, int, int]]:
-        elements = set()
-
-        for index_one in range(
-            len(self.independent_element_indices["pp"][block_one])
-        ):
-            print(index_one)
-            # Pick out the first elements
-            i, j = list(self.independent_element_indices["pp"][block_one])[
-                index_one
-            ]
-
-            # If we are looping over the same block, we can avoid cases where
-            # we correlate the same pairs of elements but in the reverse order
-            starting_point = index_one if block_one == block_two else 0
-
-            for index_two in range(
-                starting_point,
-                len(self.independent_element_indices["pp"][block_two]),
-            ):
-                u, v = list(self.independent_element_indices["pp"][block_two])[
-                    index_two
-                ]
-
-                if i == u and j == v:
-                    elements.add((i, j, u, v))
-
-        return elements
-
     # -------------------------------------------------------------------------
     # Methods for finding the indices where the pseudo-covariance is non-zero
     # -------------------------------------------------------------------------
 
     def _get_pseudo_covariance_indices(
-        self,
+        self, independent_elements
     ) -> dict[str, dict[str, set[tuple[int, int, int, int]]]]:
         """Get indices of the scattering matrix for which the pseudo-covariance
         needs tobe calculated."""
 
         pseudo_covariance_indices = {
-            "pp,pp": self._get_pseudo_covariance_indices_pppp(),
+            "pp,pp": self._get_pseudo_covariance_indices_pppp(
+                independent_elements["pp"]
+            ),
             "pp,pe": {},
             "pp,ep": {},
             "pp,ee": {},
@@ -379,7 +390,7 @@ class IndexFinder:
         return pseudo_covariance_indices
 
     def _get_pseudo_covariance_indices_pppp(
-        self,
+        self, independent_elements
     ) -> dict[str, set[tuple[int, int, int, int]]]:
         return {}
 

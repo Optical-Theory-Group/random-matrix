@@ -14,7 +14,8 @@ a = scipy.sparse.dok_array(
             [0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 4],
             [0, 0, 0, 3, 0, 0],
-        ], dtype=np.complex128
+        ],
+        dtype=np.complex128,
     )
 )
 

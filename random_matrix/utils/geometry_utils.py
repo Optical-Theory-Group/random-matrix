@@ -5,10 +5,11 @@ from itertools import combinations
 import numpy as np
 import numpy.typing as npt
 import scipy.spatial
+import scipy.stats
 import shapely
 import skspatial.objects
 
-from random_matrix.utils import array_utils, geometry_utils, plotting_utils
+from random_matrix.utils import array_utils, plotting_utils
 from random_matrix.utils.types import FloatLike
 
 
@@ -145,6 +146,16 @@ def get_small_angular_difference(t_1: float, t_2: float) -> float:
     if dt > np.pi:
         dt = 2 * np.pi - dt
     return dt
+
+
+def get_signed_small_angular_difference(
+    first_vector: npt.NDArray, second_vector: npt.NDArray
+) -> np.float128:
+    t_1 = np.arctan2(first_vector[1], first_vector[0])
+    t_2 = np.arctan2(second_vector[1], second_vector[0])
+    dt = get_small_angular_difference(t_1, t_2)
+    sign = np.sign(np.cross(first_vector, second_vector))
+    return sign * dt
 
 
 def is_rectangle(points: npt.NDArray[np.float64]) -> bool:
@@ -493,49 +504,6 @@ def get_angularly_separated_edge_points(
     return output
 
 
-# def minkowski_sum(polygon_one: FloatLike, polygon_two: FloatLike) -> FloatLike:
-#     points_one = order_points(polygon_one)
-#     points_two = order_points(polygon_two)
-#     num_points_one = len(points_one)
-#     num_points_two = len(points_two)
-#     i = 0
-#     j = 0
-
-#     new_points = []
-
-#     while i <= num_points_one and j <= num_points_two:
-#         first_point = points_one[i % num_points_one]
-#         second_point = points_two[j % num_points_two]
-
-#         next_first = points_one[(i + 1) % num_points_one]
-#         next_second = points_two[(j + 1) % num_points_two]
-
-#         new_points.append(first_point + second_point)
-
-#         theta_one = (
-#             np.arctan2(
-#                 next_first[1] - first_point[1], next_first[0] - first_point[0]
-#             )
-#             + np.pi
-#         )
-#         theta_two = (
-#             np.arctan2(
-#                 next_second[1] - second_point[1],
-#                 next_second[0] - second_point[0],
-#             )
-#             + np.pi
-#         )
-#         if np.isclose(theta_one, theta_two):
-#             i += 1
-#             j += 1
-#         elif theta_one > theta_two:
-#             j += 1
-#         else:
-#             i += 1
-
-#     return np.array(new_points)
-
-
 def minkowski_sum(points_one: FloatLike, points_two: FloatLike) -> FloatLike:
     points_one = order_points(points_one)
     y_coordinates = points_one[:, 1]
@@ -578,13 +546,25 @@ def minkowski_sum(points_one: FloatLike, points_two: FloatLike) -> FloatLike:
         theta_one = np.arctan2(
             next_first[1] - first_point[1], next_first[0] - first_point[0]
         )
-        theta_one = 2 * np.pi + theta_one if theta_one < 0 else theta_one
+
+        theta_one_close_to_zero = np.isclose(theta_one, 0.0)
+        theta_one = (
+            2 * np.pi + theta_one
+            if theta_one < 0 and not theta_one_close_to_zero
+            else theta_one
+        )
 
         theta_two = np.arctan2(
             next_second[1] - second_point[1],
             next_second[0] - second_point[0],
         )
-        theta_two = 2 * np.pi + theta_two if theta_two < 0 else theta_two
+        theta_two_close_to_zero = np.isclose(theta_two, 0.0)
+
+        theta_two = (
+            2 * np.pi + theta_two
+            if theta_two < 0 and not theta_two_close_to_zero
+            else theta_two
+        )
 
         if np.isclose(theta_one, theta_two):
             i += 1
@@ -616,6 +596,9 @@ def intersects(points_one: FloatLike, points_two: FloatLike) -> bool:
 
 
 def create_geometry(points):
+    if np.ndim(points) == 1:
+        points = points[np.newaxis, :]
+
     match len(points):
         case 1:
             polygon = shapely.Point(points)
@@ -655,8 +638,8 @@ def intersection(points_one, points_two):
         # we try incremental buffering
 
         found = False
-        buffer_start = 1e-15
-        num_buffer_steps = 8
+        buffer_start = 1e-10
+        num_buffer_steps = 5
         buffers = [buffer_start * 10**i for i in range(num_buffer_steps)]
 
         for buffer in buffers:
@@ -748,3 +731,21 @@ def get_polygon_area(polygon):
     if len(polygon) < 3:
         return 0.0
     return shapely.Polygon(polygon).area
+
+
+def invert_shape(shape):
+    centroid = np.mean(shape, axis=0)
+    reflected_shape = reflect_through_point(shape, centroid)
+    return reflected_shape
+
+
+def get_circular_angle(point):
+    norm = np.linalg.norm(point)
+    if np.isclose(norm, 0.0):
+        return 0.0
+
+    point = point / np.linalg.norm(point)
+    theta = np.arctan2(point[1], point[0])
+    if theta < 0.0:
+        theta = theta + 2 * np.pi
+    return theta

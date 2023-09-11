@@ -31,9 +31,7 @@ def test_product_integral_2d() -> None:
 
 # High dimensional integral
 def test_product_integral_highd() -> None:
-    def function(
-        x: float, y: float, z: float, a: float, b: float, c: float
-    ) -> float:
+    def function(x: float, y: float, z: float, a: float, b: float, c: float) -> float:
         return 2 * x * 2 * y * 2 * z * 2 * a * 2 * b * 2 * c
 
     domain = {

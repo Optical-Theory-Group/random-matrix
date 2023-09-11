@@ -163,9 +163,7 @@ class DensityFunctionTerm:
             set() if self.delta_factor is None else self.delta_factor.variables
         )
         regular_variables = (
-            set()
-            if self.regular_factor is None
-            else self.regular_factor.variables
+            set() if self.regular_factor is None else self.regular_factor.variables
         )
         return delta_variables, regular_variables
 
@@ -186,14 +184,8 @@ class DensityFunctionTerm:
     @property
     def integral(self) -> FloatLike:
         """Compute the integral of the probability density function term"""
-        regular = (
-            1.0
-            if self.regular_factor is None
-            else self.regular_factor.integral
-        )
-        delta = (
-            1.0 if self.delta_factor is None else self.delta_factor.integral
-        )
+        regular = 1.0 if self.regular_factor is None else self.regular_factor.integral
+        delta = 1.0 if self.delta_factor is None else self.delta_factor.integral
         return regular * delta
 
     @classmethod

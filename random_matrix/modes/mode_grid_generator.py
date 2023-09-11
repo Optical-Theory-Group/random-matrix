@@ -333,9 +333,7 @@ def _get_mode_grid(
     return ModeGrid(mode_list=mode_list, r_lim=r_lim)
 
 
-def _get_mode_list(
-    mode_boundary_dict_list: Iterator[dict[str, Any]]
-) -> Iterator[Mode]:
+def _get_mode_list(mode_boundary_dict_list: Iterator[dict[str, Any]]) -> Iterator[Mode]:
     """Intermediate function for generating ModeGrid.
 
     Should not be run directly. This method is used automatically
@@ -516,9 +514,7 @@ def _generate_tiling_vertices_list(
                 continue
 
             vertices = geometry_utils.rotate_points(vertices, rotation_angle)
-            vertices = geometry_utils.translate_points(
-                vertices, translation_vector
-            )
+            vertices = geometry_utils.translate_points(vertices, translation_vector)
 
             # Give points correct rotational order
             vertices = geometry_utils.order_points(vertices)
@@ -567,9 +563,7 @@ def _generate_unit_cell(
             )
 
         case "rectangles":
-            yield from _generate_rectangles(
-                center=center, side_length=side_length
-            )
+            yield from _generate_rectangles(center=center, side_length=side_length)
 
         case "hexagons":
             yield from _generate_hexagons(
@@ -649,9 +643,7 @@ def _get_polar_mode_boundary_dict_list(
     else:
         # Get wedges
         for t_1, t_2 in array_utils.get_pairs(t_vals):
-            vertices_polar = np.array(
-                [[0.0, 0.0], [r_central, t_1], [r_central, t_2]]
-            )
+            vertices_polar = np.array([[0.0, 0.0], [r_central, t_1], [r_central, t_2]])
             vertices = geometry_utils.polar_to_cartesian(vertices_polar)
 
             # Rotate according to the provided rotation angle
@@ -669,9 +661,7 @@ def _get_polar_mode_boundary_dict_list(
     r_vals = r_vals[1:]
     for r_1, r_2 in array_utils.get_pairs(r_vals):
         for t_1, t_2 in array_utils.get_pairs(t_vals):
-            vertices_polar = np.array(
-                [[r_1, t_1], [r_1, t_2], [r_2, t_2], [r_2, t_1]]
-            )
+            vertices_polar = np.array([[r_1, t_1], [r_1, t_2], [r_2, t_2], [r_2, t_1]])
             vertices = geometry_utils.polar_to_cartesian(vertices_polar)
             # Rotate according to the provided rotation angle
             vertices = geometry_utils.rotate_points(vertices, rotation_angle)
@@ -709,9 +699,7 @@ def _generate_random_vertices_list(
     """
 
     factor = 1.1
-    points = np.random.uniform(
-        -factor * r_lim, factor * r_lim, (num_points, 2)
-    )
+    points = np.random.uniform(-factor * r_lim, factor * r_lim, (num_points, 2))
 
     corner_points = np.array(
         [
@@ -731,9 +719,7 @@ def _generate_random_vertices_list(
             v = scipy.spatial.Voronoi(points)
             poly_points = []
             regions = [
-                region
-                for region in v.regions
-                if len(region) > 0 and not -1 in region
+                region for region in v.regions if len(region) > 0 and not -1 in region
             ]
             for region in regions:
                 poly_points.append(np.array([v.vertices[i] for i in region]))
@@ -775,14 +761,10 @@ def _cut_and_filter(
     """
 
     # Cut across propagating-evanescent mode boundary
-    mode_boundary_dict_list = _cut_by_circle(
-        mode_boundary_dict_list, radius=1.0
-    )
+    mode_boundary_dict_list = _cut_by_circle(mode_boundary_dict_list, radius=1.0)
 
     # Cut across maximum evanescent mode radial boundary
-    mode_boundary_dict_list = _cut_by_circle(
-        mode_boundary_dict_list, radius=r_lim
-    )
+    mode_boundary_dict_list = _cut_by_circle(mode_boundary_dict_list, radius=r_lim)
 
     # Filter according to what modes are desired.
     match grid_wave_type:
@@ -843,11 +825,9 @@ def _cut_by_circle(
             continue
 
         # Now find all intersection points
-        intersection_points = (
-            geometry_utils.get_polygon_circle_intersection_points(
-                vertices,
-                skspatial.objects.Circle([0.0, 0.0], radius),
-            )
+        intersection_points = geometry_utils.get_polygon_circle_intersection_points(
+            vertices,
+            skspatial.objects.Circle([0.0, 0.0], radius),
         )
 
         # If there are no intersections, we also don't need to cut,
@@ -859,9 +839,7 @@ def _cut_by_circle(
         # Combine the original points with the intersection points
         # and clean them up
         augmented_vertices = np.vstack((vertices, intersection_points))
-        augmented_vertices = array_utils.remove_duplicate_points(
-            augmented_vertices
-        )
+        augmented_vertices = array_utils.remove_duplicate_points(augmented_vertices)
         augmented_vertices = geometry_utils.order_points(augmented_vertices)
 
         # Roll points around so that an evanescent one is at the beginning
@@ -870,18 +848,14 @@ def _cut_by_circle(
         # This intimidating expression just gives the index of the first
         # value for which r > radius
         index = np.ravel(
-            np.argwhere(
-                np.where(np.isclose(r_vals, radius), 0.0, r_vals) > radius
-            )
+            np.argwhere(np.where(np.isclose(r_vals, radius), 0.0, r_vals) > radius)
         )[0]
 
         augmented_vertices = np.roll(augmented_vertices, -2 * index)
 
         # We now figure out where all the circular arcs are that will cut
         # up the modes
-        intersection_types = _get_intersection_types(
-            augmented_vertices, radius
-        )
+        intersection_types = _get_intersection_types(augmented_vertices, radius)
         arc_indices = _get_circular_arc_indices(intersection_types)
 
         # arc_indices is None if there are only deflection points.
@@ -1003,8 +977,7 @@ def _get_intersection_types(
             previous_point = points[i - 1]
             prev_point_norm = np.linalg.norm(previous_point)
             previous_point_inside = (
-                np.isclose(prev_point_norm, radius)
-                or prev_point_norm <= radius
+                np.isclose(prev_point_norm, radius) or prev_point_norm <= radius
             )
 
             if previous_point_inside:
@@ -1235,9 +1208,7 @@ def _generate_rectangles(
     w = dx / 2
     h = dy / 2
 
-    yield np.array(
-        [[x - w, y + h], [x - w, y - h], [x + w, y + h], [x + w, y - h]]
-    )
+    yield np.array([[x - w, y + h], [x - w, y - h], [x + w, y + h], [x + w, y - h]])
 
 
 def _generate_hexagons(

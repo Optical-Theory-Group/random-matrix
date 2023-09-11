@@ -1,10 +1,9 @@
 import numpy as np
 import pytest
 
-from random_matrix.statistics.density_function import (DeltaDensityFactor,
-                                                       DensityFunction,
-                                                       DensityFunctionTerm,
-                                                       RegularDensityFactor)
+from random_matrix.input_statistics.density_function import (
+    DeltaDensityFactor, DensityFunction, DensityFunctionTerm,
+    RegularDensityFactor)
 from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 

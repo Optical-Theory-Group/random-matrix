@@ -74,9 +74,7 @@ def test_fix_last_components() -> None:
         k_out[2] = np.abs(k_out[2])
         kappa_inc = k_inc[0:2]
         kappa_out = k_out[0:2]
-        np.testing.assert_allclose(
-            f(k_inc, k_out), f_reduced(kappa_inc, kappa_out)
-        )
+        np.testing.assert_allclose(f(k_inc, k_out), f_reduced(kappa_inc, kappa_out))
 
     f_reduced = function_utils.fix_last_components(f, (1, -1))
 
@@ -89,9 +87,7 @@ def test_fix_last_components() -> None:
         k_out[2] = -np.abs(k_out[2])
         kappa_inc = k_inc[0:2]
         kappa_out = k_out[0:2]
-        np.testing.assert_allclose(
-            f(k_inc, k_out), f_reduced(kappa_inc, kappa_out)
-        )
+        np.testing.assert_allclose(f(k_inc, k_out), f_reduced(kappa_inc, kappa_out))
 
 
 def test_equate_arguments() -> None:

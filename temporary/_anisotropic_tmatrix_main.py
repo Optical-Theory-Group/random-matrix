@@ -8,7 +8,6 @@ Created on Wed Jul 20 17:46:35 2022
 
 import itertools
 import sys
-
 # %% --------------- testing/debugging ------------
 import warnings
 from math import factorial
@@ -55,9 +54,7 @@ Np = 50
 
 Nts = 54  # particle surface points
 Nps = 55
-psurf_coords, psurf_weights, psurf_norms = AmatrixGenerator.define_sphere(
-    a, Nts, Nps
-)
+psurf_coords, psurf_weights, psurf_norms = AmatrixGenerator.define_sphere(a, Nts, Nps)
 
 # #%% calculate T matrix for homogeneous sphere from T matrix theory
 # Q1,Q3 = calc_Q1Q3(nmax,omega,eps_s,eps_p,mu,psurf_coords,psurf_weights,psurf_norms,Nt,Np)
@@ -162,9 +159,7 @@ fig = plt.figure("Niall legacy")
 for rr in range(2):
     for ss in range(2):
         ax = fig.add_subplot(2, 2, 2 * rr + ss + 1)
-        surf = ax.imshow(
-            np.abs(np.squeeze(A_Niall[rr, ss, :, :])), cmap="RdBu"
-        )
+        surf = ax.imshow(np.abs(np.squeeze(A_Niall[rr, ss, :, :])), cmap="RdBu")
         fig.colorbar(surf, ax=ax)
 
 fig = plt.figure("Matt Tmatrix")

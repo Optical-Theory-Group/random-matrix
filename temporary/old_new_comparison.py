@@ -5,24 +5,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from random_matrix.amplitude_matrix import mie_sphere
+from random_matrix.input_statistics import density_function, density_integrals
+from random_matrix.input_statistics.density_function import (
+    DeltaDensityFactor, DensityFunction, DensityFunctionTerm,
+    RegularDensityFactor)
+from random_matrix.input_statistics.index_finder import IndexFinder
+from random_matrix.input_statistics.input_statistics_manager import \
+    InputStatisticsManager
+from random_matrix.input_statistics.integration_task import \
+    IntegrationTaskPreparer
+from random_matrix.input_statistics.medium_parameters import MediumParameters
+from random_matrix.input_statistics.medium_statistics import (
+    MediumStatistics, ParticleStatistics)
 from random_matrix.modes import mode_grid, mode_grid_generator
-from random_matrix.statistics import density_function, density_integrals
-from random_matrix.statistics.density_function import (
-    DeltaDensityFactor,
-    DensityFunction,
-    DensityFunctionTerm,
-    RegularDensityFactor,
-)
-from random_matrix.statistics.index_finder import IndexFinder
-from random_matrix.statistics.integration_task import IntegrationTaskPreparer
-from random_matrix.statistics.medium_parameters import MediumParameters
-from random_matrix.statistics.medium_statistics import (
-    MediumStatistics,
-    ParticleStatistics,
-)
-from random_matrix.statistics.scattering_statistics import (
-    InputStatisticsManager,
-)
 from random_matrix.utils import function_utils, matrix_utils
 
 
@@ -121,9 +116,7 @@ cov_result = cov_task.execute_task()
 new_xs = []
 new_ys = []
 
-for integral, location in zip(
-    mean_result.integral, mean_result.sub_block_locations
-):
+for integral, location in zip(mean_result.integral, mean_result.sub_block_locations):
     integral = np.linalg.norm(integral.reshape(2, 2))
     i = location[0]
 
@@ -163,9 +156,7 @@ for mode, cov in zip(mode_list, cov_t_old):
 new_xs = []
 new_ys = []
 
-for integral, location in zip(
-    cov_result.integral, cov_result.sub_block_locations
-):
+for integral, location in zip(cov_result.integral, cov_result.sub_block_locations):
     integral = np.trace(integral.reshape(4, 4))
     i = location[1]
 
