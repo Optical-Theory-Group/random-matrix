@@ -7,23 +7,15 @@ import numpy as np
 import scipy
 from pathos.pools import ProcessPool
 
-from random_matrix.input_statistics import (
-    density_integrals,
-    medium_parameters,
-    medium_statistics,
-)
+from random_matrix.input_statistics import (density_integrals,
+                                            medium_parameters,
+                                            medium_statistics)
+from random_matrix.input_statistics.input_statistics_logger import \
+    IntegrationTaskPreparerLogger
 from random_matrix.modes import mode_grid
-from random_matrix.utils import (
-    array_utils,
-    function_utils,
-    geometry_utils,
-    integration_utils,
-    special_functions,
-)
+from random_matrix.utils import (array_utils, function_utils, geometry_utils,
+                                 integration_utils, special_functions)
 from random_matrix.utils.types import FloatLike, MathematicalFunction
-from random_matrix.input_statistics.input_statistics_logger import (
-    IntegrationTaskPreparerLogger,
-)
 
 
 @dataclass(slots=True)

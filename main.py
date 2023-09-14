@@ -9,45 +9,32 @@ import shapely
 from random_matrix.amplitude_matrix import isotropic_sphere
 from random_matrix.input_statistics import density_function, density_integrals
 from random_matrix.input_statistics.density_function import (
-    DeltaDensityFactor,
-    DensityFunction,
-    DensityFunctionTerm,
-    RegularDensityFactor,
-)
+    DeltaDensityFactor, DensityFunction, DensityFunctionTerm,
+    RegularDensityFactor)
 from random_matrix.input_statistics.index_finder import IndexFinder
-from random_matrix.input_statistics.input_statistics_manager import (
-    InputStatisticsManager,
-)
-from random_matrix.input_statistics.integration_task import (
-    IntegrationTaskPreparer,
-)
+from random_matrix.input_statistics.input_statistics_manager import \
+    InputStatisticsManager
+from random_matrix.input_statistics.integration_task import \
+    IntegrationTaskPreparer
 from random_matrix.input_statistics.medium_parameters import MediumParameters
 from random_matrix.input_statistics.medium_statistics import (
-    MediumStatistics,
-    ParticleStatistics,
-)
+    MediumStatistics, ParticleStatistics)
 from random_matrix.modes import mode_grid, mode_grid_generator
 from random_matrix.scattering_matrix import sampler
-from random_matrix.utils import (
-    array_utils,
-    function_utils,
-    geometry_utils,
-    integration_utils,
-    special_functions,
-)
+from random_matrix.utils import (array_utils, function_utils, geometry_utils,
+                                 integration_utils, special_functions)
 
 np.set_printoptions(precision=2)
 
-print("Prepare Grid")
 mode_grid = mode_grid_generator.from_tiling(
     tiling_type="rectangles",
-    side_length=(0.4, 0.4),
+    side_length=(0.9, 0.9),
     r_lim=1.2,
     grid_wave_type="propagating",
     rotation_angle=0.0,
     translation_vector=np.array([0.0, 0.0]),
 )
-print("Done")
+
 mode_grid.plot(show_indices=True)
 wavelength = 500e-9
 slab_thickness = 1.8992695221776513e-06
@@ -74,14 +61,14 @@ input_statistics_manager = InputStatisticsManager(
 # mode_grid.plot(show_indices=True)
 cov, pcov, sigma = input_statistics_manager.get_statistics()
 
-plt.figure()
-plt.spy(cov)
+# plt.figure()
+# plt.spy(cov)
 
-plt.figure()
-plt.spy(pcov)
+# plt.figure()
+# plt.spy(pcov)
 
-plt.figure()
-plt.spy(sigma)
+# plt.figure()
+# plt.spy(sigma)
 
 input_statistics_manager.show_report()
 # Prepare and execute integration tasks
