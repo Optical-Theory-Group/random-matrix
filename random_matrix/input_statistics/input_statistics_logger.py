@@ -2,15 +2,24 @@
 
 import time
 from contextlib import contextmanager
+from typing import Generator
 
 
 class InputStatisticsLogger:
+    """Base class for printing console messages and timing different operations
+
+    Specific methods can be handled by subclasses.
+    """
+
     def __init__(self) -> None:
-        self.times = {}
+        self.times: dict[str, float] = {}
+        self.messages: dict[str, str] = {}
 
     @contextmanager
-    def log(self, operation: str) -> None:
-        # Print message to console
+    def log(self, operation: str) -> Generator[None, None, None]:
+        """Main logging method that handles printing and method timing."""
+
+        # Print start message
         print(self.messages.get(operation, ""), flush=True)
 
         # Time code for performance
@@ -18,7 +27,24 @@ class InputStatisticsLogger:
         yield
         end = time.perf_counter()
         self.times[operation] = end - start
-        print("Done", flush=True)
+
+        # Print end message
+        print("Done\n", flush=True)
+
+    def time_operation(self, operation: str) -> float:
+        """Retrieve the time for a particular opearation"""
+
+        return self.times.get(operation, 0.0)
+
+    def time_report(self) -> str:
+        """Get a report of times for all operations"""
+
+        return "".join(
+            [
+                f"{message}: {self.time_operation(operation)}\n"
+                for operation, message in self.messages.items()
+            ]
+        )
 
 
 class IndexFinderLogger(InputStatisticsLogger):
@@ -30,19 +56,6 @@ class IndexFinderLogger(InputStatisticsLogger):
             "covariance": "Calculate covariance indices",
             "pseudo_covariance": "Calculate pseudo_covariance indices",
         }
-
-    def time_report(self):
-        out = (
-            f"Find independent elements: "
-            f"{self.times.get('independent_elements', -1)}\n"
-            f"Find mean indices: "
-            f"{self.times.get('mean', -1)}\n"
-            f"Find covariance indices: "
-            f"{self.times.get('covariance', -1)}\n"
-            f"Find pseudo covariance indices: "
-            f"{self.times.get('pseudo_covariance', -1)}\n"
-        )
-        return out
 
     def indices_report(self, independent_elements, indices):
         out = (
@@ -85,19 +98,6 @@ class ShapeClassifierLogger(InputStatisticsLogger):
             "others": "Calculate other integration domains",
         }
 
-    def time_report(self):
-        out = (
-            f"{self.messages['singles']}: "
-            f"{self.times.get('singles', -1)}\n"
-            f"{self.messages['quadruples']}: "
-            f"{self.times.get('quadruples', -1)}\n"
-            f"{self.messages['templates']}: "
-            f"{self.times.get('templates', -1)}\n"
-            f"{self.messages['others']}: "
-            f"{self.times.get('others', -1)}\n"
-        )
-        return out
-
     def shapes_report(self, single_templates, quadruple_templates):
         out = (
             f"Number of single templates: {single_templates}\n"
@@ -122,17 +122,6 @@ class IntegrationTaskPreparerLogger(InputStatisticsLogger):
             "pseudo_covariance": "Prepare pseudo covariance tasks",
         }
 
-    def time_report(self):
-        out = (
-            f"{self.messages['mean']}: "
-            f"{self.times.get('mean', -1)}\n"
-            f"{self.messages['covariance']}: "
-            f"{self.times.get('covariance', -1)}\n"
-            f"{self.messages['pseudo_covariance']}: "
-            f"{self.times.get('pseudo_covariance', -1)}\n"
-        )
-        return out
-
     def show_report(self) -> None:
         print(self.time_report(), flush=True)
 
@@ -146,19 +135,6 @@ class InputStatisticsManagerLogger(InputStatisticsLogger):
             "covariance": "Get covariance matrix",
             "psuedo_covariance": "Get pseudo covariance matrix",
         }
-
-    def time_report(self):
-        out = (
-            f"{self.messages['tasks']}: "
-            f"{self.times.get('tasks', -1)}\n"
-            f"{self.messages['mean']}: "
-            f"{self.times.get('mean', -1)}\n"
-            f"{self.messages['covariance']}: "
-            f"{self.times.get('covariance', -1)}\n"
-            f"{self.messages['psuedo_covariance']}: "
-            f"{self.times.get('psuedo_covariance', -1)}\n"
-        )
-        return out
 
     def show_report(self) -> None:
         print(self.time_report(), flush=True)

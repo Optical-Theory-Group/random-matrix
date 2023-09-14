@@ -12,10 +12,9 @@ import numpy.typing as npt
 import scipy.stats
 import shapely
 
+from random_matrix.input_statistics.input_statistics_logger import \
+    ShapeClassifierLogger
 from random_matrix.input_statistics.medium_parameters import MediumParameters
-from random_matrix.input_statistics.input_statistics_logger import (
-    ShapeClassifierLogger,
-)
 from random_matrix.modes.mode import Mode
 from random_matrix.modes.mode_grid import ModeGrid
 from random_matrix.utils import array_utils, geometry_utils

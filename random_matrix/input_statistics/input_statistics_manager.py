@@ -6,19 +6,15 @@ import numpy as np
 import scipy.sparse
 import sksparse.cholmod
 
-from random_matrix.input_statistics import (
-    index_finder,
-    integration_task,
-    medium_parameters,
-    medium_statistics,
-    shape_classifier,
-)
+from random_matrix.input_statistics import (index_finder, integration_task,
+                                            medium_parameters,
+                                            medium_statistics,
+                                            shape_classifier)
+from random_matrix.input_statistics.input_statistics_logger import \
+    InputStatisticsManagerLogger
 from random_matrix.modes import mode_grid
 from random_matrix.utils import geometry_utils, matrix_utils
 from random_matrix.utils.types import FloatLike
-from random_matrix.input_statistics.input_statistics_logger import (
-    InputStatisticsManagerLogger,
-)
 
 
 class InputStatisticsManager:
