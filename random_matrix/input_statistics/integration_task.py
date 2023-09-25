@@ -2,19 +2,25 @@ import functools
 import os
 from dataclasses import dataclass, field
 from typing import Self
-
+import tqdm
 import numpy as np
 import scipy
 from pathos.pools import ProcessPool
 
-from random_matrix.input_statistics import (density_integrals,
-                                            medium_parameters,
-                                            medium_statistics)
-from random_matrix.input_statistics.input_statistics_logger import \
-    IntegrationTaskPreparerLogger
+from random_matrix.input_statistics import (
+    density_integrals,
+    input_statistics_logger,
+    medium_parameters,
+    medium_statistics,
+)
 from random_matrix.modes import mode_grid
-from random_matrix.utils import (array_utils, function_utils, geometry_utils,
-                                 integration_utils, special_functions)
+from random_matrix.utils import (
+    array_utils,
+    function_utils,
+    geometry_utils,
+    integration_utils,
+    special_functions,
+)
 from random_matrix.utils.types import FloatLike, MathematicalFunction
 
 
@@ -200,13 +206,43 @@ class IntegrationTaskList:
         self.tasks += new_task_list.tasks
 
     def execute_tasks(self) -> IntegrationResultList:
-        """Perofrm the integral associated with all tasks."""
+        # Multiprocessing parameters
+        num_tasks = len(self.tasks)
+
+        num_processes = min(num_tasks, os.cpu_count())
+        parallelised_function = functools.partial(
+            self._execute_tasks_partial,
+            progress_bar=tqdm.tqdm,
+        )
+
+        partial_tasks = array_utils.split_list(self.tasks, num_processes)
+
+        with ProcessPool(processes=num_processes) as pool:
+            out = pool.map(parallelised_function, partial_tasks)
 
         results_list = IntegrationResultList()
-        for task in self.tasks:
+        for partial_result_list in out:
+            for result in partial_result_list.results:
+                results_list.append_result(result)
+
+        return results_list
+
+    @staticmethod
+    def _execute_tasks_partial(tasks, progress_bar):
+        results_list = IntegrationResultList()
+        for task in progress_bar(tasks):
             new_result = task.execute_task()
             results_list.append_result(new_result)
         return results_list
+
+    # def execute_tasks(self) -> IntegrationResultList:
+    #     """Perofrm the integral associated with all tasks."""
+
+    #     results_list = IntegrationResultList()
+    #     for task in tqdm.tqdm(self.tasks):
+    #         new_result = task.execute_task()
+    #         results_list.append_result(new_result)
+    #     return results_list
 
 
 @dataclass(slots=True)
@@ -230,7 +266,7 @@ class IntegrationTaskPreparer:
         mode_grid: mode_grid.ModeGrid,
         medium_parameters: medium_parameters.MediumParameters,
         medium_statistics: medium_statistics.MediumStatistics,
-        logger=IntegrationTaskPreparerLogger(),
+        logger: input_statistics_logger.InputStatisticsLogger,
         integration_task_config: IntegrationTaskConfig = (
             IntegrationTaskConfig()
         ),
@@ -342,7 +378,7 @@ class IntegrationTaskPreparer:
                 triangle_stack = np.zeros((0, 3, 2), dtype=np.float64)
                 stack_length = 0
 
-                for indices in index_set:
+                for indices in self.logger.progress_bar(index_set):
                     # Get the triangulation of the mode
                     index = indices[0]
                     mode = self.mode_grid.by_index(index)
@@ -526,6 +562,7 @@ class IntegrationTaskPreparer:
             const_factor=self.medium_parameters.cov_const_factor,
             integrals_per_task=self.integration_task_config.integrals_per_task,
             integrand=integrand,
+            progress_bar=self.logger.progress_bar,
         )
 
         partial_quadruples = array_utils.split_list(quadruples, num_processes)
@@ -547,6 +584,7 @@ class IntegrationTaskPreparer:
         const_factor,
         integrals_per_task,
         integrand,
+        progress_bar,
     ) -> IntegrationTaskList:
         """Main method for preparing covariance integral tasks"""
 
@@ -590,7 +628,7 @@ class IntegrationTaskPreparer:
             block_one, block_two = key.split(",")
 
         # Main loop
-        for quadruple in quadruples:
+        for quadruple in progress_bar(quadruples):
             # Asses which blocks this particular quadruple will have statistics
             # for
             i, j, u, v = quadruple.singles
@@ -807,6 +845,7 @@ class IntegrationTaskPreparer:
             const_factor=self.medium_parameters.cov_const_factor,
             integrals_per_task=self.integration_task_config.integrals_per_task,
             integrand=integrand,
+            progress_bar=self.logger.progress_bar,
         )
 
         partial_quadruples = array_utils.split_list(quadruples, num_processes)
@@ -828,6 +867,7 @@ class IntegrationTaskPreparer:
         const_factor,
         integrals_per_task,
         integrand,
+        progress_bar,
     ) -> IntegrationTaskList:
         """Main method for preparing covariance integral tasks"""
 
@@ -871,7 +911,7 @@ class IntegrationTaskPreparer:
             block_one, block_two = key.split(",")
 
         # Main loop
-        for quadruple in quadruples:
+        for quadruple in progress_bar(quadruples):
             # Asses which blocks this particular quadruple will have statistics
             # for
             i, j, u, v = quadruple.singles

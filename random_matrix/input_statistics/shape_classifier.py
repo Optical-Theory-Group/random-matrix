@@ -4,18 +4,14 @@ for simplying statistical integrals"""
 import functools
 import multiprocessing as mp
 import os
-from dataclasses import dataclass, field
-from typing import Self
+from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
 import scipy.stats
 import shapely
 
-from random_matrix.input_statistics.input_statistics_logger import \
-    ShapeClassifierLogger
-from random_matrix.input_statistics.medium_parameters import MediumParameters
-from random_matrix.modes.mode import Mode
+from random_matrix.input_statistics import input_statistics_logger
 from random_matrix.modes.mode_grid import ModeGrid
 from random_matrix.utils import array_utils, geometry_utils
 
@@ -67,6 +63,11 @@ def get_shape_data(shape: npt.NDArray) -> ShapeData:
 def get_angle(
     shape_data: ShapeData, reference_shape_data: ShapeData
 ) -> np.float64:
+    """Gets the angle that the reference_shape_data would need to be rotated by
+    to get the shape_data
+
+    Angle is reduced to the inetrval [-pi, pi]
+    """
     lenghts = shape_data.lengths
     lengths_reference = reference_shape_data.lengths
 
@@ -311,7 +312,11 @@ class ShapeQuadruple:
 
 
 class ShapeClassifier:
-    def __init__(self, mode_grid, logger=ShapeClassifierLogger()):
+    def __init__(
+        self,
+        mode_grid: ModeGrid,
+        logger: input_statistics_logger.InputStatisticsLogger,
+    ) -> None:
         self.mode_grid = mode_grid
         self.logger = logger
 
@@ -352,19 +357,38 @@ class ShapeClassifier:
     # Mode classification methods
     # -------------------------------------------------------------------------
 
-    @staticmethod
-    def _get_singles(mode_grid: ModeGrid) -> dict[str, ShapeSingle]:
+    def _get_singles(self, mode_grid: ModeGrid) -> dict[str, ShapeSingle]:
         modes = mode_grid.mode_list
         templates = []
         singles = {}
         next_index = -1
 
-        for mode in modes:
+        for mode in self.logger.progress_bar(modes):
             # Calculate new shape data for comparison with the templates
             new_shape_data = get_shape_data(mode.vertices)
             lengths = new_shape_data.lengths
             angles = new_shape_data.exterior_angles
             lengths_angles = np.vstack((lengths, angles)).T
+
+            # # Check a few symmetric shapes for mod (helps deal with symmetries)
+            # is_square = (
+            #     len(lengths) == 4
+            #     and np.allclose(lengths, lengths[0])
+            #     and np.allclose(angles, np.pi / 2)
+            # )
+
+            # is_rectangle = (
+            #     len(lengths) == 4
+            #     and not np.allclose(lengths, lengths[0])
+            #     and np.allclose(angles, np.pi / 2)
+            # )
+
+            # if is_square:
+            #     new_angle_mod = np.pi / 2
+            # elif is_rectangle:
+            #     new_angle_mod = np.pi
+            # else:
+            #     new_angle_mod = 2 * np.pi
 
             # Check congruence of the new shape with templates
             is_congruent = False
@@ -439,13 +463,14 @@ class ShapeClassifier:
 
         return singles, templates
 
-    @staticmethod
-    def _get_quadruples(singles, quadruple_indices):
+    def _get_quadruples(self, singles, quadruple_indices):
         templates = []
         quadruples = []
         next_index = -1
 
-        for count, (i, j, u, v) in enumerate(quadruple_indices):
+        for count, (i, j, u, v) in enumerate(
+            self.logger.progress_bar(quadruple_indices)
+        ):
             # print(count)
             # Get shapes
             first = singles[str(i)]
@@ -480,6 +505,16 @@ class ShapeClassifier:
                 ]
             )
 
+            # # Angle mods
+            # angle_mods = np.array(
+            #     [
+            #         first.angle_mod,
+            #         second.angle_mod,
+            #         third.angle_mod,
+            #         fourth.angle_mod,
+            #     ]
+            # )
+
             # Find the connections between shapes one,two and three,four
             first_connection = second.centroid - first.centroid
             second_connection = fourth.centroid - third.centroid
@@ -512,50 +547,199 @@ class ShapeClassifier:
                 # 1) Compare classes
                 is_same_class = new_single_classes == template.single_classes
 
-                # # 2) Compare mirror symmetry
-                # is_equal_mirror_types = (
-                #     new_mirror_type == template.mirror_types
-                # )
-                # is_opposite_mirror_types = (
-                #     new_mirror_type_inverted == template.mirror_types
-                # )
-                # is_same_mirror_type = is_equal_mirror_types
+                if not is_same_class:
+                    continue
 
-                # # 3 ) Shape orientation angles are all the same
-                # orientation_diff = new_angles - template.angles
-                # is_same_orientation = np.all(
-                #     np.isclose(orientation_diff, orientation_diff[0])
-                # )
-
-                # 2) Connection angle
-                angle_diff = new_connection_angles - template.connection_angles
-                is_same_connection_angle = np.allclose(angle_diff, 0.0)
-
-                # 3) Connection lengths
+                # 2) Connection lengths
                 length_diff = (
                     template.connection_lengths - new_connection_lengths
                 )
                 is_same_length_diff = np.allclose(length_diff, 0.0)
+                if not is_same_length_diff:
+                    continue
 
-                is_congruent = (
-                    is_same_class
-                    and is_same_connection_angle
-                    and is_same_length_diff
-                )
+                # 3) Connection angle
+                angle_diff = new_connection_angles - template.connection_angles
+                is_same_connection_angle = np.allclose(angle_diff, 0.0)
+                if not is_same_connection_angle:
+                    continue
 
-                if is_congruent:
-                    break
+                is_congruent = True
+                break
+
+                # TEMPORARY
+                # CODE FOR CHECKING ROTATIONS
+                # connection_angle_diffs = (
+                #     new_connection_angles - template.connection_angles
+                # )
+                # connection_angle_diffs = np.array(
+                #     [
+                #         geometry_utils.get_symmetric_reduced_angle(
+                #             a, 2 * np.pi
+                #         )
+                #         for a in connection_angle_diffs
+                #     ]
+                # )
+                # is_same_connection_angle = np.allclose(
+                #     connection_angle_diffs, connection_angle_diffs[0]
+                # )
+
+                # if not is_same_connection_angle:
+                #     continue
+
+                # connection_angle_diff = connection_angle_diffs[0]
+
+                # # Check that the shapes themselves have rotated by the same
+                # # angle. NOTE: Need to be careful with shapes that have
+                # # rotational symmetry
+                # template_angles = template.angles
+                # orientation_diffs = new_angles - template_angles
+                # orientation_diffs = np.array(
+                #     [
+                #         geometry_utils.get_symmetric_reduced_angle(a, b)
+                #         for a, b in zip(orientation_diffs, angle_mods)
+                #     ]
+                # )
+
+                # # Now account for the fact that some special shapes have a
+                # # non-trivial rotational symmetry group.
+                # # These sets are angles associated with special shapes
+                # square_angles = orientation_diffs[
+                #     np.where(np.isclose(angle_mods, np.pi / 2))
+                # ]
+                # rectangle_angles = orientation_diffs[
+                #     np.where(np.isclose(angle_mods, np.pi))
+                # ]
+                # other_angles = orientation_diffs[
+                #     np.where(np.isclose(angle_mods, 2 * np.pi))
+                # ]
+
+                # # 2.1) Check that the shapes without symmetries are rotated by
+                # # the same angle
+                # others_same = len(other_angles) == 0 or np.allclose(
+                #     other_angles, other_angles[0]
+                # )
+                # if not others_same:
+                #     continue
+
+                # # 2.2) Check that the rectangles in the shapes set have the same
+                # # rotation angle as the ones without symmetry. Rectangle
+                # # orientations are the same if they differ by pi radians
+                # reduced_others = np.array(
+                #     [
+                #         geometry_utils.get_symmetric_reduced_angle(
+                #             other_angle, np.pi
+                #         )
+                #         for other_angle in other_angles
+                #     ]
+                # )
+
+                # if np.ndim(reduced_others) == 2:
+                #     reduced_others = np.array([])
+
+                # if len(rectangle_angles) > 0:
+                #     rect_combined = np.concatenate(
+                #         (rectangle_angles, reduced_others)
+                #     )
+                # else:
+                #     rect_combined = reduced_others
+
+                # rectangles_same = len(rectangle_angles) == 0 or np.allclose(
+                #     rect_combined, rect_combined[0]
+                # )
+                # if not rectangles_same:
+                #     continue
+
+                # # 2.3) Check that the squares in the shapes set have the same
+                # # rotation angle as the rectangles and ones without symmetry.
+                # # square orientations are the same if they differ by pi/2
+                # # radians
+                # reduced_others = np.array(
+                #     [
+                #         geometry_utils.get_symmetric_reduced_angle(
+                #             rectangle_angle, np.pi / 2
+                #         )
+                #         for rectangle_angle in rectangle_angles
+                #     ]
+                # )
+                # reduced_rectangles = np.array(
+                #     [
+                #         geometry_utils.get_symmetric_reduced_angle(
+                #             rectangle_angle, np.pi / 2
+                #         )
+                #         for rectangle_angle in rectangle_angles
+                #     ]
+                # )
+                # if np.ndim(reduced_others) == 2:
+                #     reduced_others = np.array([])
+                # if np.ndim(reduced_rectangles) == 2:
+                #     reduced_rectangles = np.array([])
+
+                # if len(reduced_others) > 0:
+                #     square_combined = np.concatenate(
+                #         (square_angles, reduced_others)
+                #     )
+                # else:
+                #     square_combined = square_angles
+
+                # if len(reduced_rectangles) > 0:
+                #     square_combined = np.concatenate(
+                #         (square_combined, reduced_rectangles)
+                #     )
+
+                # squares_same = len(square_angles) == 0 or np.allclose(
+                #     square_combined, square_combined[0]
+                # )
+                # if not squares_same:
+                #     continue
+
+                # # Finally, check whether or not the shape rotation angle is the
+                # # same as the angle through which the connections were rotated.
+                # # We need a representative from the four shapes, but we don't
+                # # know what symmetries they have
+                # if len(other_angles) > 0:
+                #     orientation_rep = other_angles[0]
+                #     mod = 2 * np.pi
+                # elif len(rectangle_angles) > 0:
+                #     orientation_rep = rectangle_angles[0]
+                #     mod = np.pi
+                # else:
+                #     orientation_rep = square_angles[0]
+                #     mod = np.pi / 2
+
+                # orientation_connection_diff = (
+                #     orientation_rep
+                #     - geometry_utils.get_symmetric_reduced_angle(
+                #         connection_angle_diff, mod
+                #     )
+                # )
+
+                # is_same_orientation_connection = np.isclose(
+                #     geometry_utils.get_symmetric_reduced_angle(
+                #         orientation_connection_diff, mod
+                #     ),
+                #     0.0,
+                # )
+                # if not is_same_orientation_connection:
+                #     continue
+
+                # # If we arrive here we've passed all tests and the new
+                # # quadruple must be congruent to the template
+                # is_congruent = True
+                # break
 
             if is_congruent:
                 # We are equal to one of the templates. Build the new shape
                 new_class_number = matched_index
                 is_template = False
+                # new_orientation = orientation_rep
 
             else:
                 # If we reach here, we need to make a new template
                 next_index += 1
                 new_class_number = next_index
                 is_template = True
+                # new_orientation = 0.0
 
             new_quadruple = ShapeQuadruple(
                 singles=(i, j, u, v),
@@ -589,6 +773,7 @@ class ShapeClassifier:
         parallelised_function = functools.partial(
             self._get_domains_templates_partial,
             mode_grid=self.mode_grid,
+            progress_bar=self.logger.progress_bar,
         )
         partial_templates = array_utils.split_list(
             quadruple_templates, num_processes
@@ -604,11 +789,13 @@ class ShapeClassifier:
         return templates_domain
 
     @staticmethod
-    def _get_domains_templates_partial(quadruple_templates, mode_grid):
+    def _get_domains_templates_partial(
+        quadruple_templates, mode_grid, progress_bar
+    ):
         """Get template domains as internal attribute"""
 
         templates_domain = {}
-        for template in quadruple_templates:
+        for template in progress_bar(quadruple_templates):
             new_domain = template.get_domain(mode_grid)
             template.domain = new_domain
             templates_domain[str(template.class_number)] = template
@@ -628,7 +815,7 @@ class ShapeClassifier:
         """Get quadruples with domains for quadruples that are not templates"""
 
         others_domain = []
-        for quad in quadruples:
+        for quad in self.logger.progress_bar(quadruples):
             # Skip over templates, since these are already done
             if quad.is_template:
                 continue

@@ -6,14 +6,16 @@ import numpy as np
 import scipy.sparse
 import sksparse.cholmod
 
-from random_matrix.input_statistics import (index_finder, integration_task,
-                                            medium_parameters,
-                                            medium_statistics,
-                                            shape_classifier)
-from random_matrix.input_statistics.input_statistics_logger import \
-    InputStatisticsManagerLogger
+from random_matrix.input_statistics import (
+    index_finder,
+    input_statistics_logger,
+    integration_task,
+    medium_parameters,
+    medium_statistics,
+    shape_classifier,
+)
 from random_matrix.modes import mode_grid
-from random_matrix.utils import geometry_utils, matrix_utils
+from random_matrix.utils import matrix_utils
 from random_matrix.utils.types import FloatLike
 
 
@@ -23,24 +25,49 @@ class InputStatisticsManager:
         medium_parameters: medium_parameters.MediumParameters,
         medium_statistics: medium_statistics.MediumStatistics,
         mode_grid: mode_grid.ModeGrid,
-        logger=InputStatisticsManagerLogger(),
+        use_logger: bool = True,
     ) -> None:
         """Input statistics manager class"""
 
         self.medium_parameters = medium_parameters
         self.medium_statistics = medium_statistics
         self.mode_grid = mode_grid
-        self.logger = logger
 
-        # Attributes calculated from the input data
+        # Set up loggers based on boolean
+        if use_logger:
+            self.logger = (
+                input_statistics_logger.InputStatisticsManagerLogger()
+            )
+            index_finder_logger = input_statistics_logger.IndexFinderLogger()
+            shape_classifier_logger = (
+                input_statistics_logger.ShapeClassifierLogger()
+            )
+            integration_task_preparer_logger = (
+                input_statistics_logger.IntegrationTaskPreparerLogger()
+            )
+        else:
+            self.logger = input_statistics_logger.NullLogger()
+            index_finder_logger = input_statistics_logger.NullLogger()
+            shape_classifier_logger = input_statistics_logger.NullLogger()
+            integration_task_preparer_logger = (
+                input_statistics_logger.NullLogger()
+            )
+
+        # Set up class attributes
         self.index_finder = index_finder.IndexFinder(
-            mode_grid, medium_parameters
+            mode_grid, index_finder_logger
         )
-        self.shape_classifier = shape_classifier.ShapeClassifier(mode_grid)
+
+        self.shape_classifier = shape_classifier.ShapeClassifier(
+            mode_grid, shape_classifier_logger
+        )
 
         self.integration_task_preparer = (
             integration_task.IntegrationTaskPreparer(
-                mode_grid, medium_parameters, medium_statistics
+                mode_grid,
+                medium_parameters,
+                medium_statistics,
+                integration_task_preparer_logger,
             )
         )
 
@@ -61,6 +88,7 @@ class InputStatisticsManager:
             quadruples, quadruple_templates, singles
         )
 
+        
         # Prepare and execute integration tasks
         integration_task_list = self._get_integration_tasks(
             quadruples, independent_elements, indices
@@ -93,7 +121,7 @@ class InputStatisticsManager:
                 [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
             ]
         )
-        
+
         return cov, pseudo_cov, sigma
         with open("cov.pkl", "wb") as f:
             pickle.dump(cov, f)
@@ -126,8 +154,8 @@ class InputStatisticsManager:
     def show_report(self):
         self.index_finder.show_report()
         self.shape_classifier.show_report()
-        self.integration_task_preparer.show_report()
-        self.logger.show_report()
+        # self.integration_task_preparer.show_report()
+        # self.logger.show_report()
 
     # -------------------------------------------------------------------------
     # Mean

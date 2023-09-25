@@ -1,6 +1,6 @@
 import pickle
 import time
-
+import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse
@@ -9,68 +9,138 @@ import shapely
 from random_matrix.amplitude_matrix import isotropic_sphere
 from random_matrix.input_statistics import density_function, density_integrals
 from random_matrix.input_statistics.density_function import (
-    DeltaDensityFactor, DensityFunction, DensityFunctionTerm,
-    RegularDensityFactor)
+    DeltaDensityFactor,
+    DensityFunction,
+    DensityFunctionTerm,
+    RegularDensityFactor,
+)
 from random_matrix.input_statistics.index_finder import IndexFinder
-from random_matrix.input_statistics.input_statistics_manager import \
-    InputStatisticsManager
-from random_matrix.input_statistics.integration_task import \
-    IntegrationTaskPreparer
+from random_matrix.input_statistics.input_statistics_manager import (
+    InputStatisticsManager,
+)
+from random_matrix.input_statistics.integration_task import (
+    IntegrationTaskPreparer,
+)
 from random_matrix.input_statistics.medium_parameters import MediumParameters
 from random_matrix.input_statistics.medium_statistics import (
-    MediumStatistics, ParticleStatistics)
+    MediumStatistics,
+    ParticleStatistics,
+)
 from random_matrix.modes import mode_grid, mode_grid_generator
 from random_matrix.scattering_matrix import sampler
-from random_matrix.utils import (array_utils, function_utils, geometry_utils,
-                                 integration_utils, special_functions)
-
-np.set_printoptions(precision=2)
-
-mode_grid = mode_grid_generator.from_tiling(
-    tiling_type="rectangles",
-    side_length=(0.9, 0.9),
-    r_lim=1.2,
-    grid_wave_type="propagating",
-    rotation_angle=0.0,
-    translation_vector=np.array([0.0, 0.0]),
+from random_matrix.utils import (
+    array_utils,
+    function_utils,
+    geometry_utils,
+    integration_utils,
+    special_functions,
 )
 
-mode_grid.plot(show_indices=True)
-wavelength = 500e-9
-slab_thickness = 1.8992695221776513e-06
-number_density = 5.921762640653617e17
-medium_parameters = MediumParameters(
-    wavelength=wavelength,
-    number_density=number_density,
-    slab_thickness=slab_thickness,
-)
+side_lengths = [0.9 - 0.01 * i for i in range(60)]
+for side_length in side_lengths:
+    np.set_printoptions(precision=2)
+    warnings.filterwarnings("ignore")
+    mode_grid = mode_grid_generator.from_tiling(
+        tiling_type="rectangles",
+        side_length=(side_length, side_length),
+        r_lim=1.2,
+        grid_wave_type="propagating",
+        rotation_angle=0.0,
+        translation_vector=np.array([0.0, 0.0]),
+    )
 
+    mode_grid.plot(show_indices=True)
+    plt.savefig(f"./data/figures/s={side_length}_mode_grid.svg", format="svg")
 
-term = DensityFunctionTerm.from_delta({"x": 2.0, "m": 1.2})
-particle_statistics = ParticleStatistics(
-    term,
-    isotropic_sphere.get_A,
-    isotropic_sphere.get_A_product,
-    isotropic_sphere.get_A_product_conj,
-)
-medium_statistics = MediumStatistics([particle_statistics])
+    wavelength = 500e-9
+    slab_thickness = 1.8992695221776513e-06
+    number_density = 5.921762640653617e17
+    medium_parameters = MediumParameters(
+        wavelength=wavelength,
+        number_density=number_density,
+        slab_thickness=slab_thickness,
+    )
 
-input_statistics_manager = InputStatisticsManager(
-    medium_parameters, medium_statistics, mode_grid
-)
-# mode_grid.plot(show_indices=True)
-cov, pcov, sigma = input_statistics_manager.get_statistics()
+    term = DensityFunctionTerm.from_delta({"x": 2.0, "m": 1.2})
+    particle_statistics = ParticleStatistics(
+        term,
+        isotropic_sphere.get_A,
+        isotropic_sphere.get_A_product,
+        isotropic_sphere.get_A_product_conj,
+    )
+    medium_statistics = MediumStatistics([particle_statistics])
 
-# plt.figure()
-# plt.spy(cov)
+    input_statistics_manager = InputStatisticsManager(
+        medium_parameters, medium_statistics, mode_grid
+    )
+    # mode_grid.plot(show_indices=True)
+    cov, pseudo, sigma = input_statistics_manager.get_statistics()
+    plt.figure()
+    plt.spy(cov, markersize=0.01)
+    plt.title("Covariance matrix")
+    plt.savefig(f"./data/figures/s={side_length}_cov.svg", format="svg")
 
-# plt.figure()
-# plt.spy(pcov)
+    nans_cov = np.isnan(cov.todense())
+    plt.figure()
+    plt.spy(nans_cov, markersize=0.1)
+    plt.title("Covariance matrix NaN positions")
+    plt.savefig(f"./data/figures/s={side_length}_cov_nan.svg", format="svg")
 
-# plt.figure()
-# plt.spy(sigma)
+    plt.figure()
+    plt.spy(pseudo, markersize=0.1)
+    plt.title("Pseudo covariance matrix")
+    plt.savefig(f"./data/figures/s={side_length}_pseudo.svg", format="svg")
 
-input_statistics_manager.show_report()
+    nans_pseudo = np.isnan(pseudo.todense())
+    plt.figure()
+    plt.spy(nans_pseudo, markersize=0.1)
+    plt.title("Pseudo covariance matrix NaN positions")
+    plt.savefig(f"./data/figures/s={side_length}_pseudo_nan.svg", format="svg")
+
+    plt.figure()
+    plt.spy(sigma, markersize=0.1)
+    plt.title("Pseudo covariance matrix")
+    plt.savefig(f"./data/figures/s={side_length}_sigma.svg", format="svg")
+
+    nans_sigma = np.isnan(sigma.todense())
+    plt.figure()
+    plt.spy(nans_sigma, markersize=0.1)
+    plt.title("Pseudo covariance matrix NaN positions")
+    plt.savefig(f"./data/figures/s={side_length}_sigma_nan.svg", format="svg")
+
+    with open("./data/figures/density.txt", "a") as file:
+        file.write(f"Side length = {side_length}\n")
+        num_elements = np.shape(cov)[0] ** 2
+        num_non_zero = np.count_nonzero(cov.todense())
+        density = num_non_zero / num_elements * 100
+        file.write(f"Cov density: {density}\n")
+
+        num_elements = np.shape(cov)[0] ** 2
+        num_non_zero = np.count_nonzero(nans_cov)
+        density = num_non_zero / num_elements * 100
+        file.write(f"Cov NaN density: {density}\n")
+
+        num_elements = np.shape(pseudo)[0] ** 2
+        num_non_zero = np.count_nonzero(pseudo.todense())
+        density = num_non_zero / num_elements * 100
+        file.write(f"Pseudo density: {density}\n")
+
+        num_elements = np.shape(pseudo)[0] ** 2
+        num_non_zero = np.count_nonzero(nans_pseudo)
+        density = num_non_zero / num_elements * 100
+        file.write(f"Pseudo cov NaN density: {density}\n")
+
+        num_elements = np.shape(sigma)[0] ** 2
+        num_non_zero = np.count_nonzero(sigma.todense())
+        density = num_non_zero / num_elements * 100
+        file.write(f"Sigma density: {density}\n")
+
+        num_elements = np.shape(sigma)[0] ** 2
+        num_non_zero = np.count_nonzero(nans_sigma)
+        density = num_non_zero / num_elements * 100
+        file.write(f"Sigma NaN density: {density}\n\n")
+
+# input_statistics_manager.show_report()
 # Prepare and execute integration tasks
 # quadruple_indices = indices["covariance"]["pp,pp"]["t,t"]
 # # integration_task_list = input_statistics_manager._get_integration_tasks(indices)

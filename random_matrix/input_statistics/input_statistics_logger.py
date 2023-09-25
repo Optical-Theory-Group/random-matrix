@@ -1,26 +1,51 @@
 """Class for logging operations associated with finding the input statistics"""
 
+import contextlib
+import datetime
 import time
+from abc import abstractmethod
 from contextlib import contextmanager
-from typing import Generator
+from typing import Any, Generator
+
+import tqdm
+
+
+class NullLogger:
+    """Empty logger that is used when logging is undesired"""
+
+    def __init__(self) -> None:
+        self.log = contextlib.nullcontext
+
+    def show_report(self, *args: Any) -> None:
+        return None
+
+    @staticmethod
+    def progress_bar(iterable: Any) -> Any:
+        return iterable
 
 
 class InputStatisticsLogger:
-    """Base class for printing console messages and timing different operations
-
-    Specific methods can be handled by subclasses.
-    """
+    """Base class for printing console messages and timing different
+    operations. Should not be used directly."""
 
     def __init__(self) -> None:
         self.times: dict[str, float] = {}
         self.messages: dict[str, str] = {}
+        self.progress_bar = tqdm.tqdm
+
+    # -------------------------------------------------------------------------
+    # Timing and logging methods
+    # -------------------------------------------------------------------------
 
     @contextmanager
     def log(self, operation: str) -> Generator[None, None, None]:
         """Main logging method that handles printing and method timing."""
 
         # Print start message
-        print(self.messages.get(operation, ""), flush=True)
+        print(
+            f"{self._get_date_time()} {self.messages.get(operation, '')}",
+            flush=True,
+        )
 
         # Time code for performance
         start = time.perf_counter()
@@ -29,22 +54,48 @@ class InputStatisticsLogger:
         self.times[operation] = end - start
 
         # Print end message
-        print("Done\n", flush=True)
+        print(f"{self._get_date_time()} Done", flush=True)
 
-    def time_operation(self, operation: str) -> float:
-        """Retrieve the time for a particular opearation"""
+    @staticmethod
+    def _get_date_time() -> str:
+        """Return the current day and time"""
 
-        return self.times.get(operation, 0.0)
+        return datetime.datetime.now().strftime("[%m/%d %H:%M:%S]")
 
-    def time_report(self) -> str:
+    # -------------------------------------------------------------------------
+    #  Report methods
+    # -------------------------------------------------------------------------
+
+    def show_report(self, *args: Any) -> None:
+        """Main report method. Prints a report to the terminal."""
+        
+        self._show_base_report()
+        self._show_subclass_report(*args)
+
+    def _show_base_report(self) -> None:
+        """Prints the report common to all subclasses"""
+
+        print(self.get_time_report(), flush=True)
+
+    @abstractmethod
+    def _show_subclass_report(self, *args: Any) -> None:
+        """Prints report specific to subclasses"""
+        pass
+
+    def get_time_report(self) -> str:
         """Get a report of times for all operations"""
 
-        return "".join(
+        return "Times:\n" + "".join(
             [
-                f"{message}: {self.time_operation(operation)}\n"
+                f"{message}: {self.get_operation_time(operation)}\n"
                 for operation, message in self.messages.items()
             ]
         )
+
+    def get_operation_time(self, operation: str) -> float:
+        """Retrieve the time for a particular opearation"""
+
+        return self.times.get(operation, 0.0)
 
 
 class IndexFinderLogger(InputStatisticsLogger):
@@ -57,7 +108,24 @@ class IndexFinderLogger(InputStatisticsLogger):
             "pseudo_covariance": "Calculate pseudo_covariance indices",
         }
 
-    def indices_report(self, independent_elements, indices):
+    # -------------------------------------------------------------------------
+    # Report methods
+    # -------------------------------------------------------------------------
+
+    def _show_subclass_report(
+        self,
+        independent_elements: dict[str, dict[str, set[tuple[int, int]]]],
+        indices: dict[str, dict[str, dict[str, list[tuple[int, int]]]]],
+    ) -> None:
+        print(
+            self.get_indices_report(independent_elements, indices), flush=True
+        )
+
+    @staticmethod
+    def get_indices_report(
+        independent_elements: dict[str, dict[str, set[tuple[int, int]]]],
+        indices: dict[str, dict[str, dict[str, list[tuple[int, int]]]]],
+    ) -> str:
         out = (
             f"Number of independent elements:\n"
             f"t: {len(independent_elements['pp']['t'])}\n"
@@ -83,10 +151,6 @@ class IndexFinderLogger(InputStatisticsLogger):
         )
         return out
 
-    def show_report(self, independent_elements, indices) -> None:
-        print(self.time_report(), flush=True)
-        print(self.indices_report(independent_elements, indices), flush=True)
-
 
 class ShapeClassifierLogger(InputStatisticsLogger):
     def __init__(self) -> None:
@@ -98,19 +162,32 @@ class ShapeClassifierLogger(InputStatisticsLogger):
             "others": "Calculate other integration domains",
         }
 
-    def shapes_report(self, single_templates, quadruple_templates):
-        out = (
-            f"Number of single templates: {single_templates}\n"
-            f"Number of quadruple templates: {quadruple_templates}\n"
-        )
-        return out
+    # -------------------------------------------------------------------------
+    # Report methods
+    # -------------------------------------------------------------------------
 
-    def show_report(self, single_templates, quadruple_templates) -> None:
-        print(self.time_report(), flush=True)
+    def _show_subclass_report(
+        self,
+        num_single_templates: int,
+        num_quadruple_templates: int,
+    ) -> None:
         print(
-            self.shapes_report(single_templates, quadruple_templates),
+            self.get_shapes_report(
+                num_single_templates, num_quadruple_templates
+            ),
             flush=True,
         )
+
+    @staticmethod
+    def get_shapes_report(
+        num_single_templates: int,
+        num_quadruple_templates: int,
+    ) -> str:
+        out = (
+            f"Number of single templates: {num_single_templates}\n"
+            f"Number of quadruple templates: {num_quadruple_templates}\n"
+        )
+        return out
 
 
 class IntegrationTaskPreparerLogger(InputStatisticsLogger):
@@ -123,7 +200,7 @@ class IntegrationTaskPreparerLogger(InputStatisticsLogger):
         }
 
     def show_report(self) -> None:
-        print(self.time_report(), flush=True)
+        print(self.get_time_report(), flush=True)
 
 
 class InputStatisticsManagerLogger(InputStatisticsLogger):
