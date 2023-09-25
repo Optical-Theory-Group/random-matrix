@@ -749,3 +749,16 @@ def get_circular_angle(point):
     if theta < 0.0:
         theta = theta + 2 * np.pi
     return theta
+
+
+def get_symmetric_reduced_angle(angle, angular_range):
+    """Given an angle and a range, reduce the angle to the interval
+    [-range/2, range/2]
+    """
+
+    mod = np.mod(angle, angular_range)
+    if np.isclose(mod, angular_range / 2) or mod > angular_range / 2:
+        mod = -(angular_range - mod)
+    if np.isclose(mod, -angular_range / 2):
+        mod = angular_range / 2
+    return mod

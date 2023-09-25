@@ -1,13 +1,13 @@
+import contextlib
 import functools
 import multiprocessing as mp
 import os
+from typing import Any
 
 import numpy as np
 import tqdm
 
-from random_matrix.input_statistics.input_statistics_logger import (
-    IndexFinderLogger,
-)
+from random_matrix.input_statistics import input_statistics_logger
 from random_matrix.modes.mode_grid import ModeGrid
 from random_matrix.utils import array_utils, geometry_utils
 
@@ -29,7 +29,7 @@ class IndexFinder:
     def __init__(
         self,
         mode_grid: ModeGrid,
-        logger: IndexFinderLogger = IndexFinderLogger(),
+        logger: input_statistics_logger.InputStatisticsLogger,
     ) -> None:
         self.mode_grid = mode_grid
         self.logger = logger
@@ -41,11 +41,12 @@ class IndexFinder:
         dict[str, dict[str, dict[str, list[tuple[int, int]]]]],
     ]:
         """Main method for getting independent elements and indices of
-        non-zero statistics."""
+        non-zero statistics"""
 
         # First determine the independent elements due to reciprocity.
         with self.logger.log("independent_elements"):
             independent_elements = self.get_independent_element_indices()
+
         self.independent_elements = independent_elements
 
         # Get indices for where the mean, covariance and pseudo_covariance are
@@ -53,10 +54,12 @@ class IndexFinder:
         indices = {}
         with self.logger.log("mean"):
             indices["mean"] = self._get_mean_indices(independent_elements)
+
         with self.logger.log("covariance"):
             indices["covariance"] = self._get_covariance_indices(
                 independent_elements
             )
+
         with self.logger.log("pseudo_covariance"):
             indices["pseudo_covariance"] = self._get_pseudo_covariance_indices(
                 independent_elements
@@ -103,7 +106,7 @@ class IndexFinder:
 
         indices = self.mode_grid.propagating_indices
 
-        for i in tqdm.tqdm(indices):
+        for i in self.logger.progress_bar(indices):
             for j in indices:
                 # All elements of t must be included
                 independent_elements["t"].add((j, i))
@@ -159,7 +162,7 @@ class IndexFinder:
 
         indices = self.mode_grid.propagating_indices
 
-        for index in tqdm.tqdm(indices):
+        for index in self.logger.progress_bar(indices):
             new_indices = (index, index)
             if new_indices in independent_elements["t"]:
                 mean_indices["t"].append(new_indices)
@@ -252,6 +255,7 @@ class IndexFinder:
             independent_elements_one=independent_elements_one,
             independent_elements_two=independent_elements_two,
             elements=elements,
+            progress_bar=self.logger.progress_bar,
         )
         partial_elements = array_utils.split_list(elements, num_processes)
 
@@ -268,11 +272,12 @@ class IndexFinder:
 
     @staticmethod
     def _get_covariance_indices_pppp_partial(
+        partial_elements: list[tuple[int, int, int]],
         mode_grid: ModeGrid,
         independent_elements_one: dict[str, set[tuple[int, int]]],
         independent_elements_two: dict[str, set[tuple[int, int]]],
         elements: list[tuple[int, int, int]],
-        partial_elements: list[tuple[int, int, int]],
+        progress_bar: Any,
     ) -> dict[str, list[tuple[int, int, int, int]]]:
         """Get indices of 2x2 blocks in the pp section of the scattering
         matrix for which the mean needs to be calculated.
@@ -299,7 +304,7 @@ class IndexFinder:
         # kept or not
         threshold_area = mode_grid.by_index(mode_grid.central_index).weight * 2
 
-        for index_one, i, j in tqdm.tqdm(partial_elements):
+        for index_one, i, j in progress_bar(partial_elements):
             # Second loop starts form index one. We can ignore half of
             # the cases, because they're just the same thing with the order
             # of the shapes swapped.
