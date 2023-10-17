@@ -140,6 +140,9 @@ class IntegrationTask:
     def execute_task(self) -> IntegrationResult:
         """Perofrm the integral associated with the task."""
 
+        # print(self.statistic_type)
+        # print(self.block_location)
+
         match self.statistic_type:
             case "mean":
                 integral = integration_utils.basic_triangle_integral(
@@ -157,6 +160,7 @@ class IntegrationTask:
         # Results should be added over the slices. This corresponds to adding
         # integrals over the triangular subregions of the integration domain
 
+        np.nan_to_num(integral, 0.0)
         output_dim, num_outputs = np.shape(integral)
         slices = [s[0] for s in self.sub_block_locations]
         locations = [s[1] for s in self.sub_block_locations]
@@ -521,6 +525,16 @@ class IntegrationTaskPreparer:
                 * sinc_factor
                 * sec_factor
             )
+
+            # if np.any(np.isinf(sinc_factor)):
+            #     print("Nan in sinc")
+            # elif np.any(np.isinf(sec_factor)):
+            #     print("Nan in sec")
+            # elif np.any(np.isinf(output)):
+            #     print("Nan in output")
+            # else:
+            #     print("All Good!")
+
             return output
 
         return covariance_integrand
