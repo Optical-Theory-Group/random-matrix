@@ -990,7 +990,7 @@ class IntegrationTaskPreparer:
 
                 # Add location to sub_block_locations
                 new_slice = slice(stack_length[block], new_stack_length)
-                new_indices = (i, j, -v, -u)
+                new_indices = (i, j, -u, -v)
                 new_sub_block_location = (new_slice, new_indices)
                 sub_block_locations[block].append(new_sub_block_location)
 

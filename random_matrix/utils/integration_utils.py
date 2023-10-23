@@ -170,9 +170,9 @@ def basic_simplex_integral(
         integration_domain = np.transpose(integration_domain, (1, 0, 2))
 
     integral = scheme.integrate(function, integration_domain)
-    if np.any(np.isinf(integral)):
-        print("Nan after integration")
-    else:
-        print("All good!")
+    # if np.any(np.isinf(integral)):
+    #     print("Nan after integration")
+    # else:
+    #     print("All good!")
 
     return integral

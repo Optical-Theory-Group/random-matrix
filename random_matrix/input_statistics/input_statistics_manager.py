@@ -87,7 +87,6 @@ class InputStatisticsManager:
         quadruples = self._get_domains(
             quadruples, quadruple_templates, singles
         )
-
         
         # Prepare and execute integration tasks
         integration_task_list = self._get_integration_tasks(
@@ -123,12 +122,15 @@ class InputStatisticsManager:
         )
 
         return cov, pseudo_cov, sigma
-        with open("cov.pkl", "wb") as f:
-            pickle.dump(cov, f)
 
-        # chol = self._get_chol(sigma)
 
-        return cov
+        # return cov, pseudo_cov, sigma
+        # with open("cov.pkl", "wb") as f:
+        #     pickle.dump(cov, f)
+
+        chol = self._get_chol(sigma)
+
+        return mean_S, chol
 
     def _get_indices(self) -> dict[str, dict[str, set[tuple[int, int]]]]:
         return self.index_finder.get_indices()
@@ -394,7 +396,7 @@ class InputStatisticsManager:
             except sksparse.cholmod.CholmodNotPositiveDefiniteError:
                 pass
 
-        print(f"10^{i}")
+        print(f"POWER USED FOR CHOL: 10^{i}")
         return chol
 
     # -------------------------------------------------------------------------

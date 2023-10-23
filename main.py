@@ -36,11 +36,11 @@ from random_matrix.utils import (
     special_functions,
 )
 
-side_lengths = [0.9 - 0.01 * i for i in range(60)]
-side_lengths = [0.4]
+# side_lengths = [0.9 - 0.01 * i for i in range(60)]
+side_lengths = [0.8]
 for side_length in side_lengths:
     # np.set_printoptions(precision=3)
-    # warnings.filterwarnings("ignore")
+    warnings.filterwarnings("ignore")
     mode_grid = mode_grid_generator.from_tiling(
         tiling_type="rectangles",
         side_length=(side_length, side_length),
@@ -51,9 +51,10 @@ for side_length in side_lengths:
     )
 
     mode_grid.plot(show_indices=True)
-    plt.savefig(
-        f"./data/figures/s={side_length:.2f}_mode_grid.svg", format="svg"
-    )
+    
+    # plt.savefig(
+    #     f"./data/figures/s={side_length:.2f}_mode_grid.svg", format="svg"
+    # )
 
     wavelength = 500e-9
     slab_thickness = 1.8992695221776513e-06
@@ -76,99 +77,138 @@ for side_length in side_lengths:
     input_statistics_manager = InputStatisticsManager(
         medium_parameters, medium_statistics, mode_grid
     )
-    # mode_grid.plot(show_indices=True)
-    cov, pseudo, sigma = input_statistics_manager.get_statistics()
-
-    # indices = np.where(nans_cov)
-    # i,j = indices
-
-    # nx,ny = cov.shape
-    # s1 = int(nx/4)
-
-    # rr = nans_cov[0:s1,0:s1]
-    # tt = nans_cov[s1:2*s1, s1:2*s1]
-    # t2t2 = nans_cov[s1*2:s1*3, s1*2:s1*3]
-    # r2r2 = nans_cov[s1*3:s1*4, s1*3:s1*4]
-
-    # plt.figure()
-    # plt.spy(rr, markersize=0.1)
-    # plt.figure()
-    # plt.spy(tt, markersize=0.1)
-    # plt.figure()
-    # plt.spy(t2t2, markersize=0.1)
-    # plt.figure()
-    # plt.spy(r2r2, markersize=0.1)
+    
+    cov, pseudo_cov, sigma = input_statistics_manager.get_statistics()
 
     plt.figure()
-    plt.spy(cov, markersize=0.01)
-    plt.title("Covariance matrix")
-    plt.savefig(f"./data/figures/s={side_length:.2f}_cov.svg", format="svg")
-
-    nans_cov = np.isnan(pseudo.todense())
+    plt.spy(cov, markersize=0.1)
     plt.figure()
-    plt.spy(nans_cov, markersize=0.1)
-    plt.title("Covariance matrix NaN positions")
-    plt.savefig(
-        f"./data/figures/s={side_length:.2f}_cov_nan.svg", format="svg"
-    )
-
-    plt.figure()
-    plt.spy(pseudo, markersize=0.1, color="blue")
-    plt.title("Pseudo covariance matrix")
-    plt.savefig(f"./data/figures/s={side_length:.2f}_pseudo.svg", format="svg")
-
-    nans_pseudo = np.isnan(pseudo.todense())
-    plt.figure()
-    plt.spy(nans_pseudo, markersize=0.1, color="orange")
-    plt.title("Pseudo covariance matrix NaN positions")
-    plt.savefig(
-        f"./data/figures/s={side_length:.2f}_pseudo_nan.svg", format="svg"
-    )
-
+    plt.spy(pseudo_cov, markersize=0.1)
     plt.figure()
     plt.spy(sigma, markersize=0.1)
-    plt.title("Pseudo covariance matrix")
-    plt.savefig(f"./data/figures/s={side_length:.2f}_sigma.svg", format="svg")
 
-    nans_sigma = np.isnan(sigma.todense())
-    plt.figure()
-    plt.spy(nans_sigma, markersize=0.1)
-    plt.title("Pseudo covariance matrix NaN positions")
-    plt.savefig(
-        f"./data/figures/s={side_length:.2f}_sigma_nan.svg", format="svg"
-    )
+    # c = cov.todense()
+    # d = np.diag(c)
+    # w = np.where(d < 0)
+    
+    
+    # size, size = np.shape(cov)
+    # t_low = int(size/4)
+    # t_high = int(2*size/4)
 
-    with open("./data/figures/density.txt", "a") as file:
-        file.write(f"Side length = {side_length:.2f}\n")
-        num_elements = np.shape(cov)[0] ** 2
-        num_non_zero = np.count_nonzero(cov.todense())
-        density = num_non_zero / num_elements * 100
-        file.write(f"Cov density: {density:.2f}\n")
+    # cov_t = cov[t_low:t_high, t_low:t_high]
+    # pseudo_t = pseudo_cov[t_low:t_high, t_low:t_high]
+    # cov_r = cov[0:t_low, 0:t_low]
+    # pseudo_r = pseudo_cov[0:t_low, 0:t_low]
+    
+    # plt.spy(cov_r, markersize=0.1)
+    
+    
+    # plt.figure()
+    # plt.spy(cov_t)
+    # plt.figure()
+    # plt.spy(pseudo_t)
+    # plt.figure()
+    # plt.spy(cov_r)
+    # plt.figure()
+    # plt.spy(pseudo_r)
+# eigs = scipy.sparse.linalg.eigs(sigma, k=1, which="SR")
+# indices = np.where(nans_cov)
+# i,j = indices
 
-        num_elements = np.shape(cov)[0] ** 2
-        num_non_zero = np.count_nonzero(nans_cov)
-        density = num_non_zero / num_elements * 100
-        file.write(f"Cov NaN density: {density:.2f}\n")
+# nx,ny = cov.shape
+# s1 = int(nx/4)
 
-        num_elements = np.shape(pseudo)[0] ** 2
-        num_non_zero = np.count_nonzero(pseudo.todense())
-        density = num_non_zero / num_elements * 100
-        file.write(f"Pseudo density: {density:.2f}\n")
+# rr = nans_cov[0:s1,0:s1]
+# tt = nans_cov[s1:2*s1, s1:2*s1]
+# t2t2 = nans_cov[s1*2:s1*3, s1*2:s1*3]
+# r2r2 = nans_cov[s1*3:s1*4, s1*3:s1*4]
 
-        num_elements = np.shape(pseudo)[0] ** 2
-        num_non_zero = np.count_nonzero(nans_pseudo)
-        density = num_non_zero / num_elements * 100
-        file.write(f"Pseudo cov NaN density: {density:.2f}\n")
+# plt.figure()
+# plt.spy(rr, markersize=0.1)
+# plt.figure()
+# plt.spy(tt, markersize=0.1)
+# plt.figure()
+# plt.spy(t2t2, markersize=0.1)
+# plt.figure()
+# plt.spy(r2r2, markersize=0.1)
 
-        num_elements = np.shape(sigma)[0] ** 2
-        num_non_zero = np.count_nonzero(sigma.todense())
-        density = num_non_zero / num_elements * 100
-        file.write(f"Sigma density: {density:.2f}\n")
+#     plt.figure()
+#     plt.spy(cov, markersize=0.01)
+#     plt.title("Covariance matrix")
+#     plt.savefig(f"./data/figures/s={side_length:.2f}_cov.svg", format="svg")
 
-        num_elements = np.shape(sigma)[0] ** 2
-        num_non_zero = np.count_nonzero(nans_sigma)
-        density = num_non_zero / num_elements * 100
-        file.write(f"Sigma NaN density: {density:.2f}\n\n")
+#     nans_cov = np.isnan(pseudo.todense())
+#     plt.figure()
+#     plt.spy(nans_cov, markersize=0.1)
+#     plt.title("Covariance matrix NaN positions")
+#     plt.savefig(
+#         f"./data/figures/s={side_length:.2f}_cov_nan.svg", format="svg"
+#     )
+
+#     plt.figure()
+#     plt.spy(pseudo, markersize=0.1, color="blue")
+#     plt.title("Pseudo covariance matrix")
+#     plt.savefig(f"./data/figures/s={side_length:.2f}_pseudo.svg", format="svg")
+
+#     nans_pseudo = np.isnan(pseudo.todense())
+#     plt.figure()
+#     plt.spy(nans_pseudo, markersize=0.1, color="orange")
+#     plt.title("Pseudo covariance matrix NaN positions")
+#     plt.savefig(
+#         f"./data/figures/s={side_length:.2f}_pseudo_nan.svg", format="svg"
+#     )
+
+#     plt.figure()
+#     plt.spy(sigma, markersize=0.1)
+#     plt.title("Pseudo covariance matrix")
+#     plt.savefig(f"./data/figures/s={side_length:.2f}_sigma.svg", format="svg")
+
+#     nans_sigma = np.isnan(sigma.todense())
+#     plt.figure()
+#     plt.spy(nans_sigma, markersize=0.1)
+#     plt.title("Pseudo covariance matrix NaN positions")
+#     plt.savefig(
+#         f"./data/figures/s={side_length:.2f}_sigma_nan.svg", format="svg"
+#     )
+
+#     with open("./data/figures/density.txt", "a") as file:
+#         file.write(f"Side length = {side_length:.2f}\n")
+#         num_elements = np.shape(cov)[0] ** 2
+#         num_non_zero = np.count_nonzero(cov.todense())
+#         density = num_non_zero / num_elements * 100
+#         file.write(f"Cov density: {density:.2f}\n")
+
+#         num_elements = np.shape(cov)[0] ** 2
+#         num_non_zero = np.count_nonzero(nans_cov)
+#         density = num_non_zero / num_elements * 100
+#         file.write(f"Cov NaN density: {density:.2f}\n")
+
+#         num_elements = np.shape(pseudo)[0] ** 2
+#         num_non_zero = np.count_nonzero(pseudo.todense())
+#         density = num_non_zero / num_elements * 100
+#         file.write(f"Pseudo density: {density:.2f}\n")
+
+#         num_elements = np.shape(pseudo)[0] ** 2
+#         num_non_zero = np.count_nonzero(nans_pseudo)
+#         density = num_non_zero / num_elements * 100
+#         file.write(f"Pseudo cov NaN density: {density:.2f}\n")
+
+#         num_elements = np.shape(sigma)[0] ** 2
+#         num_non_zero = np.count_nonzero(sigma.todense())
+#         density = num_non_zero / num_elements * 100
+#         file.write(f"Sigma density: {density:.2f}\n")
+
+#         num_elements = np.shape(sigma)[0] ** 2
+#         num_non_zero = np.count_nonzero(nans_sigma)
+#         density = num_non_zero / num_elements * 100
+#         file.write(f"Sigma NaN density: {density:.2f}\n\n")
+
+
+# cov = np.load("./data/new/cov.npy", allow_pickle=True).item()
+# pseudo = np.load("./data/new/pseudo.npy", allow_pickle=True).item()
+# sigma = np.load("./data/new/sigma.npy", allow_pickle=True).item()
+
 
 # input_statistics_manager.show_report()
 # Prepare and execute integration tasks
@@ -342,44 +382,46 @@ for side_length in side_lengths:
 # #     thetas.append(theta)
 # # fig, axis = plt.subplots()
 # # axis.scatter(thetas, intensity_array)
+# mean_S = np.load("./data/new/mean.npy", allow_pickle=True)
+# chol = np.load("./data/new/chol.npy", allow_pickle=True).item()
 
 
-# # # Post matrix generation
-# # n_mats = 10**3
-# # S_array = sampler.S_sampler(mean_S, chol, n_mats)
-# # size_of_S, _ = np.shape(S_array[:, :, 0])
+# # Post matrix generation
+# n_mats = 10**3
+# S_array = sampler.S_sampler(mean_S, chol, n_mats)
+# size_of_S, _ = np.shape(S_array[:, :, 0])
 
-# # intensity_array = np.zeros(my_grid.num_propagating * 2)
+# intensity_array = np.zeros(mode_grid.num_propagating * 2)
 
-# # for i in range(n_mats):
-# #     S = S_array[:, :, i]
-# #     t = S[int(size_of_S / 2) : size_of_S, 0 : int(size_of_S / 2)]
-# #     t = t - np.identity(int(size_of_S / 2))
+# for i in range(n_mats):
+#     S = S_array[:, :, i]
+#     t = S[int(size_of_S / 2) : size_of_S, 0 : int(size_of_S / 2)]
+#     t = t - np.identity(int(size_of_S / 2))
 
-# #     r = S[0 : int(size_of_S / 2), 0 : int(size_of_S / 2)]
-# #     t_col = t[:, 2 * my_grid.max_index : 2 * my_grid.max_index + 2]
-# #     r_col = r[:, 2 * my_grid.max_index : 2 * my_grid.max_index + 2]
+#     r = S[0 : int(size_of_S / 2), 0 : int(size_of_S / 2)]
+#     t_col = t[:, 2 * mode_grid.max_index : 2 * mode_grid.max_index + 2]
+#     r_col = r[:, 2 * mode_grid.max_index : 2 * mode_grid.max_index + 2]
 
-# #     thetas = []
-# #     for j in range(my_grid.num_propagating):
-# #         mode_index = j - my_grid.max_index
+#     thetas = []
+#     for j in range(mode_grid.num_propagating):
+#         mode_index = j - mode_grid.max_index
 
-# #         # t
-# #         intensity = np.linalg.norm(t_col[2 * j : 2 * j + 2, 0]) ** 2
-# #         intensity_array[j] += intensity
-# #         mode_center = my_grid.by_index(mode_index).center
-# #         cos = np.sqrt(1.0 - np.linalg.norm(mode_center) ** 2)
-# #         theta = np.arccos(cos) * 180 / np.pi
-# #         thetas.append(theta)
+#         # t
+#         intensity = np.linalg.norm(t_col[2 * j : 2 * j + 2, 0]) ** 2
+#         intensity_array[j] += intensity
+#         mode_center = mode_grid.by_index(mode_index).center
+#         cos = np.sqrt(1.0 - np.linalg.norm(mode_center) ** 2)
+#         theta = np.arccos(cos) * 180 / np.pi
+#         thetas.append(theta)
 
-# #         # r
-# #         intensity = np.linalg.norm(r_col[2 * j : 2 * j + 2, 0]) ** 2
-# #         intensity_array[j + 1] += intensity
-# #         mode_center = my_grid.by_index(mode_index).center
-# #         cos = np.sqrt(1.0 - np.linalg.norm(mode_center) ** 2)
-# #         theta = 180 - np.arccos(cos) * 180 / np.pi
-# #         thetas.append(theta)
-# # intensity_array /= n_mats
+#         # r
+#         intensity = np.linalg.norm(r_col[2 * j : 2 * j + 2, 0]) ** 2
+#         intensity_array[j + 1] += intensity
+#         mode_center = mode_grid.by_index(mode_index).center
+#         cos = np.sqrt(1.0 - np.linalg.norm(mode_center) ** 2)
+#         theta = 180 - np.arccos(cos) * 180 / np.pi
+#         thetas.append(theta)
+# intensity_array /= n_mats
 
-# # fig, axis = plt.subplots()
-# # axis.scatter(thetas, intensity_array)
+# fig, axis = plt.subplots()
+# axis.scatter(thetas, intensity_array)
