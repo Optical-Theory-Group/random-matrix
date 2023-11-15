@@ -37,7 +37,7 @@ from random_matrix.utils import (
 )
 
 # side_lengths = [0.9 - 0.01 * i for i in range(60)]
-side_lengths = [0.8]
+side_lengths = [0.4]
 for side_length in side_lengths:
     # np.set_printoptions(precision=3)
     warnings.filterwarnings("ignore")
@@ -80,12 +80,18 @@ for side_length in side_lengths:
     
     cov, pseudo_cov, sigma = input_statistics_manager.get_statistics()
 
+    cov, pseudo_cov, sigma = input_statistics_manager.get_statistics()
+    msize=0.01
     plt.figure()
-    plt.spy(cov, markersize=0.1)
+    plt.spy(cov, markersize=msize)
     plt.figure()
-    plt.spy(pseudo_cov, markersize=0.1)
+    plt.spy(pseudo_cov, markersize=msize)
     plt.figure()
-    plt.spy(sigma, markersize=0.1)
+    plt.spy(sigma, markersize=msize)
+
+    c = cov.todense()
+    d = np.diag(c)
+    w = np.where(d < 0)
 
     # c = cov.todense()
     # d = np.diag(c)
