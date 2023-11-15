@@ -36,7 +36,7 @@ mode_grid_generator.from_tiling(
     r_lim=2.0,
     grid_wave_type="all",
     rotation_angle=2.0,
-    translation_vector=np.array([0.0, 0.0]),
+    translation_vector=np.array([0.1, 0.0]),
 ).plot()
 
 # Triangles
