@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore")
 
 my_grid = mode_grid_generator.from_tiling(
     tiling_type="rectangles",
-    side_length=(0.5, 0.5),
+    side_length=(0.4, 0.4),
     r_lim=1.2,
     grid_wave_type="propagating",
     rotation_angle=0.0,

@@ -169,9 +169,13 @@ class ShapeQuadruple:
     is_template: bool
     domain = None
 
-    def get_domain(self, mode_grid) -> None:
+    def get_domain(
+        self, mode_grid, sampling_method, points_per_simplex
+    ) -> None:
         if self.is_template:
-            return self.get_domain_template(mode_grid)
+            return self.get_domain_template(
+                mode_grid, sampling_method, points_per_simplex
+            )
         else:
             return self.get_domain_others()
 
@@ -235,7 +239,7 @@ class ShapeQuadruple:
         return output
 
     def get_domain_template(
-        self, mode_grid, sampling_method="centroid"
+        self, mode_grid, sampling_method, points_per_simplex
     ) -> None:
         """Gets the integration domain associated with a template quadruple"""
 
@@ -262,15 +266,36 @@ class ShapeQuadruple:
         base_domain = geometry_utils.cartesian_product(mean_ij, mean_uv)
 
         # Add internal points according to sampling method variable
+        if points_per_simplex == 0:
+            sampling_method = "centroid"
+
         match sampling_method:
             case "simplex":
                 # Sample interior points by taking the centroids of a delaunay
                 # simplex decomposition
                 interior_delaunay = scipy.spatial.Delaunay(base_domain)
                 interior_simplices = base_domain[interior_delaunay.simplices]
-                interior_points = np.mean(interior_simplices, axis=1)
 
-            case _:
+                # Get barycentric coordinates for internal points
+                random_numbers = np.random.rand(10, 4)
+                sorted_numbers = np.sort(random_numbers, axis=1)
+                zeros = np.zeros((10, 1))
+                ones = np.ones((10, 1))
+                extended_numbers = np.hstack((zeros, sorted_numbers, ones))
+                barycentric_coordinates = np.diff(extended_numbers, axis=1)
+                points = np.matmul(
+                    interior_simplices.transpose(0, 2, 1),
+                    barycentric_coordinates.T,
+                ).T
+                interior_points = points.transpose(0, 2, 1).reshape(-1, 4)
+
+                # Picks some points from the interior points
+                random_indices = np.random.choice(
+                    interior_points.shape[0], points_per_simplex, replace=False
+                )
+                interior_points = interior_points[random_indices, :]
+
+            case "centroid":
                 interior_points = np.mean(base_domain, axis=0)
 
         base_domain = np.vstack((base_domain, interior_points))
@@ -300,7 +325,21 @@ class ShapeQuadruple:
             delaunay = scipy.spatial.Delaunay(boundary, qhull_options="QJ")
 
         new_simplices = boundary[delaunay.simplices]
-        return new_simplices
+
+        # Filter out bogus simplices
+        non_degenerate_simplices = np.array(
+            [
+                simplex
+                for simplex in new_simplices
+                if geometry_utils.is_simplex_non_degenerate(simplex)
+            ]
+        )
+
+        # Weird case
+        if len(non_degenerate_simplices) == 0:
+            non_degenerate_simplices = np.zeros((1, 7, 6))
+
+        return non_degenerate_simplices
 
     def get_domain_others(self):
         pass
@@ -316,9 +355,15 @@ class ShapeClassifier:
         self,
         mode_grid: ModeGrid,
         logger: input_statistics_logger.InputStatisticsLogger,
+        sampling_method: str,
+        points_per_simplex: int,
+        extra,
     ) -> None:
         self.mode_grid = mode_grid
         self.logger = logger
+        self.sampling_method = sampling_method
+        self.points_per_simplex = points_per_simplex
+        self.extra = extra
 
     def classify_shapes(self, quadruple_indices):
         with self.logger.log("singles"):
@@ -332,6 +377,7 @@ class ShapeClassifier:
             )
 
         self.number_quadruple_templates = len(quadruple_templates)
+        self.number_quadruples = len(quadruples)
 
         return quadruples, quadruple_templates, singles
 
@@ -350,7 +396,9 @@ class ShapeClassifier:
 
     def show_report(self) -> None:
         self.logger.show_report(
-            self.number_single_templates, self.number_quadruple_templates
+            self.number_single_templates,
+            self.number_quadruple_templates,
+            self.number_quadruples,
         )
 
     # -------------------------------------------------------------------------
@@ -774,6 +822,9 @@ class ShapeClassifier:
             self._get_domains_templates_partial,
             mode_grid=self.mode_grid,
             progress_bar=self.logger.progress_bar,
+            sampling_method=self.sampling_method,
+            points_per_simplex=self.points_per_simplex,
+            extra=self.extra,
         )
         partial_templates = array_utils.split_list(
             quadruple_templates, num_processes
@@ -790,17 +841,33 @@ class ShapeClassifier:
 
     @staticmethod
     def _get_domains_templates_partial(
-        quadruple_templates, mode_grid, progress_bar
+        quadruple_templates,
+        mode_grid,
+        progress_bar,
+        sampling_method,
+        points_per_simplex,
+        extra,
     ):
         """Get template domains as internal attribute"""
 
         templates_domain = {}
         for template in progress_bar(quadruple_templates):
-            new_domain = template.get_domain(mode_grid)
+            if not template.class_number == extra[0]:
+                continue
+            # if not template.singles == (8, 0, 8, 0):
+            #     continue
+
+            new_domain = template.get_domain(
+                mode_grid, sampling_method, points_per_simplex
+            )
             template.domain = new_domain
             templates_domain[str(template.class_number)] = template
 
         return templates_domain
+
+    # for s in new_domain:
+    #     h = scipy.spatial.ConvexHull(s)
+    #     h.volume
 
     def _get_domains_others(
         self, quadruples, quadruple_templates, singles
@@ -821,9 +888,18 @@ class ShapeClassifier:
                 continue
 
             new_class_number = quad.class_number
+
+            if not quad.class_number == self.extra[0]:
+                continue
+
             template = quadruple_templates[str(new_class_number)]
 
             i, j, u, v = quad.singles
+
+            # Temporarily only accept the middle one for debugging
+            if not (i, j, u, v) == self.extra[1]:
+                continue
+
             q_i = singles[str(i)].centroid
             q_j = singles[str(j)].centroid
             q_u = singles[str(u)].centroid

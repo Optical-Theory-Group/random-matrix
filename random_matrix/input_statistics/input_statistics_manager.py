@@ -25,6 +25,9 @@ class InputStatisticsManager:
         medium_parameters: medium_parameters.MediumParameters,
         medium_statistics: medium_statistics.MediumStatistics,
         mode_grid: mode_grid.ModeGrid,
+        extra,
+        points_per_simplex: int = 1,
+        sampling_method: str = "simplex",
         use_logger: bool = True,
     ) -> None:
         """Input statistics manager class"""
@@ -59,7 +62,11 @@ class InputStatisticsManager:
         )
 
         self.shape_classifier = shape_classifier.ShapeClassifier(
-            mode_grid, shape_classifier_logger
+            mode_grid,
+            shape_classifier_logger,
+            sampling_method,
+            points_per_simplex,
+            extra,
         )
 
         self.integration_task_preparer = (
@@ -78,6 +85,8 @@ class InputStatisticsManager:
         # Find indices
         independent_elements, indices = self._get_indices()
 
+        # Save indices
+
         # Classify shapes
         quadruples, quadruple_templates, singles = self._classify_shapes(
             indices["covariance"]["pp,pp"]["t,t"]
@@ -87,14 +96,15 @@ class InputStatisticsManager:
         quadruples = self._get_domains(
             quadruples, quadruple_templates, singles
         )
-        
+
         # Prepare and execute integration tasks
         integration_task_list = self._get_integration_tasks(
             quadruples, independent_elements, indices
         )
 
-        with self.logger.log("tasks"):
-            result_list = integration_task_list.execute_tasks()
+        # with self.logger.log("tasks"):
+        #     result_list = integration_task_list.execute_tasks()
+        result_list = integration_task_list
 
         # Extract results from the list and build up statistical matrices
         mean_result_list = result_list.by_statistic_type("mean")
@@ -102,6 +112,8 @@ class InputStatisticsManager:
         pseudo_cov_result_list = result_list.by_statistic_type(
             "pseudo_covariance"
         )
+
+        return cov_result_list
 
         with self.logger.log("mean"):
             mean_S = self._get_mean_S(mean_result_list)
@@ -122,7 +134,6 @@ class InputStatisticsManager:
         )
 
         return cov, pseudo_cov, sigma
-
 
         # return cov, pseudo_cov, sigma
         # with open("cov.pkl", "wb") as f:
@@ -358,13 +369,21 @@ class InputStatisticsManager:
                         block_uv, (u, v), self.mode_grid.num_propagating
                     )
                     sub_block = integral.reshape(4, 4)
-                    sub_block = (sub_block + np.conj(sub_block.T)) / 2
-                    cov[row : row + 4, col : col + 4] = sub_block
                     if not is_pseudo:
+                        if row == col:
+                            sub_block = (
+                                sub_block + np.conj(sub_block.T)
+                            ) / 2.0
+
+                        cov[row : row + 4, col : col + 4] = sub_block
                         cov[col : col + 4, row : row + 4] = np.conj(
                             sub_block.T
                         )
                     else:
+                        if row == col:
+                            sub_block = (sub_block + sub_block.T) / 2.0
+
+                        cov[row : row + 4, col : col + 4] = sub_block
                         cov[col : col + 4, row : row + 4] = sub_block.T
 
         # Multiply by weights

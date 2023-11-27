@@ -762,3 +762,57 @@ def get_symmetric_reduced_angle(angle, angular_range):
     if np.isclose(mod, -angular_range / 2):
         mod = angular_range / 2
     return mod
+
+
+def is_simplex_non_degenerate(simplex):
+    try:
+        hull = scipy.spatial.ConvexHull(simplex)
+        return True
+    except scipy.spatial.qhull.QhullError:
+        return False
+
+
+def get_simplices_volume(simplices):
+    volume = 0.0
+    for simplex in simplices:
+        try:
+            hull = scipy.spatial.ConvexHull(simplex)
+            volume += hull.volume
+        except scipy.spatial.qhull.QhullError:
+            pass
+    return volume
+
+
+def get_simplices_regular(simplices):
+    num_simplices = len(simplices)
+    new_simplices = np.zeros((num_simplices, 7, 8))
+
+    k1_x = simplices[:, :, 0]
+    k1_y = simplices[:, :, 1]
+    k2_x = simplices[:, :, 2]
+    k2_y = simplices[:, :, 3]
+    d_x = simplices[:, :, 4]
+    d_y = simplices[:, :, 5]
+
+    ki_x = k1_x + d_x / 2
+    ki_y = k1_y + d_y / 2
+    kj_x = k1_x - d_x / 2
+    kj_y = k1_y - d_y / 2
+    ku_x = k2_x + d_x / 2
+    ku_y = k2_y + d_y / 2
+    kv_x = k2_x - d_x / 2
+    kv_y = k2_y - d_y / 2
+
+    new_simplices[:, :, 0] = ki_x
+    new_simplices[:, :, 1] = ki_y
+    new_simplices[:, :, 2] = kj_x
+    new_simplices[:, :, 3] = kj_y
+    new_simplices[:, :, 4] = ku_x
+    new_simplices[:, :, 5] = ku_y
+    new_simplices[:, :, 6] = kv_x
+    new_simplices[:, :, 7] = kv_y
+    return new_simplices
+
+
+def get_simplices_diff(simplices):
+    pass

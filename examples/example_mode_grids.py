@@ -12,10 +12,10 @@ np.random.seed(25)
 
 # Standard polar grid rotated
 mode_grid_generator.from_dr_dt(
-    dr=0.2,
+    dr=0.1,
     dt=2 * np.pi / 12,
-    r_lim=2.0,
-    rotation_angle=0.2,
+    r_lim=1.0,
+    rotation_angle=0.0,
 ).plot()
 
 # Irregular polar grid from random r and t values

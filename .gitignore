@@ -2,4 +2,12 @@ __pycache__/
 .vscode
 .mypy_cache
 .pytest_cache
-data/
+debug/
+temporary/
+
+.gitignore
+cov.pkl
+pseudo_cov.pkl
+sigma.pkl
+indices.pkl
+nohup.out
