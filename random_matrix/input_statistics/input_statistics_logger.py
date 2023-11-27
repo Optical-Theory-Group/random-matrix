@@ -68,7 +68,7 @@ class InputStatisticsLogger:
 
     def show_report(self, *args: Any) -> None:
         """Main report method. Prints a report to the terminal."""
-        
+
         self._show_base_report()
         self._show_subclass_report(*args)
 
@@ -170,10 +170,11 @@ class ShapeClassifierLogger(InputStatisticsLogger):
         self,
         num_single_templates: int,
         num_quadruple_templates: int,
+        num_quadruples: int,
     ) -> None:
         print(
             self.get_shapes_report(
-                num_single_templates, num_quadruple_templates
+                num_single_templates, num_quadruple_templates, num_quadruples
             ),
             flush=True,
         )
@@ -182,10 +183,13 @@ class ShapeClassifierLogger(InputStatisticsLogger):
     def get_shapes_report(
         num_single_templates: int,
         num_quadruple_templates: int,
+        num_quadruples: int,
     ) -> str:
         out = (
             f"Number of single templates: {num_single_templates}\n"
             f"Number of quadruple templates: {num_quadruple_templates}\n"
+            f"Number of quadruples: {num_quadruples}\n"
+            f"Percentage: {(num_quadruple_templates + num_quadruples)/num_quadruples * 100}\n"
         )
         return out
 

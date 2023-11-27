@@ -83,6 +83,11 @@ class IntegrationResultList:
     def append_result(self, new_result: IntegrationResult) -> None:
         self.results.append(new_result)
 
+    def merge_result_list(self, new_result_list: Self) -> None:
+        """Append results from another result list object to itself"""
+
+        self.results += new_result_list.results
+
     def by_statistic_type(self, statistic_type: str) -> Self:
         new_result_list = IntegrationResultList(
             [
@@ -159,7 +164,6 @@ class IntegrationTask:
 
         # Results should be added over the slices. This corresponds to adding
         # integrals over the triangular subregions of the integration domain
-
         np.nan_to_num(integral, 0.0)
         output_dim, num_outputs = np.shape(integral)
         slices = [s[0] for s in self.sub_block_locations]
@@ -261,7 +265,7 @@ class IntegrationTaskConfig:
         task. If None, there will be no limit.
     """
 
-    integrals_per_task: int | None = None
+    integrals_per_task: int | None = 1
 
 
 class IntegrationTaskPreparer:
@@ -292,27 +296,27 @@ class IntegrationTaskPreparer:
         This is the main function that is run by IntegrationTaskPreparer
         """
 
-        master_task_list = IntegrationTaskList()
+        master_result_list = IntegrationResultList()
 
         with self.logger.log("mean"):
-            master_task_list.merge_task_list(
+            master_result_list.merge_result_list(
                 self._get_mean_integration_tasks(indices["mean"])
             )
 
         with self.logger.log("covariance"):
-            master_task_list.merge_task_list(
+            master_result_list.merge_result_list(
                 self._get_covariance_integration_tasks(
                     quadruples, independent_elements["pp"]
                 )
             )
         with self.logger.log("pseudo_covariance"):
-            master_task_list.merge_task_list(
+            master_result_list.merge_result_list(
                 self._get_pseudo_covariance_integration_tasks(
                     quadruples, independent_elements["pp"]
                 )
             )
 
-        return master_task_list
+        return master_result_list
 
     def show_report(self) -> None:
         self.logger.show_report()
@@ -365,16 +369,16 @@ class IntegrationTaskPreparer:
 
         # Factor common to all mean integrals
         const_factor = self.medium_parameters.mean_const_factor
-        main_task_list = IntegrationTaskList()
+        main_result_list = IntegrationResultList()
 
         for wave_block, d in mean_indices.items():
-            sub_task_list = IntegrationTaskList()
+            sub_result_list = IntegrationResultList()
             for block, index_set in d.items():
                 # The integrand depends only on the matrix blocks. This will
                 # be a function of kappa_inc (assumed to be equal to kappa_sca
                 # due to the delta function constraint)
                 integrand = self._get_mean_integrand(wave_block, block)
-                integration_tasks = IntegrationTaskList()
+                integration_results = IntegrationResultList()
 
                 # Variables that will be used for constructing tasks
                 # These reset each time we go to a new block
@@ -408,7 +412,8 @@ class IntegrationTaskPreparer:
                             sub_block_locations=sub_block_locations,
                             const_factor=const_factor,
                         )
-                        integration_tasks.append_task(new_task)
+                        new_result = new_task.execute_task()
+                        integration_results.append_result(new_result)
 
                         # Reset the triangle stack and stack length
                         triangle_stack = np.zeros((0, 3, 2), dtype=np.float64)
@@ -436,12 +441,13 @@ class IntegrationTaskPreparer:
                     sub_block_locations=sub_block_locations,
                     const_factor=const_factor,
                 )
-                integration_tasks.append_task(new_task)
-                sub_task_list.merge_task_list(integration_tasks)
+                new_result = new_task.execute_task()
+                integration_results.append_result(new_result)
+                sub_result_list.merge_result_list(integration_results)
 
-            main_task_list.merge_task_list(sub_task_list)
+            main_result_list.merge_result_list(sub_result_list)
 
-        return main_task_list
+        return main_result_list
 
     # -------------------------------------------------------------------------
     # Covariance
@@ -584,12 +590,12 @@ class IntegrationTaskPreparer:
         with ProcessPool(processes=num_processes) as pool:
             out = pool.map(parallelised_function, partial_quadruples)
 
-        main_task_list = IntegrationTaskList()
+        main_result_list = IntegrationResultList()
 
-        for task_list in out:
-            main_task_list.merge_task_list(task_list)
+        for result_list in out:
+            main_result_list.merge_result_list(result_list)
 
-        return main_task_list
+        return main_result_list
 
     @staticmethod
     def _get_covariance_integration_tasks_partial(
@@ -603,7 +609,7 @@ class IntegrationTaskPreparer:
         """Main method for preparing covariance integral tasks"""
 
         # Factor common to all covariance integrals
-        main_task_list = IntegrationTaskList()
+        main_result_list = IntegrationResultList()
 
         # wave block will look like "pp,pp", "pp,ep" etc.
         wave_block = "pp,pp"
@@ -631,14 +637,13 @@ class IntegrationTaskPreparer:
         sub_block_locations = {}
         simplex_stack = {}
         stack_length = {}
-        integration_tasks = {}
+        integration_results = {}
 
         for key in blocks:
             sub_block_locations[key] = []
             simplex_stack[key] = np.zeros((0, 7, 6), dtype=np.float64)
             stack_length[key] = 0
-            integration_tasks[key] = IntegrationTaskList()
-
+            integration_results[key] = IntegrationResultList()
             block_one, block_two = key.split(",")
 
         # Main loop
@@ -696,7 +701,8 @@ class IntegrationTaskPreparer:
                         sub_block_locations=sub_block_locations[block],
                         const_factor=const_factor,
                     )
-                    integration_tasks[block].append_task(new_task)
+                    new_result = new_task.execute_task()
+                    integration_results[block].append_result(new_result)
 
                     # Reset the triangle stack and stack length
                     simplex_stack[block] = np.zeros(
@@ -729,10 +735,11 @@ class IntegrationTaskPreparer:
                 sub_block_locations=sub_block_locations[block],
                 const_factor=const_factor,
             )
-            integration_tasks[block].append_task(new_task)
-            main_task_list.merge_task_list(integration_tasks[block])
+            new_result = new_task.execute_task()
+            integration_results[block].append_result(new_result)
+            main_result_list.merge_result_list(integration_results[block])
 
-        return main_task_list
+        return main_result_list
 
     # -------------------------------------------------------------------------
     # Pseudo covariance
@@ -867,12 +874,12 @@ class IntegrationTaskPreparer:
         with ProcessPool(processes=num_processes) as pool:
             out = pool.map(parallelised_function, partial_quadruples)
 
-        main_task_list = IntegrationTaskList()
+        main_result_list = IntegrationResultList()
 
-        for task_list in out:
-            main_task_list.merge_task_list(task_list)
+        for result_list in out:
+            main_result_list.merge_result_list(result_list)
 
-        return main_task_list
+        return main_result_list
 
     @staticmethod
     def _get_pseudo_covariance_integration_tasks_partial(
@@ -886,7 +893,7 @@ class IntegrationTaskPreparer:
         """Main method for preparing covariance integral tasks"""
 
         # Factor common to all covariance integrals
-        main_task_list = IntegrationTaskList()
+        main_result_list = IntegrationResultList()
 
         # wave block will look like "pp,pp", "pp,ep" etc.
         wave_block = "pp,pp"
@@ -914,14 +921,13 @@ class IntegrationTaskPreparer:
         sub_block_locations = {}
         simplex_stack = {}
         stack_length = {}
-        integration_tasks = {}
+        integration_results = {}
 
         for key in blocks:
             sub_block_locations[key] = []
             simplex_stack[key] = np.zeros((0, 7, 6), dtype=np.float64)
             stack_length[key] = 0
-            integration_tasks[key] = IntegrationTaskList()
-
+            integration_results[key] = IntegrationResultList()
             block_one, block_two = key.split(",")
 
         # Main loop
@@ -979,7 +985,8 @@ class IntegrationTaskPreparer:
                         sub_block_locations=sub_block_locations[block],
                         const_factor=const_factor,
                     )
-                    integration_tasks[block].append_task(new_task)
+                    new_result = new_task.execute_task()
+                    integration_results[block].append_result(new_result)
 
                     # Reset the triangle stack and stack length
                     simplex_stack[block] = np.zeros(
@@ -1012,7 +1019,8 @@ class IntegrationTaskPreparer:
                 sub_block_locations=sub_block_locations[block],
                 const_factor=const_factor,
             )
-            integration_tasks[block].append_task(new_task)
-            main_task_list.merge_task_list(integration_tasks[block])
+            new_result = new_task.execute_task()
+            integration_results[block].append_result(new_result)
+            main_result_list.merge_result_list(integration_results[block])
 
-        return main_task_list
+        return main_result_list

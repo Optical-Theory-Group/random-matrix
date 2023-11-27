@@ -34,7 +34,6 @@ from random_matrix.utils import (
     function_utils,
     geometry_utils,
     integration_utils,
-    matrix_utils,
     special_functions,
 )
 
@@ -48,8 +47,6 @@ extra_list = [
     (561, (-1, -1, -1, -1), 0),
 ]
 
-extra_list = [(397, (0, 8, 0, 8), 0)]
-
 # extra_list = [
 #     (478, (-11, -11, -11, -11), 0),
 #     (561, (-1, -1, -1, -1), 0),
@@ -59,8 +56,8 @@ extra_list = [(397, (0, 8, 0, 8), 0)]
 for extra in extra_list:
     # side_lengths = [0.9 - 0.01 * i for i in range(60)]
     side_lengths = [0.4]
-    points_per_simplex_list = list(range(10, 10 + 1, 1))
-    random_seed_list = list(range(1, 1 + 1, 1))
+    points_per_simplex_list = list(range(0, 250 + 1, 1))
+    random_seed_list = list(range(0, 10 + 1, 1))
 
     mean_H_r = np.zeros(
         (len(points_per_simplex_list), 4, 4), dtype=np.float128
@@ -118,149 +115,81 @@ for extra in extra_list:
                     extra=extra,
                 )
 
-                (
-                    cov,
-                    pseudo_cov,
-                    sigma,
-                ) = input_statistics_manager.get_statistics()
+                output = input_statistics_manager.get_statistics()
+                H = np.reshape(output.results[extra[2]].integral, (4, 4))
 
+                mean_H_r[i, :, :] += np.real(H)
+                mean_H_i[i, :, :] += np.imag(H)
 
-# -----------------------------------------------------------------------------
-# Trying to get the nearest PSD matrix
-# -----------------------------------------------------------------------------
+                var_H_r[i, :, :] += np.real(H) ** 2
+                var_H_i[i, :, :] += np.imag(H) ** 2
 
-# c = cov.todense()
-# p = pseudo_cov.todense()
-# s = sigma.todense()
+    mean_H_r /= len(random_seed_list)
+    mean_H_i /= len(random_seed_list)
+    var_H_r /= len(random_seed_list)
+    var_H_i /= len(random_seed_list)
 
-# c_d = np.diag(c)
-# p_d = np.diag(p)
-# s_d = np.diag(s)
+    var_H_r -= mean_H_r**2
+    var_H_i -= mean_H_i**2
 
-# c_md = c - np.diag(c_d)
-# p_md = p - np.diag(p_d)
-# s_md = s - np.diag(s_d)
+    with open(
+        f"./debug/new_sampling/data/mean_H_r_{str(extra[1])}.npy", "wb"
+    ) as f:
+        np.save(f, mean_H_r)
 
-# print("Starting eigendecomp")
-# eigenvalues, eigenvectors = np.linalg.eig(s)
+    with open(
+        f"./debug/new_sampling/data/mean_H_i_{str(extra[1])}.npy", "wb"
+    ) as f:
+        np.save(f, mean_H_i)
 
-# altered_eigenvalues = np.where(eigenvalues < 0, 0.0, eigenvalues)
+    with open(
+        f"./debug/new_sampling/data/var_H_r_{str(extra[1])}.npy", "wb"
+    ) as f:
+        np.save(f, var_H_r)
 
-# reconstruction = (
-#     eigenvectors @ np.diag(eigenvalues) @ np.linalg.inv(eigenvectors)
-# )
-# nearest_psd = (
-#     eigenvectors @ np.diag(altered_eigenvalues) @ np.linalg.inv(eigenvectors)
-# )
+    with open(
+        f"./debug/new_sampling/data/var_H_i_{str(extra[1])}.npy", "wb"
+    ) as f:
+        np.save(f, var_H_i)
 
-# -----------------------------------------------------------------------------
+    # cov, pseudo_cov, sigma = input_statistics_manager.get_statistics()
 
+    # cov, pseudo_cov, sigma = input_statistics_manager.get_statistics()
+    # msize=0.01
+    # plt.figure()
+    # plt.spy(cov, markersize=msize)
+    # plt.figure()
+    # plt.spy(pseudo_cov, markersize=msize)
+    # plt.figure()
+    # plt.spy(sigma, markersize=msize)
 
-# size_of_sigma = np.shape(sigma)[0]
-# sigma = scipy.sparse.csc_array(sigma)
+    # c = cov.todense()
+    # d = np.diag(c)
+    # w = np.where(d < 0)
 
-# for i in range(-10, 1, 1):
-#     try:
-#         sigma_altered = sigma + scipy.sparse.identity(size_of_sigma) * 10 ** (
-#             i
-#         )
+    # c = cov.todense()
+    # d = np.diag(c)
+    # w = np.where(d < 0)
 
-#         chol = sksparse.cholmod.cholesky(
-#             sigma_altered, ordering_method="natural"
-#         ).L()
+    # size, size = np.shape(cov)
+    # t_low = int(size/4)
+    # t_high = int(2*size/4)
 
-#         break
-#     except sksparse.cholmod.CholmodNotPositiveDefiniteError:
-#         pass
+    # cov_t = cov[t_low:t_high, t_low:t_high]
+    # pseudo_t = pseudo_cov[t_low:t_high, t_low:t_high]
+    # cov_r = cov[0:t_low, 0:t_low]
+    # pseudo_r = pseudo_cov[0:t_low, 0:t_low]
 
+    # plt.spy(cov_r, markersize=0.1)
 
-# for i in my_grid.propagating_indices:
-#     x = []
-#     y = []
-#     for j in my_grid.propagating_indices:
-#         row = matrix_utils.get_cov_sub_block_index(
-#             "t", (i, j), my_grid.num_propagating
-#         )
-#         # row = get_cov_sub_block_index(
-#         #     "t", (i, j), my_grid.num_propagating
-#         # )
-
-#         col = row
-
-#         H = cov[row : row + 4, col : col + 4].todense()
-#         y.append(scipy.linalg.norm(H))
-
-#         i_centre = my_grid.by_index(i).center
-#         j_centre = my_grid.by_index(j).center
-#         r = scipy.linalg.norm(j_centre - i_centre)
-#         x.append(r)
-#     plt.figure()
-#     plt.scatter(x, y)
-#     plt.title(f"i={i}")
-
-#             H = np.reshape(output.results[extra[2]].integral, (4, 4))
-
-#             mean_H_r[i, :, :] += np.real(H)
-#             mean_H_i[i, :, :] += np.imag(H)
-
-#             var_H_r[i, :, :] += np.real(H) ** 2
-#             var_H_i[i, :, :] += np.imag(H) ** 2
-
-# mean_H_r /= len(random_seed_list)
-# mean_H_i /= len(random_seed_list)
-# var_H_r /= len(random_seed_list)
-# var_H_i /= len(random_seed_list)
-
-# var_H_r -= mean_H_r**2
-# var_H_i -= mean_H_i**2
-
-# with open(f"./data/debug/mean_H_r.npy_{str(extra[1])}.npy", "wb") as f:
-#     np.save(f, mean_H_r)
-# with open(f"./data/debug/mean_H_i.npy_{str(extra[1])}.npy", "wb") as f:
-#     np.save(f, mean_H_i)
-# with open(f"./data/debug/var_H_r.npy_{str(extra[1])}.npy", "wb") as f:
-#     np.save(f, var_H_r)
-# with open(f"./data/debug/var_H_i.npy_{str(extra[1])}.npy", "wb") as f:
-#     np.save(f, var_H_i)
-
-# cov, pseudo_cov, sigma = input_statistics_manager.get_statistics()
-
-# cov, pseudo_cov, sigma = input_statistics_manager.get_statistics()
-# msize=0.01
-# plt.figure()
-# plt.spy(cov, markersize=msize)
-# plt.figure()
-# plt.spy(pseudo_cov, markersize=msize)
-# plt.figure()
-# plt.spy(sigma, markersize=msize)
-
-# c = cov.todense()
-# d = np.diag(c)
-# w = np.where(d < 0)
-
-# c = cov.todense()
-# d = np.diag(c)
-# w = np.where(d < 0)
-
-# size, size = np.shape(cov)
-# t_low = int(size/4)
-# t_high = int(2*size/4)
-
-# cov_t = cov[t_low:t_high, t_low:t_high]
-# pseudo_t = pseudo_cov[t_low:t_high, t_low:t_high]
-# cov_r = cov[0:t_low, 0:t_low]
-# pseudo_r = pseudo_cov[0:t_low, 0:t_low]
-
-# plt.spy(cov_r, markersize=0.1)
-
-# plt.figure()
-# plt.spy(cov_t)
-# plt.figure()
-# plt.spy(pseudo_t)
-# plt.figure()
-# plt.spy(cov_r)
-# plt.figure()
-# plt.spy(pseudo_r)
+    # plt.figure()
+    # plt.spy(cov_t)
+    # plt.figure()
+    # plt.spy(pseudo_t)
+    # plt.figure()
+    # plt.spy(cov_r)
+    # plt.figure()
+    # plt.spy(pseudo_r)
 # eigs = scipy.sparse.linalg.eigs(sigma, k=1, which="SR")
 # indices = np.where(nans_cov)
 # i,j = indices

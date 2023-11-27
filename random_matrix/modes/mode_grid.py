@@ -446,6 +446,8 @@ class ModeGrid:
         # Set up k space plot
         fig, ax = plt.subplots()
         ax.set_aspect("equal")
+        ax.set_xticks([-1.0, -0.5, 0.0, 0.5, 1.0])
+        ax.set_yticks([-1.0, -0.5, 0.0, 0.5, 1.0])
 
         # x and y axes
         plotting_utils.draw_ray(
@@ -469,3 +471,4 @@ class ModeGrid:
 
         plotting_utils.draw_circle(ax)
         plotting_utils.draw_circle(ax, r=self.r_lim)
+        # fig.savefig("./modes.svg", format='svg')
