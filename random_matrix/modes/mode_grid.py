@@ -8,11 +8,9 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
-import numpy.typing as npt
-import skspatial.objects
 
 from random_matrix.modes.mode import Mode
-from random_matrix.utils import array_utils, geometry_utils, plotting_utils
+from random_matrix.utils import array_utils, plotting_utils
 from random_matrix.utils.types import FloatLike
 
 
