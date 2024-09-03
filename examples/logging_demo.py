@@ -9,12 +9,12 @@ from random_matrix.input_statistics.input_statistics_manager import \
 from random_matrix.input_statistics.medium_parameters import MediumParameters
 from random_matrix.input_statistics.medium_statistics import (
     MediumStatistics, ParticleStatistics)
-from random_matrix.modes import mode_grid_generator
+from random_matrix.modes import mode_grid_factory
 
 np.set_printoptions(precision=2)
 warnings.filterwarnings("ignore")
 
-my_grid = mode_grid_generator.from_tiling(
+my_grid = mode_grid_factory.from_tiling(
     tiling_type="rectangles",
     side_length=(0.4, 0.4),
     r_lim=1.2,

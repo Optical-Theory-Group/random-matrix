@@ -27,7 +27,7 @@ from random_matrix.input_statistics.medium_statistics import (
     MediumStatistics,
     ParticleStatistics,
 )
-from random_matrix.modes import mode_grid, mode_grid_generator
+from random_matrix.modes import mode_grid, mode_grid_factory
 from random_matrix.scattering_matrix import sampler
 from random_matrix.utils import (
     array_utils,
@@ -81,7 +81,7 @@ for extra in extra_list:
                 np.random.seed(seed)
 
                 warnings.filterwarnings("ignore")
-                my_grid = mode_grid_generator.from_tiling(
+                my_grid = mode_grid_factory.from_tiling(
                     tiling_type="rectangles",
                     side_length=(side_length, side_length),
                     r_lim=1.2,

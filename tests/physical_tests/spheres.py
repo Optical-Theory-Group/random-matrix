@@ -17,7 +17,7 @@ from random_matrix.input_statistics.integration_task import \
 from random_matrix.input_statistics.medium_parameters import MediumParameters
 from random_matrix.input_statistics.medium_statistics import (
     MediumStatistics, ParticleStatistics)
-from random_matrix.modes import mode_grid, mode_grid_generator
+from random_matrix.modes import mode_grid, mode_grid_factory
 from random_matrix.utils import function_utils
 
 print("Preparing Grid")

@@ -28,10 +28,8 @@ supported. Grids consisting of concave polygons from user data should be used
 with great caution.
 """
 
-import collections
 from typing import Any, Iterator
 
-import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import scipy.spatial
@@ -39,7 +37,7 @@ import skspatial.objects
 
 from random_matrix.modes.mode import Mode, Side
 from random_matrix.modes.mode_grid import ModeGrid
-from random_matrix.utils import array_utils, geometry_utils, plotting_utils
+from random_matrix.utils import array_utils, geometry_utils
 
 # -----------------------------------------------------------------------------
 # Public constructor functions
