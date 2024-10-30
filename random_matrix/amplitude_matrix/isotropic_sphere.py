@@ -7,7 +7,7 @@ import scipy
 from random_matrix.utils.types import FloatLike
 
 
-# @numba.njit(fastmath=False, parallel=True)
+@numba.njit(fastmath=False, parallel=True)
 def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
     input_shape = np.shape(mus)
 
@@ -31,8 +31,7 @@ def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
 
     djx = ((xs**2.0 - 2.0) * np.sin(xs) + 2.0 * xs * np.cos(xs)) / xs**3.0
     djmx = (
-        ((ms * xs) ** 2.0 - 2.0) * np.sin(ms * xs)
-        + 2.0 * ms * xs * np.cos(ms * xs)
+        ((ms * xs) ** 2.0 - 2.0) * np.sin(ms * xs) + 2.0 * ms * xs * np.cos(ms * xs)
     ) / (ms * xs) ** 3
 
     yx_0 = -np.cos(xs) / xs
@@ -57,12 +56,8 @@ def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
     tau = mus
 
     # Initialise S matrix terms. Note that n=1 corresponds to the _2 variables
-    a = (ms * psimx * dpsix - psix * dpsimx) / (
-        ms * psimx * dxix - xix * dpsimx
-    )
-    b = (psimx * dpsix - ms * psix * dpsimx) / (
-        psimx * dxix - ms * xix * dpsimx
-    )
+    a = (ms * psimx * dpsix - psix * dpsimx) / (ms * psimx * dxix - xix * dpsimx)
+    b = (psimx * dpsix - ms * psix * dpsimx) / (psimx * dxix - ms * xix * dpsimx)
 
     S_1 = 3.0 / 2.0 * (a * pi_1 + b * tau)
     S_2 = 3.0 / 2.0 * (a * tau + b * pi_1)
@@ -98,9 +93,7 @@ def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
         new_dxix = new_dpsix + 1j * new_dphix
 
         # Angular functions
-        new_pi = (2.0 * n - 1.0) / (n - 1.0) * mus * pi_1 - n / (
-            n - 1.0
-        ) * pi_0
+        new_pi = (2.0 * n - 1.0) / (n - 1.0) * mus * pi_1 - n / (n - 1.0) * pi_0
         pi_0 = pi_1
         pi_1 = new_pi
 
@@ -114,12 +107,8 @@ def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
             new_psimx * new_dxix - ms * new_xix * new_dpsimx
         )
 
-        S_1 = S_1 + (2.0 * n + 1.0) / (n * (n + 1.0)) * (
-            a * new_pi + b * new_tau
-        )
-        S_2 = S_2 + (2.0 * n + 1.0) / (n * (n + 1.0)) * (
-            a * new_tau + b * new_pi
-        )
+        S_1 = S_1 + (2.0 * n + 1.0) / (n * (n + 1.0)) * (a * new_pi + b * new_tau)
+        S_2 = S_2 + (2.0 * n + 1.0) / (n * (n + 1.0)) * (a * new_tau + b * new_pi)
 
     combined_array = np.concatenate(
         (
@@ -133,7 +122,7 @@ def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
     return combined_array
 
 
-# @numba.njit(fastmath=True, parallel=True)
+@numba.njit(fastmath=True, parallel=True)
 def get_A(
     ki_x: FloatLike,
     ki_y: FloatLike,
@@ -172,9 +161,7 @@ def get_A(
     e_theta_i = np.transpose(e_theta_i, (1, 2, 0))
     e_theta_i[indices] = np.array([1.0, 0.0, 0.0])
 
-    e_phi_i = np.array(
-        [-np.sin(phi_i), np.cos(phi_i), np.zeros(np.shape(ki_x))]
-    )
+    e_phi_i = np.array([-np.sin(phi_i), np.cos(phi_i), np.zeros(np.shape(ki_x))])
     e_phi_i = np.transpose(e_phi_i, (1, 2, 0))
     e_phi_i[indices] = np.array([0, -1, 0])
 
@@ -198,9 +185,7 @@ def get_A(
     e_theta_s = np.transpose(e_theta_s, (1, 2, 0))
     e_theta_s[indices] = np.array([1.0, 0.0, 0.0])
 
-    e_phi_s = np.array(
-        [-np.sin(phi_s), np.cos(phi_s), np.zeros(np.shape(ki_x))]
-    )
+    e_phi_s = np.array([-np.sin(phi_s), np.cos(phi_s), np.zeros(np.shape(ki_x))])
     e_phi_s = np.transpose(e_phi_s, (1, 2, 0))
     e_phi_s[indices] = np.array([0, -1, 0])
 
@@ -265,12 +250,8 @@ def get_A(
     norms = np.linalg.norm(cp, axis=-1)
     cp = cp / norms[:, :, np.newaxis]
 
-    cos_i = np.where(
-        np.logical_or(np.isclose(cos_i, 1.0), cos_i > 1.0), 1.0, cos_i
-    )
-    cos_i = np.where(
-        np.logical_or(np.isclose(cos_i, -1.0), cos_i < -1.0), -1.0, cos_i
-    )
+    cos_i = np.where(np.logical_or(np.isclose(cos_i, 1.0), cos_i > 1.0), 1.0, cos_i)
+    cos_i = np.where(np.logical_or(np.isclose(cos_i, -1.0), cos_i < -1.0), -1.0, cos_i)
     theta = np.arccos(cos_i)
 
     # cp, ki
@@ -296,12 +277,8 @@ def get_A(
     norms = np.linalg.norm(cp, axis=-1)
     cp = cp / norms[:, :, np.newaxis]
 
-    cos_j = np.where(
-        np.logical_or(np.isclose(cos_j, 1.0), cos_j > 1.0), 1.0, cos_j
-    )
-    cos_j = np.where(
-        np.logical_or(np.isclose(cos_j, -1.0), cos_j < -1.0), -1.0, cos_j
-    )
+    cos_j = np.where(np.logical_or(np.isclose(cos_j, 1.0), cos_j > 1.0), 1.0, cos_j)
+    cos_j = np.where(np.logical_or(np.isclose(cos_j, -1.0), cos_j < -1.0), -1.0, cos_j)
     theta = np.arccos(cos_j)
 
     # cp, ki
