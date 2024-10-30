@@ -39,7 +39,7 @@ def basic_product_integral(
     scheme:
         The cubature scheme. If not provided, defaults will be used.
 
-    Returns:
+    Returns: 
     --------
     integral:
         The integral of function over the domain

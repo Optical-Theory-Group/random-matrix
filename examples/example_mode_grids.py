@@ -2,7 +2,7 @@
 
 import os
 
-os.chdir("/home/nbyrnes/code/random-matrix/")
+os.chdir("/home/sdutta/code/random-matrix/")
 
 import numpy as np
 
