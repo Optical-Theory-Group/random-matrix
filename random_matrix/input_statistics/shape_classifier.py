@@ -357,7 +357,7 @@ class ShapeClassifier:
         logger: input_statistics_logger.InputStatisticsLogger,
         sampling_method: str,
         points_per_simplex: int,
-        extra,
+        extra = None,
     ) -> None:
         self.mode_grid = mode_grid
         self.logger = logger
@@ -846,14 +846,14 @@ class ShapeClassifier:
         progress_bar,
         sampling_method,
         points_per_simplex,
-        extra,
+        extra=None,
     ):
         """Get template domains as internal attribute"""
 
         templates_domain = {}
         for template in progress_bar(quadruple_templates):
-            if not template.class_number == extra[0]:
-                continue
+            # if not template.class_number == extra[0]:
+            #     continue
             # if not template.singles == (8, 0, 8, 0):
             #     continue
 
@@ -889,16 +889,16 @@ class ShapeClassifier:
 
             new_class_number = quad.class_number
 
-            if not quad.class_number == self.extra[0]:
-                continue
+            # if not quad.class_number == self.extra[0]:
+            #     continue
 
             template = quadruple_templates[str(new_class_number)]
 
             i, j, u, v = quad.singles
 
             # Temporarily only accept the middle one for debugging
-            if not (i, j, u, v) == self.extra[1]:
-                continue
+            # if not (i, j, u, v) == self.extra[1]:
+            #     continue
 
             q_i = singles[str(i)].centroid
             q_j = singles[str(j)].centroid
