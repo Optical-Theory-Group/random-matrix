@@ -113,11 +113,9 @@ class InputStatisticsManager:
             "pseudo_covariance"
         )
 
-        return cov_result_list
-
         with self.logger.log("mean"):
             mean_S = self._get_mean_S(mean_result_list)
-
+    
         with self.logger.log("covariance"):
             cov = self._get_covariance_matrix(cov_result_list)
 
@@ -133,7 +131,7 @@ class InputStatisticsManager:
             ]
         )
 
-        return cov, pseudo_cov, sigma
+        return mean_S, cov, pseudo_cov, sigma
 
         # return cov, pseudo_cov, sigma
         # with open("cov.pkl", "wb") as f:
@@ -325,6 +323,7 @@ class InputStatisticsManager:
                     (i, j, -v, -u),
                     (-j, -i, -v, -u),
                 ]
+                extended_sub_block_locations = [(i,j,u,v)]
 
                 block_ij, block_uv = block.split(",")
                 rec_block_ij = (
@@ -348,12 +347,15 @@ class InputStatisticsManager:
                     block_ij,
                     rec_block_ij,
                 ]
+                extended_block_ij = [block_ij]
+
                 extended_block_uv = [
                     block_uv,
                     block_uv,
                     rec_block_uv,
                     rec_block_uv,
                 ]
+                extended_block_uv = [block_uv]
 
                 for sub_block_location, block_ij, block_uv in zip(
                     extended_sub_block_locations,
