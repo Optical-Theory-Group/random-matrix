@@ -78,6 +78,7 @@ class InputStatisticsManager:
             )
         )
 
+
     def get_statistics(self) -> FloatLike:
         """Compute the mean, covariance and pseudo-covariance for the elements
         of the scattering matrix."""
