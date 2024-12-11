@@ -4,29 +4,19 @@ from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 import numpy as np
-import numpy.typing as npt
 
-# Generic float-like type
-FloatLike = (
-    float
-    | complex
-    | np.float64
-    | np.complex128
-    | npt.NDArray[np.float64]
-    | npt.NDArray[np.complex128]
-)
+# Generic numeric type
+Numeric = int | float | complex | np.float64 | np.complex128 | np.ndarray
 
 
 @runtime_checkable
 @dataclass
-class Parameters(Protocol):
-    ...
+class Parameters(Protocol): ...
 
 
 @runtime_checkable
 class MathematicalFunction(Protocol):
-    def __call__(self, *args: FloatLike, **kwargs: FloatLike) -> FloatLike:
-        ...
+    def __call__(self, *args: Numeric, **kwargs: Numeric) -> Numeric: ...
 
 
 @runtime_checkable
@@ -35,6 +25,5 @@ class AMatrixFunction(Protocol):
     particle_type: str
 
     def __call__(
-        self, k_inc: FloatLike, k_sca: FloatLike, params: Parameters
-    ) -> FloatLike:
-        ...
+        self, k_inc: Numeric, k_sca: Numeric, params: Parameters
+    ) -> Numeric: ...

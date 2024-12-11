@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 import numpy as np
 
-from random_matrix.utils.types import FloatLike, MathematicalFunction
+from random_matrix.utils.types import Numeric, MathematicalFunction
 
 
 def get_new_signature(variables: list[str]) -> inspect.Signature:
@@ -45,7 +45,7 @@ def vectorize_arguments(
     Note: only works on functions that has purely positional arguments.
     """
 
-    def vectorized_function(args: list[FloatLike]) -> FloatLike:
+    def vectorized_function(args: list[Numeric]) -> Numeric:
         return function(*args)
 
     return vectorized_function
@@ -62,7 +62,7 @@ def add_functions(
         return functions[0]
 
     @functools.wraps(functions[0])
-    def function_sum(*args: FloatLike, **kwargs: FloatLike) -> FloatLike:
+    def function_sum(*args: Numeric, **kwargs: Numeric) -> Numeric:
         return sum(f(*args, **kwargs) for f in functions)
 
     return function_sum
@@ -79,14 +79,14 @@ def multiply_functions(
         return functions[0]
 
     @functools.wraps(functions[0])
-    def function_product(*args: FloatLike, **kwargs: FloatLike) -> FloatLike:
+    def function_product(*args: Numeric, **kwargs: Numeric) -> Numeric:
         return math.prod(f(*args, **kwargs) for f in functions)
 
     return function_product
 
 
 def multiply_function_by_constant(
-    function: MathematicalFunction, constant: FloatLike
+    function: MathematicalFunction, constant: Numeric
 ) -> MathematicalFunction:
     """Return a new function that is a constant multiplied by an old
     function."""
@@ -95,7 +95,7 @@ def multiply_function_by_constant(
         return function
 
     @functools.wraps(function)
-    def new_function(*args: FloatLike) -> MathematicalFunction:
+    def new_function(*args: Numeric) -> MathematicalFunction:
         return constant * function(*args)
 
     return new_function
@@ -112,7 +112,7 @@ def fix_last_components(
 
     # args of fixed_function is expected to be a collection of 2 vectors
     @functools.wraps(function)
-    def fixed_function(*args: FloatLike) -> FloatLike:
+    def fixed_function(*args: Numeric) -> Numeric:
         third_components = [
             sign * np.sqrt(1 - arg[0] ** 2 - arg[1] ** 2)
             for sign, arg in zip(signs, args)
@@ -136,7 +136,7 @@ def equate_arguments(function: MathematicalFunction) -> MathematicalFunction:
 
     num_variables = len(get_function_variables(function))
 
-    def new_function(arg: FloatLike) -> FloatLike:
+    def new_function(arg: Numeric) -> Numeric:
         original_function_args = (arg for _ in range(num_variables))
         return function(*original_function_args)
 

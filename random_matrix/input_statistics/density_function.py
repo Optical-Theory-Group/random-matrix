@@ -48,7 +48,7 @@ from typing import Self
 import numpy as np
 
 from random_matrix.utils import integration_utils
-from random_matrix.utils.types import FloatLike, MathematicalFunction
+from random_matrix.utils.types import Numeric, MathematicalFunction
 
 
 @dataclass(slots=True)
@@ -70,10 +70,10 @@ class RegularDensityFactor:
     """
 
     density_function: MathematicalFunction
-    domain: dict[str, list[FloatLike]]
+    domain: dict[str, list[Numeric]]
 
     @property
-    def integral(self) -> FloatLike:
+    def integral(self) -> Numeric:
         integral = integration_utils.basic_product_integral(
             self.density_function, self.domain
         )
@@ -105,11 +105,11 @@ class DeltaDensityFactor:
         includes the delta function peak.
     """
 
-    density_function: dict[str, FloatLike]
-    const_factor: FloatLike = 1.0
+    density_function: dict[str, Numeric]
+    const_factor: Numeric = 1.0
 
     @property
-    def integral(self) -> FloatLike:
+    def integral(self) -> Numeric:
         integral = self.const_factor
         return integral
 
@@ -184,7 +184,7 @@ class DensityFunctionTerm:
             )
 
     @property
-    def integral(self) -> FloatLike:
+    def integral(self) -> Numeric:
         """Compute the integral of the probability density function term"""
         regular = (
             1.0
@@ -200,14 +200,14 @@ class DensityFunctionTerm:
     def from_regular(
         cls,
         density_function: MathematicalFunction,
-        domain: dict[str, list[FloatLike]],
+        domain: dict[str, list[Numeric]],
     ) -> Self:
         regular_factor = RegularDensityFactor(density_function, domain)
         return cls(regular_factor, None)
 
     @classmethod
     def from_delta(
-        cls, density_function: dict[str, FloatLike], const_factor: float = 1.0
+        cls, density_function: dict[str, Numeric], const_factor: float = 1.0
     ) -> Self:
         delta_factor = DeltaDensityFactor(density_function, const_factor)
         return cls(None, delta_factor)
@@ -281,7 +281,7 @@ class DensityFunction:
             )
 
     @property
-    def integral(self) -> FloatLike:
+    def integral(self) -> Numeric:
         """Compute the total integral of the probability density function"""
         return sum(term.integral for term in self.terms)
 
@@ -289,7 +289,7 @@ class DensityFunction:
     def from_regular(
         cls,
         density_function: MathematicalFunction,
-        domain: dict[str, list[FloatLike]],
+        domain: dict[str, list[Numeric]],
     ) -> Self:
         """Create an instance with only a single density function and no
         deltas"""
@@ -298,7 +298,7 @@ class DensityFunction:
 
     @classmethod
     def from_delta(
-        cls, density_function: dict[str, FloatLike], const_factor: float = 1.0
+        cls, density_function: dict[str, Numeric], const_factor: float = 1.0
     ) -> Self:
         """Create an instance with only delta functions"""
         term = DensityFunctionTerm.from_delta(density_function, const_factor)

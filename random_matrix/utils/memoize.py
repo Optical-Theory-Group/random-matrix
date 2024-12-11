@@ -14,7 +14,7 @@ from typing import Any, Callable
 import numpy as np
 
 from random_matrix.utils import function_utils
-from random_matrix.utils.types import FloatLike
+from random_matrix.utils.types import Numeric
 
 float_types = (float, complex, np.float64, np.complex128, np.ndarray)
 
@@ -105,7 +105,7 @@ class Memoize:
         hash_value = hashlib.sha256(str(combined_tuple).encode()).hexdigest()
         return hash_value
 
-    def _round(self, value: FloatLike) -> FloatLike:
+    def _round(self, value: Numeric) -> Numeric:
         rounded = np.round(value / self.float_atol) * self.float_atol
         return rounded
 

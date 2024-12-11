@@ -11,7 +11,7 @@ import numpy as np
 
 from random_matrix.modes.mode import Mode
 from random_matrix.utils import array_utils, plotting_utils
-from random_matrix.utils.types import FloatLike
+from random_matrix.utils.types import Numeric
 
 
 @dataclass(slots=True)
@@ -62,7 +62,7 @@ class ModeGrid:
     is_reciprocal: bool = field(init=False)
     modes: dict[tuple[str, str], Mode] = field(init=False)
 
-    rec_mat: FloatLike = field(init=False)
+    rec_mat: Numeric = field(init=False)
 
     # --------------------------------------------------------------------------
     # Constructor method
@@ -286,7 +286,7 @@ class ModeGrid:
         ]
         return mode_list_propagating, mode_list_evanescent
 
-    def _get_rec_mat(self) -> FloatLike:
+    def _get_rec_mat(self) -> Numeric:
         """The scattering matrix satisfies
 
         S = rec_mat @ S^T @ rec_mat

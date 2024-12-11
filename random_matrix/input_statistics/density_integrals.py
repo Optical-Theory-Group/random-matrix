@@ -13,12 +13,12 @@ import quadpy
 
 from random_matrix.input_statistics import density_function
 from random_matrix.utils import function_utils, integration_utils
-from random_matrix.utils.types import FloatLike, MathematicalFunction
+from random_matrix.utils.types import Numeric, MathematicalFunction
 
 
 def integrate_by_delta_density_function(
     function: MathematicalFunction,
-    delta_density_function: dict[str, FloatLike],
+    delta_density_function: dict[str, Numeric],
 ) -> MathematicalFunction:
     """Integrates a function by a product of delta functions, fixing the
     values of the arguments of the original function to those dictated
@@ -46,7 +46,7 @@ def integrate_by_delta_density_function(
     num_remaining_variables = len(remaining_variables)
 
     # args here are the remaning variables after integration
-    def integrated_function(*args: FloatLike) -> FloatLike:
+    def integrated_function(*args: Numeric) -> Numeric:
         if len(args) != num_remaining_variables:
             raise ValueError(
                 f"Please give {num_remaining_variables} positional arguments "
@@ -92,7 +92,7 @@ def integrate_by_delta_density_factor(
 def integrate_by_regular_density_function(
     function: MathematicalFunction,
     regular_density_function: MathematicalFunction,
-    integration_domain: dict[str, list[FloatLike]],
+    integration_domain: dict[str, list[Numeric]],
     scheme: Any | None = None,
 ) -> MathematicalFunction:
     """Integrate a function by a regular (non-Dirac) probability density
@@ -127,8 +127,8 @@ def integrate_by_regular_density_function(
     # For every choice of the non-integration variables, we return a function
     # that gives the integrand, which is a function of the integration
     # variables.
-    def get_integrand(*remaining_args: FloatLike) -> MathematicalFunction:
-        def integrand(*integration_args: FloatLike) -> FloatLike:
+    def get_integrand(*remaining_args: Numeric) -> MathematicalFunction:
+        def integrand(*integration_args: Numeric) -> Numeric:
             # new_args is what needs to be passed to the function being
             # integrated against
             remaining_args_iter = iter(remaining_args)
@@ -151,7 +151,7 @@ def integrate_by_regular_density_function(
         )
         return integrand  # type: ignore
 
-    def integrated_function(*args: FloatLike) -> FloatLike:
+    def integrated_function(*args: Numeric) -> Numeric:
         if len(args) != num_remaining_variables:
             raise ValueError(
                 f"Please give {num_remaining_variables} positional arguments "

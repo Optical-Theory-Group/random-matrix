@@ -4,7 +4,7 @@ import numpy as np
 
 from random_matrix.input_statistics import density_function, density_integrals
 from random_matrix.utils import function_utils
-from random_matrix.utils.types import FloatLike, MathematicalFunction
+from random_matrix.utils.types import Numeric, MathematicalFunction
 
 
 @dataclass
@@ -61,7 +61,7 @@ class ParticleStatistics(density_function.DensityFunction):
         return particle_type
 
     @property
-    def integral(self) -> FloatLike:
+    def integral(self) -> Numeric:
         return self.mixing_ratio * sum(term.integral for term in self.terms)
 
     def get_mean_a_matrix(self) -> MathematicalFunction:
@@ -102,7 +102,7 @@ class MediumStatistics:
             )
 
     @property
-    def density_integral(self) -> FloatLike:
+    def density_integral(self) -> Numeric:
         return sum(term.integral for term in self.particle_terms)
 
     def get_mean_a_matrix(self) -> MathematicalFunction:
