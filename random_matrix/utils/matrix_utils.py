@@ -1,6 +1,6 @@
 import numpy as np
 
-from random_matrix.utils.types import FloatLike
+from random_matrix.utils.types import Numeric
 
 
 def get_sub_block_indices_vector(independent_element_indices):
@@ -75,7 +75,7 @@ def get_cov_sub_block_index(
     return index
 
 
-def r_sym(matrix: FloatLike) -> FloatLike:
+def r_sym(matrix: Numeric) -> Numeric:
     """Returns the 'reciprocal operator' applied to a matrix as defined in
 
     https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.3.013129

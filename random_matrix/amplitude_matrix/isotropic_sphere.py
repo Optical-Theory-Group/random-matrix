@@ -4,11 +4,11 @@ import numba
 import numpy as np
 import scipy
 
-from random_matrix.utils.types import FloatLike
+from random_matrix.utils.types import Numeric
 
 
 @numba.njit(fastmath=False, parallel=True)
-def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
+def get_A_from_mus(mus: Numeric, xs: Numeric, ms: Numeric) -> Numeric:
     input_shape = np.shape(mus)
 
     S_2 = np.zeros(input_shape, dtype=np.complex128)
@@ -124,15 +124,15 @@ def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
 
 @numba.njit(fastmath=True, parallel=True)
 def get_A(
-    ki_x: FloatLike,
-    ki_y: FloatLike,
-    ki_z: FloatLike,
-    kj_x: FloatLike,
-    kj_y: FloatLike,
-    kj_z: FloatLike,
-    x: FloatLike,
-    m: FloatLike,
-) -> FloatLike:
+    ki_x: Numeric,
+    ki_y: Numeric,
+    ki_z: Numeric,
+    kj_x: Numeric,
+    kj_y: Numeric,
+    kj_z: Numeric,
+    x: Numeric,
+    m: Numeric,
+) -> Numeric:
     xs = x
     ms = m
     mus = ki_x * kj_x + ki_y * kj_y + ki_z * kj_z
@@ -335,21 +335,21 @@ get_A.particle_type = "sphere"
 
 # @numba.njit(fastmath=True, parallel=True)
 def get_A_product_conj(
-    ki_x: FloatLike,
-    ki_y: FloatLike,
-    ki_z: FloatLike,
-    kj_x: FloatLike,
-    kj_y: FloatLike,
-    kj_z: FloatLike,
-    ku_x: FloatLike,
-    ku_y: FloatLike,
-    ku_z: FloatLike,
-    kv_x: FloatLike,
-    kv_y: FloatLike,
-    kv_z: FloatLike,
-    x: FloatLike,
-    m: FloatLike,
-) -> FloatLike:
+    ki_x: Numeric,
+    ki_y: Numeric,
+    ki_z: Numeric,
+    kj_x: Numeric,
+    kj_y: Numeric,
+    kj_z: Numeric,
+    ku_x: Numeric,
+    ku_y: Numeric,
+    ku_z: Numeric,
+    kv_x: Numeric,
+    kv_y: Numeric,
+    kv_z: Numeric,
+    x: Numeric,
+    m: Numeric,
+) -> Numeric:
     A_ij = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
     A_uv = get_A(ku_x, ku_y, ku_z, kv_x, kv_y, kv_z, x, m)
     shape = np.shape(A_ij[0])
@@ -364,21 +364,21 @@ def get_A_product_conj(
 
 # @numba.njit(fastmath=True, parallel=True)
 def get_A_product(
-    ki_x: FloatLike,
-    ki_y: FloatLike,
-    ki_z: FloatLike,
-    kj_x: FloatLike,
-    kj_y: FloatLike,
-    kj_z: FloatLike,
-    ku_x: FloatLike,
-    ku_y: FloatLike,
-    ku_z: FloatLike,
-    kv_x: FloatLike,
-    kv_y: FloatLike,
-    kv_z: FloatLike,
-    x: FloatLike,
-    m: FloatLike,
-) -> FloatLike:
+    ki_x: Numeric,
+    ki_y: Numeric,
+    ki_z: Numeric,
+    kj_x: Numeric,
+    kj_y: Numeric,
+    kj_z: Numeric,
+    ku_x: Numeric,
+    ku_y: Numeric,
+    ku_z: Numeric,
+    kv_x: Numeric,
+    kv_y: Numeric,
+    kv_z: Numeric,
+    x: Numeric,
+    m: Numeric,
+) -> Numeric:
     A_ij = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
     A_uv = get_A(ku_x, ku_y, ku_z, kv_x, kv_y, kv_z, x, m)
     output = np.zeros((16, *np.shape(A_ij[0])), dtype=np.complex128)
@@ -388,42 +388,42 @@ def get_A_product(
     return output
 
 
-# Test
-num_one = 1000
-num_two = 8
-x = 1.0 * np.ones((num_one, num_two))
-m = 1.2 * np.ones((num_one, num_two))
-
-ks = np.random.randn(num_one, num_two, 3)
-norms = np.linalg.norm(ks, axis=2)
-ks = ks / norms[:, :, np.newaxis]
-ki_x = ks[:, :, 0]
-ki_y = ks[:, :, 1]
-ki_z = ks[:, :, 2]
-
-ks = np.random.randn(num_one, num_two, 3)
-norms = np.linalg.norm(ks, axis=2)
-ks = ks / norms[:, :, np.newaxis]
-kj_x = ks[:, :, 0]
-kj_y = ks[:, :, 1]
-kj_z = ks[:, :, 2]
+# # Test
+# num_one = 1000
+# num_two = 8
+# x = 1.0 * np.ones((num_one, num_two))
+# m = 1.2 * np.ones((num_one, num_two))
 
 # ks = np.random.randn(num_one, num_two, 3)
 # norms = np.linalg.norm(ks, axis=2)
 # ks = ks / norms[:, :, np.newaxis]
-# ku_x = ks[:, :, 0]
-# ku_y = ks[:, :, 1]
-# ku_z = ks[:, :, 2]
+# ki_x = ks[:, :, 0]
+# ki_y = ks[:, :, 1]
+# ki_z = ks[:, :, 2]
 
 # ks = np.random.randn(num_one, num_two, 3)
 # norms = np.linalg.norm(ks, axis=2)
 # ks = ks / norms[:, :, np.newaxis]
-# kv_x = ks[:, :, 0]
-# kv_y = ks[:, :, 1]
-# kv_z = ks[:, :, 2]
+# kj_x = ks[:, :, 0]
+# kj_y = ks[:, :, 1]
+# kj_z = ks[:, :, 2]
+
+# # ks = np.random.randn(num_one, num_two, 3)
+# # norms = np.linalg.norm(ks, axis=2)
+# # ks = ks / norms[:, :, np.newaxis]
+# # ku_x = ks[:, :, 0]
+# # ku_y = ks[:, :, 1]
+# # ku_z = ks[:, :, 2]
+
+# # ks = np.random.randn(num_one, num_two, 3)
+# # norms = np.linalg.norm(ks, axis=2)
+# # ks = ks / norms[:, :, np.newaxis]
+# # kv_x = ks[:, :, 0]
+# # kv_y = ks[:, :, 1]
+# # kv_z = ks[:, :, 2]
 
 
-A = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
+# A = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
 # A = get_A_product(
 #     ki_x,
 #     ki_y,

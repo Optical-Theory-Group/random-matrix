@@ -21,7 +21,7 @@ from random_matrix.utils import (
     integration_utils,
     special_functions,
 )
-from random_matrix.utils.types import FloatLike, MathematicalFunction
+from random_matrix.utils.types import Numeric, MathematicalFunction
 
 
 @dataclass(slots=True)
@@ -50,7 +50,7 @@ class IntegrationResult:
     statistic_type: str
     block_location: tuple[str, str]
     sub_block_locations: list[tuple[int, int]]
-    integral: FloatLike
+    integral: Numeric
 
     def __str__(self) -> str:
         string = (
@@ -127,11 +127,11 @@ class IntegrationTask:
     """
 
     integrand: MathematicalFunction
-    domain_stack: FloatLike
+    domain_stack: Numeric
     statistic_type: str
     block_location: tuple[str, str]
     sub_block_locations: list[tuple[slice, tuple[int, int]]]
-    const_factor: FloatLike = 1.0
+    const_factor: Numeric = 1.0
 
     def __str__(self) -> str:
         string = (
@@ -332,7 +332,7 @@ class IntegrationTaskPreparer:
         k = self.medium_parameters.k
         L = self.medium_parameters.L
 
-        def mean_integrand(k_x: FloatLike, k_y: FloatLike) -> FloatLike:
+        def mean_integrand(k_x: Numeric, k_y: Numeric) -> Numeric:
             ki_x = k_x
             ki_y = k_y
 
@@ -465,13 +465,13 @@ class IntegrationTaskPreparer:
         L = self.medium_parameters.L
 
         def covariance_integrand(
-            k1_x: FloatLike,
-            k1_y: FloatLike,
-            k2_x: FloatLike,
-            k2_y: FloatLike,
-            d_x: FloatLike,
-            d_y: FloatLike,
-        ) -> FloatLike:
+            k1_x: Numeric,
+            k1_y: Numeric,
+            k2_x: Numeric,
+            k2_y: Numeric,
+            d_x: Numeric,
+            d_y: Numeric,
+        ) -> Numeric:
             # Convert to complex arrays
             k1_x = np.array(k1_x, dtype=complex)
             k1_y = np.array(k1_y, dtype=complex)
@@ -759,13 +759,13 @@ class IntegrationTaskPreparer:
         L = self.medium_parameters.L
 
         def pseudo_covariance_integrand(
-            k1_x: FloatLike,
-            k1_y: FloatLike,
-            k2_x: FloatLike,
-            k2_y: FloatLike,
-            d_x: FloatLike,
-            d_y: FloatLike,
-        ) -> FloatLike:
+            k1_x: Numeric,
+            k1_y: Numeric,
+            k2_x: Numeric,
+            k2_y: Numeric,
+            d_x: Numeric,
+            d_y: Numeric,
+        ) -> Numeric:
             # Convert to complex arrays
             k1_x = np.array(k1_x, dtype=complex)
             k1_y = np.array(k1_y, dtype=complex)

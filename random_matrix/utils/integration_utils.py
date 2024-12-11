@@ -7,12 +7,12 @@ import numpy as np
 import quadpy
 
 from random_matrix.utils import function_utils
-from random_matrix.utils.types import FloatLike, MathematicalFunction
+from random_matrix.utils.types import Numeric, MathematicalFunction
 
 
 def get_integration_domain_from_dict(
-    function: MathematicalFunction, domain_dict: dict[str, list[FloatLike]]
-) -> list[list[FloatLike]]:
+    function: MathematicalFunction, domain_dict: dict[str, list[Numeric]]
+) -> list[list[Numeric]]:
     integration_variables = list(inspect.signature(function).parameters)
     new_domain = [domain_dict[var] for var in integration_variables]
     return new_domain
@@ -20,9 +20,9 @@ def get_integration_domain_from_dict(
 
 def basic_product_integral(
     function: MathematicalFunction,
-    integration_domain: list[list[FloatLike]] | dict[str, list[FloatLike]],
+    integration_domain: list[list[Numeric]] | dict[str, list[Numeric]],
     scheme: Any | None = None,
-) -> FloatLike:
+) -> Numeric:
     """Integrate a function over a hypercube of dimension n, where n is the
     number of arguments.
 
@@ -81,9 +81,9 @@ def basic_product_integral(
 
 def basic_triangle_integral(
     function: MathematicalFunction,
-    integration_domain: FloatLike,
+    integration_domain: Numeric,
     scheme: Any | None = None,
-) -> FloatLike:
+) -> Numeric:
     """Integrates a function of 2 variables over a triangle (or collection
     of triangles)
 
@@ -128,10 +128,10 @@ def basic_triangle_integral(
 
 def basic_simplex_integral(
     function: MathematicalFunction,
-    integration_domain: FloatLike,
+    integration_domain: Numeric,
     scheme: Any | None = None,
     dim: int = 6,
-) -> FloatLike:
+) -> Numeric:
     """Integrates a function of 2 variables over a triangle (or collection
     of triangles)
 

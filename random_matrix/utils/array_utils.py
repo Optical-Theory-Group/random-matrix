@@ -143,6 +143,11 @@ def is_equal_array(
     if dim_first != dim_second:
         raise ValueError("Cannot compare arrays of different dimensions.")
 
+    shape_first = np.shape(first_array)
+    shape_second = np.shape(second_array)
+    if shape_first != shape_second:
+        return False
+
     # Sort arrays if the order doesnt matter
     if not order_matters:
         match dim_first:

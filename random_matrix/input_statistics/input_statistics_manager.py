@@ -16,7 +16,7 @@ from random_matrix.input_statistics import (
 )
 from random_matrix.modes import mode_grid
 from random_matrix.utils import matrix_utils
-from random_matrix.utils.types import FloatLike
+from random_matrix.utils.types import Numeric
 
 
 class InputStatisticsManager:
@@ -25,9 +25,6 @@ class InputStatisticsManager:
         medium_parameters: medium_parameters.MediumParameters,
         medium_statistics: medium_statistics.MediumStatistics,
         mode_grid: mode_grid.ModeGrid,
-        extra,
-        points_per_simplex: int = 1,
-        sampling_method: str = "simplex",
         use_logger: bool = True,
     ) -> None:
         """Input statistics manager class"""
@@ -64,9 +61,6 @@ class InputStatisticsManager:
         self.shape_classifier = shape_classifier.ShapeClassifier(
             mode_grid,
             shape_classifier_logger,
-            sampling_method,
-            points_per_simplex,
-            extra,
         )
 
         self.integration_task_preparer = (
@@ -78,18 +72,15 @@ class InputStatisticsManager:
             )
         )
 
-
-    def get_statistics(self) -> FloatLike:
+    def get_statistics(self) -> Numeric:
         """Compute the mean, covariance and pseudo-covariance for the elements
         of the scattering matrix."""
 
         # Find indices
         independent_elements, indices = self._get_indices()
 
-        # Save indices
-
-        # Classify shapes
-        quadruples, quadruple_templates, singles = self._classify_shapes(
+        # Classify shapes. We use the "t,t" indices because these 
+        quadruple_classes = self._classify_shapes(
             indices["covariance"]["pp,pp"]["t,t"]
         )
 
@@ -116,7 +107,7 @@ class InputStatisticsManager:
 
         with self.logger.log("mean"):
             mean_S = self._get_mean_S(mean_result_list)
-    
+
         with self.logger.log("covariance"):
             cov = self._get_covariance_matrix(cov_result_list)
 
@@ -175,7 +166,7 @@ class InputStatisticsManager:
 
     def _get_mean_S(
         self, mean_result_list: integration_task.IntegrationResultList
-    ) -> FloatLike:
+    ) -> Numeric:
         """Construct the mean scattering matrix from the mean results list"""
 
         size_of_S = 4 * self.mode_grid.num_propagating
@@ -224,7 +215,7 @@ class InputStatisticsManager:
 
     def _get_mean_S_vector(
         self, mean_result_list: integration_task.IntegrationResultList
-    ) -> FloatLike:
+    ) -> Numeric:
         """Construct the mean scattering matrix from the mean results list
 
         Experiments suggest that this is slower than the other method!
@@ -275,9 +266,9 @@ class InputStatisticsManager:
                 case "r2":
                     sub_block_locations += half_index
 
-            mean_S[
-                sub_block_locations[:, 0], sub_block_locations[:, 1]
-            ] = np.ravel(result.integral)
+            mean_S[sub_block_locations[:, 0], sub_block_locations[:, 1]] = (
+                np.ravel(result.integral)
+            )
 
         mean_S_sym = self.mode_grid.rec_mat @ mean_S.T @ self.mode_grid.rec_mat
         mean_S = mean_S + mean_S_sym
@@ -294,7 +285,7 @@ class InputStatisticsManager:
 
     def _get_covariance_matrix(
         self, cov_result_list, is_pseudo=False
-    ) -> FloatLike:
+    ) -> Numeric:
         """Construct the regular covariance matrix from the covariance results
         list"""
 
@@ -324,22 +315,18 @@ class InputStatisticsManager:
                     (i, j, -v, -u),
                     (-j, -i, -v, -u),
                 ]
-                extended_sub_block_locations = [(i,j,u,v)]
+                extended_sub_block_locations = [(i, j, u, v)]
 
                 block_ij, block_uv = block.split(",")
                 rec_block_ij = (
                     "t2"
                     if block_ij == "t"
-                    else "t"
-                    if block_ij == "t2"
-                    else block_ij
+                    else "t" if block_ij == "t2" else block_ij
                 )
                 rec_block_uv = (
                     "t2"
                     if block_uv == "t"
-                    else "t"
-                    if block_uv == "t2"
-                    else block_uv
+                    else "t" if block_uv == "t2" else block_uv
                 )
 
                 extended_block_ij = [
@@ -425,7 +412,7 @@ class InputStatisticsManager:
     # Weight matrices
     # -------------------------------------------------------------------------
 
-    def _get_mean_weight_matrix(self) -> FloatLike:
+    def _get_mean_weight_matrix(self) -> Numeric:
         """Get a matrix whose elements are like 1/sqrt(w)
 
         Used to distribute weights across the mean matrix.
@@ -444,7 +431,7 @@ class InputStatisticsManager:
         weights = np.kron(np.identity(2), weights)
         return weights
 
-    def _get_cov_weight_matrix(self) -> FloatLike:
+    def _get_cov_weight_matrix(self) -> Numeric:
         """Get a matrix whose elements are like 1/sqrt(wi wj)
 
         Used to distribute weights across the cov matrices.

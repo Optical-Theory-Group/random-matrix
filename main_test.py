@@ -28,7 +28,6 @@ from random_matrix.input_statistics.medium_statistics import (
     ParticleStatistics,
 )
 from random_matrix.modes import mode_grid, mode_grid_factory
-from random_matrix.scattering_matrix import sampler
 from random_matrix.utils import (
     array_utils,
     function_utils,
@@ -40,7 +39,7 @@ from random_matrix.utils import (
 
 seed = 0
 np.random.seed(seed)
-side_length = 0.75
+side_length = 0.2
 
 warnings.filterwarnings("ignore")
 my_grid = mode_grid_factory.from_tiling(
@@ -72,11 +71,13 @@ particle_statistics = ParticleStatistics(
 medium_statistics = MediumStatistics([particle_statistics])
 
 input_statistics_manager = InputStatisticsManager(
-    medium_parameters,
-    medium_statistics,
-    my_grid,
-    sampling_method="simplex",
-    extra=None
+    medium_parameters, medium_statistics, my_grid
+)
+independent_elements, indices, classes = (
+    input_statistics_manager.get_statistics()
 )
 
-mean_S, cov, pseudo_cov, sigma = input_statistics_manager.get_statistics()
+singles_indices = (41,-28,41,-28)
+quad = classes.get_quadruple(singles_indices)
+template = classes.get_template(singles_indices)
+template_indices = template.singles_indices
