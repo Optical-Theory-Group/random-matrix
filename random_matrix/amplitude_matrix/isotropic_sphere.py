@@ -1,13 +1,16 @@
 import time
 
-import numba
+
+
+# import numba
+
 import numpy as np
 import scipy
 
 from random_matrix.utils.types import FloatLike
 
 
-@numba.njit(fastmath=False, parallel=True)
+# @numba.njit(fastmath=False, parallel=True)
 def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
     input_shape = np.shape(mus)
 
@@ -122,7 +125,7 @@ def get_A_from_mus(mus: FloatLike, xs: FloatLike, ms: FloatLike) -> FloatLike:
     return combined_array
 
 
-@numba.njit(fastmath=True, parallel=True)
+# @numba.njit(fastmath=True, parallel=True)
 def get_A(
     ki_x: FloatLike,
     ki_y: FloatLike,
