@@ -8,6 +8,7 @@ import scipy.spatial
 import scipy.stats
 import shapely
 import skspatial.objects
+import cupy as cp
 
 from random_matrix.utils import array_utils
 from random_matrix.utils.types import Numeric
@@ -860,7 +861,8 @@ def intersect_hull_with_hyperplane(
         # Get the sign of r*n -d
         sign = np.sign(value)
         signs.append(sign)
-
+    counter = 0
+    counter2 = 0
     # Loop over edges and find intersections where they exist
     sorted_edges = set()
     intersections = []
@@ -890,18 +892,94 @@ def intersect_hull_with_hyperplane(
             if product == 0:
                 if sign1 == 0:
                     if not any(np.allclose(v1, pt) for pt in intersections):
+                        counter += 1
                         intersections.append(v1)
                 if sign2 == 0:
                     if not any(np.allclose(v2, pt) for pt in intersections):
                         intersections.append(v2)
+                        counter += 1
                 continue
 
             # The product must be -1, so there is an intersection
             intersection = v1 + (d - np.dot(v1, n)) / np.dot(v2 - v1, n) * (
                 v2 - v1
             )
+            counter2 += 1
             intersections.append(intersection)
+    print(counter)
+    print(counter2)
+    print(len(intersections))
     return np.array(intersections)
+
+
+def intersect_hull_with_hyperplane_v2(
+    points: np.ndarray,
+    simplices: np.ndarray,
+    hyperplane: tuple[np.ndarray, float],
+) -> np.ndarray:
+    """Find the intersection of a convex hull object with a hyperplane
+
+    The convex hull object is defined by the two variables points, an array of
+    the points, and simplicies, which is a list of lists of indices telling you
+    which points form each simplex. These basically should look like
+    hull.points and hull.simplices.
+
+    The hyperplane should be given as a tuple containing an array n defining
+    the normal vector n and a float d such that the hyperplane is defined by
+    the equation
+
+    r * n = d
+
+    The output is an array of points that bound the intersection. Note that
+    these points may contain redundancies, i.e. may contain additional points
+    on the edges of the boundary, rather than purely the vertices. This is a
+    feature, not a bug.
+    """
+    n, d = hyperplane
+
+    # Compute dot products and signs for all points
+    values = np.dot(points, n) - d
+    values[np.isclose(values, 0.0)] = 0.0  # Clean edge cases
+    signs = np.sign(values)
+
+    # Extract edges from simplices and remove duplicates
+    edges = np.vstack(
+        [
+            np.sort(
+                np.array(list(itertools.combinations(simplex, 2)), dtype=int),
+                axis=1,
+            )
+            for simplex in simplices
+        ]
+    )
+    edges = np.unique(edges, axis=0)
+
+    # Get the signs of the two vertices of each edge
+    signs1 = signs[edges[:, 0]]
+    signs2 = signs[edges[:, 1]]
+    product = signs1 * signs2
+
+    # Identify edges intersecting the hyperplane
+    crossing_edges = edges[product == -1]  # Opposite signs
+    on_plane_edges = edges[product == 0]  # At least one vertex on the plane
+
+    # Initialize list of intersections
+    intersections = []
+
+    # Add vertices lying on the plane
+    for edge in on_plane_edges:
+        for idx in edge:
+            if signs[idx] == 0:
+                intersections.append(points[idx])
+
+    intersections = np.unique(intersections, axis=0)
+    # Compute intersections for crossing edges
+    v1 = points[crossing_edges[:, 0]]
+    v2 = points[crossing_edges[:, 1]]
+    t = (d - np.dot(v1, n)) / np.dot(v2 - v1, n)
+    intersection_points = v1 + t[:, None] * (v2 - v1)
+    intersections = np.vstack((intersections, intersection_points))
+    return intersections
 
 
 def get_degenerate_hull_simplices(
@@ -924,11 +1002,96 @@ def get_degenerate_hull_simplices(
     dimension = points.shape[1]
     new_point = np.random.randn(dimension)
     augmented_points = np.vstack([points, new_point])
+    new_point_index = len(augmented_points) - 1
 
     hull = scipy.spatial.ConvexHull(augmented_points)
-    new_point_index = array_utils.get_array_index(hull.points, new_point)
-
     # Filter out simplices containing the new point index
     mask = ~np.isin(hull.simplices, new_point_index).any(axis=1)
     filtered_simplices = hull.simplices[mask]
     return filtered_simplices
+
+
+def intersect_hull_with_hyperplane_new(
+    points: np.ndarray | cp.ndarray,
+    simplices: np.ndarray | cp.ndarray,
+    hyperplane: tuple[np.ndarray | cp.ndarray, float],
+) -> np.ndarray | cp.ndarray:
+    xp = cp.get_array_module(points)
+    n, d = hyperplane
+    values = xp.dot(points, n) - d
+    values[xp.isclose(values, 0.0)] = 0.0  # Handle edge cases
+    signs = xp.sign(values)
+
+    _, num_dim = points.shape
+    simplices = xp.sort(simplices)
+    pairs = xp.array(list(itertools.combinations(range(num_dim), 2)))
+    edge_indices = simplices[:, pairs].reshape(-1, 2)
+    coded = xp.unique(array_utils.bitwise_hash(edge_indices))
+    edges = array_utils.inverse_bitwise_hash(coded)
+
+    product = signs[edges[:, 0]] * signs[edges[:, 1]]
+    crossing_edges = edges[product == -1]  # Opposite signs
+
+    # Add vertices lying on the plane
+    on_plane_point_indices = np.where(np.isclose(signs, 0.0))
+    on_plane_points = points[on_plane_point_indices]
+
+    # Compute intersections for crossing edges
+    v1 = points[crossing_edges[:, 0]]
+    v2 = points[crossing_edges[:, 1]]
+    t = (d - xp.dot(v1, n)) / xp.dot(v2 - v1, n)
+    crossing_points = v1 + t[:, None] * (v2 - v1)
+
+    return xp.vstack((on_plane_points, crossing_points))
+
+
+def get_convex_hull_iterative(
+    points: np.ndarray,
+    max_iterations: int = 50,
+    verbose: bool = False,
+    qhull_options: str | None = None,
+) -> scipy.spatial.ConvexHull:
+    """Iteratively compute the convex hull of a set of points, using the
+    computed vertices as the input points for the next iteration. This ensures
+    that redundant points are gradually filtered out, resulting in a hull with
+    minimal vertices and simplices."""
+    old_points = points
+    num_old_vertices = len(old_points)
+
+    for i in range(max_iterations):
+        hull = scipy.spatial.ConvexHull(
+            old_points, qhull_options=qhull_options
+        )
+
+        # Check if the number of points has decreased or not.
+        # If it hasn't, continue.
+        new_vertices = hull.vertices
+        new_simplices = hull.simplices
+        new_points = hull.points[new_vertices]
+        num_new_vertices = len(new_vertices)
+        num_new_simplices = len(new_simplices)
+
+        if verbose:
+            print(
+                f"Iteration {i + 1}: "
+                f"Vertices={num_new_vertices}, "
+                f"Simplices={num_new_simplices}, "
+                f"Volume={hull.volume:.4f}."
+            )
+
+        is_equal_vertices = num_new_vertices == num_old_vertices
+        is_equal_simplices = (
+            True if i == 0 else num_new_simplices == num_old_simplices
+        )
+        is_finished = (
+            num_new_vertices == num_old_vertices and is_equal_simplices
+        )
+        if is_finished:
+            break
+
+        # The number of vertices has changed, so repeat
+        old_points = new_points
+        num_old_vertices = num_new_vertices
+        num_old_simplices = num_new_simplices
+
+    return hull

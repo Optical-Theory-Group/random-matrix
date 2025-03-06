@@ -14,6 +14,7 @@ from random_matrix.input_statistics import (
     medium_statistics,
     shape_classifier,
 )
+from random_matrix.input_statistics.shape_classifier import ClassQuadrupleList
 from random_matrix.modes import mode_grid
 from random_matrix.utils import matrix_utils
 from random_matrix.utils.types import Numeric
@@ -79,29 +80,27 @@ class InputStatisticsManager:
         # Find indices
         independent_elements, indices = self._get_indices()
 
-        # Classify shapes. We use the "t,t" indices because these 
-        quadruple_classes = self._classify_shapes(
+        # Classify shapes. We use the "t,t" indices because these
+        class_quadruple_list = self._classify_shapes(
             indices["covariance"]["pp,pp"]["t,t"]
         )
 
-        # Find integration domains
-        quadruples = self._get_domains(
-            quadruples, quadruple_templates, singles
-        )
+        # # Find integration domains
+        # quadruples = self._get_domains(
+        #     quadruples, quadruple_templates, singles
+        # )
 
         # Prepare and execute integration tasks
-        integration_task_list = self._get_integration_tasks(
-            quadruples, independent_elements, indices
+        integration_result_list = self._get_integration_results(
+            class_quadruple_list, indices
         )
 
-        # with self.logger.log("tasks"):
-        #     result_list = integration_task_list.execute_tasks()
-        result_list = integration_task_list
-
         # Extract results from the list and build up statistical matrices
-        mean_result_list = result_list.by_statistic_type("mean")
-        cov_result_list = result_list.by_statistic_type("covariance")
-        pseudo_cov_result_list = result_list.by_statistic_type(
+        mean_result_list = integration_result_list.by_statistic_type("mean")
+        cov_result_list = integration_result_list.by_statistic_type(
+            "covariance"
+        )
+        pseudo_cov_result_list = integration_result_list.by_statistic_type(
             "pseudo_covariance"
         )
 
@@ -123,15 +122,9 @@ class InputStatisticsManager:
             ]
         )
 
-        return mean_S, cov, pseudo_cov, sigma
-
-        # return cov, pseudo_cov, sigma
-        # with open("cov.pkl", "wb") as f:
-        #     pickle.dump(cov, f)
-
         chol = self._get_chol(sigma)
 
-        return mean_S, chol
+        return integration_result_list, mean_S, cov, sigma, chol
 
     def _get_indices(self) -> dict[str, dict[str, set[tuple[int, int]]]]:
         return self.index_finder.get_indices()
@@ -144,14 +137,13 @@ class InputStatisticsManager:
             quadruples, quadruple_templates, singles
         )
 
-    def _get_integration_tasks(
+    def _get_integration_results(
         self,
-        quadruples,
-        independent_elements,
+        class_quadruples_list: ClassQuadrupleList,
         indices: dict[str, dict[str, set[tuple[int, int]]]],
-    ) -> integration_task.IntegrationTaskList:
-        return self.integration_task_preparer.get_integration_tasks(
-            quadruples, independent_elements, indices
+    ) -> integration_task.IntegrationResultList:
+        return self.integration_task_preparer.get_integration_results(
+            class_quadruples_list, indices
         )
 
     def show_report(self):
@@ -315,7 +307,7 @@ class InputStatisticsManager:
                     (i, j, -v, -u),
                     (-j, -i, -v, -u),
                 ]
-                extended_sub_block_locations = [(i, j, u, v)]
+                extended_sub_block_locations = [(i, j, u, v), (-j, -i, -v, -u)]
 
                 block_ij, block_uv = block.split(",")
                 rec_block_ij = (
@@ -335,7 +327,10 @@ class InputStatisticsManager:
                     block_ij,
                     rec_block_ij,
                 ]
-                extended_block_ij = [block_ij]
+                extended_block_ij = [
+                    block_ij,
+                    rec_block_ij,
+                ]
 
                 extended_block_uv = [
                     block_uv,
@@ -343,7 +338,10 @@ class InputStatisticsManager:
                     rec_block_uv,
                     rec_block_uv,
                 ]
-                extended_block_uv = [block_uv]
+                extended_block_uv = [
+                    block_uv,
+                    rec_block_uv,
+                ]
 
                 for sub_block_location, block_ij, block_uv in zip(
                     extended_sub_block_locations,

@@ -7,7 +7,7 @@ import scipy
 from random_matrix.utils.types import Numeric
 
 
-@numba.njit(fastmath=False, parallel=True)
+# @numba.njit(fastmath=False, parallel=True)
 def get_A_from_mus(mus: Numeric, xs: Numeric, ms: Numeric) -> Numeric:
     input_shape = np.shape(mus)
 
@@ -122,7 +122,7 @@ def get_A_from_mus(mus: Numeric, xs: Numeric, ms: Numeric) -> Numeric:
     return combined_array
 
 
-@numba.njit(fastmath=True, parallel=True)
+# @numba.njit(fastmath=True, parallel=True)
 def get_A(
     ki_x: Numeric,
     ki_y: Numeric,

@@ -1,7 +1,7 @@
 """Utility functions for frequently used array manipulations."""
 
 from typing import Any
-
+import cupy as cp
 import numpy as np
 import numpy.typing as npt
 import scipy.spatial
@@ -258,3 +258,20 @@ def sort_by_reference_list(
     sorted_indices = np.argsort(reference_list)
     sorted_list = to_be_sorted[np.array(sorted_indices)]
     return sorted_list
+
+
+def bitwise_hash(xy: np.ndarray | cp.ndarray) -> np.ndarray | cp.ndarray:
+    xp = cp.get_array_module(xy)
+    xy = xy.astype(xp.uint64)
+    x, y = xy[:, 0], xy[:, 1]
+    return (x << 32) | y  # Store x in upper 32 bits
+
+
+def inverse_bitwise_hash(
+    z: np.ndarray | cp.ndarray,
+) -> np.ndarray | cp.ndarray:
+    xp = cp.get_array_module(z)
+    z = z.astype(xp.uint64)
+    x = z >> 32  # Extract upper 32 bits
+    y = z & 0xFFFFFFFF  # Extract lower 32 bits
+    return xp.column_stack((x, y))

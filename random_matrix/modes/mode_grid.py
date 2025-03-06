@@ -91,7 +91,9 @@ class ModeGrid:
             raise ValueError("Your mode_list is an empty list.")
 
     @staticmethod
-    def _get_reciprocal_partner_index(mode: Mode, mode_list: list[Mode]) -> int:
+    def _get_reciprocal_partner_index(
+        mode: Mode, mode_list: list[Mode]
+    ) -> int:
         """Find the index of a mode's reciprocal partner in mode_list
 
         Parameters
@@ -307,14 +309,18 @@ class ModeGrid:
     @property
     def num_propagating(self) -> int:
         propagating_modes = [
-            mode for mode in self.modes.values() if mode.wave_type == "propagating"
+            mode
+            for mode in self.modes.values()
+            if mode.wave_type == "propagating"
         ]
         return len(propagating_modes)
 
     @property
     def num_evanescent(self) -> int:
         evanescent_modes = [
-            mode for mode in self.modes.values() if mode.wave_type == "evanescent"
+            mode
+            for mode in self.modes.values()
+            if mode.wave_type == "evanescent"
         ]
         return len(evanescent_modes)
 
@@ -425,6 +431,7 @@ class ModeGrid:
     def plot(
         self,
         show_indices: bool = False,
+        savefig: None | str = None,
     ) -> None:
         """
         Draws the grid of modes.
@@ -469,4 +476,5 @@ class ModeGrid:
 
         plotting_utils.draw_circle(ax)
         plotting_utils.draw_circle(ax, r=self.r_lim)
-        # fig.savefig("./modes.svg", format='svg')
+        if savefig is not None:
+            fig.savefig(savefig, format="svg")

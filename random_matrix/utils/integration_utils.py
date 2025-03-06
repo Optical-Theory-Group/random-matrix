@@ -5,7 +5,8 @@ from typing import Any
 
 import numpy as np
 import quadpy
-
+import cupy as cp
+import scipy
 from random_matrix.utils import function_utils
 from random_matrix.utils.types import Numeric, MathematicalFunction
 
@@ -39,7 +40,7 @@ def basic_product_integral(
     scheme:
         The cubature scheme. If not provided, defaults will be used.
 
-    Returns: 
+    Returns:
     --------
     integral:
         The integral of function over the domain
@@ -175,4 +176,78 @@ def basic_simplex_integral(
     # else:
     #     print("All good!")
 
+    return integral
+
+
+def test_func(x):
+    return x[:, 0] ** 2 + x[:, 1] ** 2
+
+
+def hull_surface_integral(
+    function: MathematicalFunction,
+    hull: scipy.spatial.ConvexHull,
+    scheme: Any | None = None,
+    use_gpu: bool = False,
+) -> np.ndarray | cp.ndarray:
+    """Compute the integral of a function over the surface of a convex hull. It
+    is assumed that the function returns a scalar output, i.e. maps R^n -> R.
+
+    function: The function to be integrated. This function must be vectorized
+    to accept arguments of shape
+
+    N x n
+
+    where n-1 is the number of dimensions of the simplical facets of the
+    surface (alternatively, n is the number of dimensions of the ambient space
+    in which the surface lies. For example, for the surface of a sphere, n=3)
+
+    hull: The convex hull object that defines the surface.
+    scheme: Integration scheme to be used.
+    use_gpu: If true, use cupy instead of numpy
+    """
+    # Pick appropriate array module
+    xp = cp if use_gpu else np
+
+    # Pick integration scheme
+    # For future developers: one can use Cayley-Menger determinants for d > 2
+    num_dimensions = hull.points.shape[1] - 1
+    if num_dimensions > 2:
+        raise NotImplementedError(
+            "Integration of surfaces in d > 2 dimensions"
+            "not currently supported."
+        )
+
+    if scheme is None:
+        # The second parameter to quadpy's scheme method here is about
+        # accuracy of the scheme, not the number of spatial dimensions.
+        scheme = quadpy.tn.grundmann_moeller(num_dimensions, 3)
+
+    barycentric_weights = xp.asarray(scheme.points)
+    weights = xp.asarray(scheme.weights)
+
+    # Generate integration points
+    num_simplices = len(hull.simplices)
+    num_weights = len(weights)
+    simplical_points = xp.asarray(hull.points)[
+        xp.asarray(hull.simplices)
+    ].transpose(0, 2, 1)
+    integration_points = simplical_points @ barycentric_weights
+    reshaped_points = integration_points.transpose(0, 2, 1).reshape(
+        -1, num_dimensions + 1
+    )
+
+    # Find simplex volumes using cross product
+    v1s = simplical_points[:, :, 1] - simplical_points[:, :, 0]
+    v2s = simplical_points[:, :, 2] - simplical_points[:, :, 0]
+    cross_products = xp.cross(v1s, v2s)
+    areas = 0.5 * xp.sqrt(xp.sum(cross_products**2, axis=1))
+
+    # Output
+    function_output = function(reshaped_points)
+    weighted_output = (
+        function_output
+        * xp.tile(weights, num_simplices)
+        * xp.repeat(areas, num_weights)
+    )
+    integral = xp.sum(weighted_output)
     return integral

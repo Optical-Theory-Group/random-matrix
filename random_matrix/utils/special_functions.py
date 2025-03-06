@@ -37,6 +37,11 @@ def sinc(x: Numeric) -> Numeric:
     return result
 
 
+def identity(x: Numeric) -> Numeric:
+    """Identity function"""
+    return np.ones_like(x)
+
+
 def sinc_mean(k: Numeric, L: Numeric, kappa: Numeric) -> Numeric:
     """Sinc function that appears in calculations of mean"""
     return sinc(k * L * kz(kappa))
