@@ -41,7 +41,7 @@ from random_matrix.scattering_matrix import sampler
 
 seed = 0
 np.random.seed(seed)
-side_length = 0.7
+side_length = 0.3
 
 warnings.filterwarnings("ignore")
 my_grid = mode_grid_factory.from_tiling(

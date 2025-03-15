@@ -161,7 +161,7 @@ def basic_simplex_integral(
         function = function_utils.vectorize_arguments(function)
 
     if scheme is None:
-        scheme = quadpy.tn.grundmann_moeller(dim, 1)
+        scheme = quadpy.tn.grundmann_moeller(dim, 3)
 
     # Reshape domain stack if necessary
     # again to make quadpy happy

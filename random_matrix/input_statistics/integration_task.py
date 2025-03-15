@@ -787,7 +787,6 @@ class IntegrationTaskPreparer:
             class_quadruple_list.classes
         ):
             start = time.perf_counter()
-            # print("New quadruple. Doing geometry...")
             # Work out the template's integration domain
             # This involves the higher dimensional geometry
             template = class_quadruple.template
@@ -801,8 +800,11 @@ class IntegrationTaskPreparer:
                     hull.points, hull.simplices, (n1, 0)
                 )
             )
+
             reduced_intersection_one = intersection_one[:, filter_one]
+            
             reduced_hull = scipy.spatial.ConvexHull(reduced_intersection_one)
+
             intersection_two = (
                 geometry_utils.intersect_hull_with_hyperplane_new(
                     reduced_hull.points,
@@ -810,6 +812,7 @@ class IntegrationTaskPreparer:
                     (n2[filter_one], 0.0),
                 )
             )
+
             reduced_intersection_two = intersection_two[:, filter_two]
             reduced_hull = geometry_utils.get_convex_hull_iterative(
                 reduced_intersection_two
@@ -829,8 +832,18 @@ class IntegrationTaskPreparer:
                 ],
                 axis=1,
             )
+
+            # Get volumes and remove degenerate simplices
+            # contents = np.abs(
+            #     np.linalg.det(
+            #         new_simplices[:, 1:, :] - new_simplices[:, 0, None, :]
+            #     )
+            # )
+            # nondegenerate_indices = ~np.isclose(contents,0.0)
+            # new_simplices = new_simplices[nondegenerate_indices]
+
             # print("Geometry done.")
-            end = time.perf_counter()
+            # end = time.perf_counter()
             # print(f"{end-start}")
             # print(new_simplices.shape)
 
