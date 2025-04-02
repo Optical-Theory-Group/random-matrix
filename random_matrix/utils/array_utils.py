@@ -1,11 +1,13 @@
 """Utility functions for frequently used array manipulations."""
 
-from typing import Any
+from typing import Any, Type
 import cupy as cp
 import numpy as np
 import numpy.typing as npt
 import scipy.spatial
 
+def get_module(array: np.ndarray | cp.ndarray) -> Any:
+    return np if cp.get_array_module(array) == np else cp
 
 def split_list(old_list: list[Any], num_parts: int) -> list[Any]:
     new_list = [[] for _ in range(num_parts)]

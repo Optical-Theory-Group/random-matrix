@@ -41,7 +41,7 @@ from random_matrix.scattering_matrix import sampler
 
 seed = 0
 np.random.seed(seed)
-side_length = 0.3
+side_length = 0.16
 
 warnings.filterwarnings("ignore")
 my_grid = mode_grid_factory.from_tiling(
@@ -52,7 +52,7 @@ my_grid = mode_grid_factory.from_tiling(
     rotation_angle=0.0,
     translation_vector=np.array([0.0, 0.0]),
 )
-
+print(my_grid.num_propagating)
 my_grid.plot(
     show_indices=False, savefig="/home/nbyrnes/code/random-matrix/figtest.svg"
 )
@@ -74,6 +74,7 @@ particle_statistics = ParticleStatistics(
     isotropic_sphere.get_A_product_conj,
 )
 medium_statistics = MediumStatistics([particle_statistics])
+
 
 input_statistics_manager = InputStatisticsManager(
     medium_parameters, medium_statistics, my_grid

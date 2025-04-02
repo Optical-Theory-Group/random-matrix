@@ -1,4 +1,5 @@
 import numpy as np
+import cupy as cp
 
 from random_matrix.utils.types import Numeric, MathematicalFunction
 
@@ -24,22 +25,19 @@ def inverse_kz(kappa: Numeric) -> Numeric:
 def sinc(x: Numeric) -> Numeric:
     """Standard sinc function. Differs to scipy's by not including pi
     normalization."""
-
-    if isinstance(x, list):
-        x = np.array(x)
-    if not isinstance(x, np.ndarray):
-        return 1.0 if np.isclose(x, 0.0) else np.sin(x) / x
-    result = np.empty_like(x)
-    mask = np.isclose(x, 0.0)
+    xp = cp.get_array_module(x)
+    result = xp.empty_like(x)
+    mask = xp.isclose(x, 0.0)
     non_zero_x_vals = x[~mask]
     result[mask] = 1.0
-    result[~mask] = np.sin(non_zero_x_vals) / non_zero_x_vals
+    result[~mask] = xp.sin(non_zero_x_vals) / non_zero_x_vals
     return result
 
 
 def identity(x: Numeric) -> Numeric:
     """Identity function"""
-    return np.ones_like(x)
+    xp = cp.get_array_module(x)
+    return xp.ones_like(x)
 
 
 def sinc_mean(k: Numeric, L: Numeric, kappa: Numeric) -> Numeric:
