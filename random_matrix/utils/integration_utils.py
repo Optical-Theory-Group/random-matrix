@@ -1,8 +1,8 @@
 """Utility functions that assist with numerical integration"""
 
 import inspect
-from typing import Any
-
+from typing import Any, Callable
+import math
 import numpy as np
 import quadpy
 import cupy as cp
@@ -250,4 +250,73 @@ def hull_surface_integral(
         * xp.repeat(areas, num_weights)
     )
     integral = xp.sum(weighted_output)
+    return integral
+
+
+def simplex_integral(
+    function: Callable,
+    simplices: Numeric,
+    scheme: Any | None = None,
+    use_gpu: bool = False,
+) -> np.ndarray | cp.ndarray:
+    """Compute the integral of a function over a (collection of) simplex/ices.
+
+    function: The function to be integrated. This function must be vectorized
+    to accept arguments of shape
+
+    N x (n+1) x n
+
+    where n is the number of dimensions of the simplices
+
+    simplices: The simplices with shape as described above.
+    scheme: Integration scheme to be used.
+    use_gpu: If true, use cupy instead of numpy
+    """
+    xp = cp.get_array_module(simplices)
+    # Pick integration scheme
+    num_dimensions = simplices.shape[2]
+    if scheme is None:
+        # The second parameter to quadpy's scheme method here is about
+        # accuracy of the scheme, not the number of spatial dimensions.
+        scheme = quadpy.tn.grundmann_moeller(num_dimensions, 1)
+
+    # barycentric weights should be of shape M x (n+1),
+    # where n is the number of dimensions (vertices in the simplex)
+    # M is the number of points in the cubature scheme
+    barycentric_weights = xp.asarray(scheme.points).T
+    weights = xp.asarray(scheme.weights)
+
+    # Find simplex volumes using Cayley-Menger determinants
+    contents = xp.abs(
+        xp.linalg.det(simplices[:, 1:, :] - simplices[:, 0, None, :])
+        / math.factorial(num_dimensions)
+    )
+
+    # Generate integration points
+    # Integration points should be of size N x M x n
+    # Number of simplices x number of integration poits per simplex x dimension
+    integration_points = barycentric_weights @ simplices
+
+    # Reduce dimensionality of integration pont array for calculation
+    # efficiency
+    num_simplices, points_per_simplex, _ = integration_points.shape
+    reshaped_integration_points = integration_points.reshape(
+        num_simplices * points_per_simplex, num_dimensions
+    )
+
+    # Output
+    function_output = function(reshaped_integration_points)
+    _, output_size = function_output.shape
+    reshaped_function_output = function_output.reshape(
+        num_simplices, points_per_simplex, output_size
+    )
+
+    weighted_output = (
+        reshaped_function_output
+        * contents[:, np.newaxis, np.newaxis]
+        * weights[np.newaxis, :, np.newaxis]
+    )
+
+    # Sum over the points per simplex axis
+    integral = xp.sum(weighted_output, axis=1)
     return integral
