@@ -1,9 +1,9 @@
 import numpy as np
 
-from random_matrix.utils.types import FloatLike
+from random_matrix.utils.types import Numeric
 
 
-def reorder_block(elements: FloatLike) -> FloatLike:
+def reorder_block(elements: Numeric) -> Numeric:
     length_of_elements, num_matrices = np.shape(elements)
     size_of_block = int(np.sqrt(len(elements)))
 
@@ -43,7 +43,7 @@ def reorder_block(elements: FloatLike) -> FloatLike:
     return final
 
 
-def S_sampler(mean_S: FloatLike, chol: FloatLike, num_matrices: int = 1) -> FloatLike:
+def S_sampler(mean_S: Numeric, chol: Numeric, num_matrices: int = 1) -> Numeric:
     size_of_S, _ = np.shape(mean_S)
     size_of_block = int(size_of_S / 2)
     num_random_numbers, _ = np.shape(chol)

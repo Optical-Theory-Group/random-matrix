@@ -4,7 +4,7 @@ import numpy as np
 
 from random_matrix.input_statistics import density_function, density_integrals
 from random_matrix.utils import function_utils
-from random_matrix.utils.types import FloatLike, MathematicalFunction
+from random_matrix.utils.types import Numeric, MathematicalFunction
 
 
 @dataclass
@@ -42,7 +42,9 @@ class ParticleStatistics(density_function.DensityFunction):
         """Check that density function variables are a proper subset of
         A matrix variables"""
 
-        a_matrix_variables = function_utils.get_function_variables(self.a_matrix)
+        a_matrix_variables = function_utils.get_function_variables(
+            self.a_matrix
+        )
         if not self.variables <= set(a_matrix_variables):
             raise ValueError(
                 f"Density function variables: {self.variables} are "
@@ -61,16 +63,20 @@ class ParticleStatistics(density_function.DensityFunction):
         return particle_type
 
     @property
-    def integral(self) -> FloatLike:
+    def integral(self) -> Numeric:
         return self.mixing_ratio * sum(term.integral for term in self.terms)
 
     def get_mean_a_matrix(self) -> MathematicalFunction:
         mean_a = density_integrals.integrate_by_density(self.a_matrix, self)
-        mean_a = function_utils.multiply_function_by_constant(mean_a, self.mixing_ratio)
+        mean_a = function_utils.multiply_function_by_constant(
+            mean_a, self.mixing_ratio
+        )
         return mean_a
 
     def get_covariance_a_matrix(self) -> MathematicalFunction:
-        covariance_a = density_integrals.integrate_by_density(self.a_product_conj, self)
+        covariance_a = density_integrals.integrate_by_density(
+            self.a_product_conj, self
+        )
         covariance_a = function_utils.multiply_function_by_constant(
             covariance_a, self.mixing_ratio**2
         )
@@ -102,7 +108,7 @@ class MediumStatistics:
             )
 
     @property
-    def density_integral(self) -> FloatLike:
+    def density_integral(self) -> Numeric:
         return sum(term.integral for term in self.particle_terms)
 
     def get_mean_a_matrix(self) -> MathematicalFunction:
@@ -126,5 +132,7 @@ class MediumStatistics:
 
         partial_results = []
         for particle_term in self.particle_terms:
-            partial_results.append(particle_term.get_pseudo_covariance_a_matrix())
+            partial_results.append(
+                particle_term.get_pseudo_covariance_a_matrix()
+            )
         return function_utils.add_functions(partial_results)

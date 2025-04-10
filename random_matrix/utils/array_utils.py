@@ -1,11 +1,13 @@
 """Utility functions for frequently used array manipulations."""
 
-from typing import Any
-
+from typing import Any, Type
+import cupy as cp
 import numpy as np
 import numpy.typing as npt
 import scipy.spatial
 
+def get_module(array: np.ndarray | cp.ndarray) -> Any:
+    return np if cp.get_array_module(array) == np else cp
 
 def split_list(old_list: list[Any], num_parts: int) -> list[Any]:
     new_list = [[] for _ in range(num_parts)]
@@ -143,6 +145,11 @@ def is_equal_array(
     if dim_first != dim_second:
         raise ValueError("Cannot compare arrays of different dimensions.")
 
+    shape_first = np.shape(first_array)
+    shape_second = np.shape(second_array)
+    if shape_first != shape_second:
+        return False
+
     # Sort arrays if the order doesnt matter
     if not order_matters:
         match dim_first:
@@ -253,3 +260,20 @@ def sort_by_reference_list(
     sorted_indices = np.argsort(reference_list)
     sorted_list = to_be_sorted[np.array(sorted_indices)]
     return sorted_list
+
+
+def bitwise_hash(xy: np.ndarray | cp.ndarray) -> np.ndarray | cp.ndarray:
+    xp = cp.get_array_module(xy)
+    xy = xy.astype(xp.uint64)
+    x, y = xy[:, 0], xy[:, 1]
+    return (x << 32) | y  # Store x in upper 32 bits
+
+
+def inverse_bitwise_hash(
+    z: np.ndarray | cp.ndarray,
+) -> np.ndarray | cp.ndarray:
+    xp = cp.get_array_module(z)
+    z = z.astype(xp.uint64)
+    x = z >> 32  # Extract upper 32 bits
+    y = z & 0xFFFFFFFF  # Extract lower 32 bits
+    return xp.column_stack((x, y))

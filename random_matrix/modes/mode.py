@@ -18,7 +18,7 @@ import numpy.typing as npt
 import scipy.spatial
 
 from random_matrix.utils import array_utils, geometry_utils, plotting_utils
-from random_matrix.utils.types import FloatLike
+from random_matrix.utils.types import Numeric
 
 
 @dataclass(slots=True)
@@ -77,11 +77,11 @@ class Mode:
 
     """
 
-    vertices: FloatLike
+    vertices: Numeric
     sides: list[Side]
     index: int = 0
 
-    clean_vertices: InitVar[bool] = False
+    clean_vertices: InitVar[bool] = True
 
     is_central: bool = field(init=False)
     wave_type: str = field(init=False)
@@ -103,7 +103,9 @@ class Mode:
         # Check if mode is a centro-symmetric or not
         self.is_central = self._get_is_central(self.vertices)
         self.wave_type = self._get_mode_wave_type(self.vertices)
-        self.weight = self._get_weight(self.vertices, self.sides, self.wave_type)
+        self.weight = self._get_weight(
+            self.vertices, self.sides, self.wave_type
+        )
 
     # --------------------------------------------------------------------------
     # Input validation and processing
@@ -120,7 +122,8 @@ class Mode:
         # Check types
         if not isinstance(vertices, np.ndarray):
             raise ValueError(
-                f"vertices must be a numpy array. " f"You gave a {type(vertices)}"
+                f"vertices must be a numpy array. "
+                f"You gave a {type(vertices)}"
             )
         else:
             if vertices.ndim != 2 or vertices.shape[1] != 2:
@@ -139,7 +142,9 @@ class Mode:
                 " points too. You have 0."
             )
         if num_vertices < 2:
-            raise ValueError("At least two vertices are required to " "define a mode.")
+            raise ValueError(
+                "At least two vertices are required to " "define a mode."
+            )
 
     @staticmethod
     def _get_mode_wave_type(vertices: npt.NDArray[np.float64]) -> str:
@@ -218,7 +223,9 @@ class Mode:
         base_polygon_area = np.float64(0.0)
 
         if num_points > 2:
-            base_polygon_area += geometry_utils.get_convex_polygon_area(vertices)
+            base_polygon_area += geometry_utils.get_convex_polygon_area(
+                vertices
+            )
 
         # Check if there are any arc points. If not, we're done
         if num_arcs == 0:

@@ -2,8 +2,6 @@
 
 import os
 
-os.chdir("/home/sdutta/code/random-matrix/")
-
 import numpy as np
 
 from random_matrix.modes import mode_grid_factory

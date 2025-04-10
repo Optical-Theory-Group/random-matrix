@@ -1,16 +1,22 @@
 """Utility functions that perform various geometric calculations."""
 
 from itertools import combinations
-
+import itertools
 import numpy as np
 import numpy.typing as npt
 import scipy.spatial
 import scipy.stats
 import shapely
 import skspatial.objects
+import cupy as cp
+import cdd
 
-from random_matrix.utils import array_utils, plotting_utils
-from random_matrix.utils.types import FloatLike
+from random_matrix.utils import array_utils
+from random_matrix.utils.types import Numeric
+
+
+def get_unit_vector(angle):
+    return np.array([np.cos(angle), np.sin(angle)])
 
 
 def get_circle_coordinate(
@@ -504,7 +510,7 @@ def get_angularly_separated_edge_points(
     return output
 
 
-def minkowski_sum(points_one: FloatLike, points_two: FloatLike) -> FloatLike:
+def minkowski_sum(points_one: Numeric, points_two: Numeric) -> Numeric:
     points_one = order_points(points_one)
     y_coordinates = points_one[:, 1]
     x_coordinates = points_one[:, 0]
@@ -581,13 +587,11 @@ def minkowski_sum(points_one: FloatLike, points_two: FloatLike) -> FloatLike:
     return output
 
 
-def minkowski_difference(
-    points_one: FloatLike, points_two: FloatLike
-) -> FloatLike:
+def minkowski_difference(points_one: Numeric, points_two: Numeric) -> Numeric:
     return minkowski_sum(points_one, -points_two)
 
 
-def intersects(points_one: FloatLike, points_two: FloatLike) -> bool:
+def intersects(points_one: Numeric, points_two: Numeric) -> bool:
     """Returns a bool that is true if the two polygons intersect"""
 
     polygon_one = shapely.Polygon(points_one)
@@ -677,10 +681,10 @@ def intersection(points_one, points_two):
         return np.array(intersection.coords)
 
 
-def cartesian_product(polygon1: FloatLike, polygon2: FloatLike) -> FloatLike:
+def cartesian_product(polygon1: Numeric, polygon2: Numeric) -> Numeric:
     # Get the number of vertices in each polygon
-    n1 = polygon1.shape[0]
-    n2 = polygon2.shape[0]
+    n1 = np.shape(polygon1)[0]
+    n2 = np.shape(polygon2)[0]
 
     # Repeat each vertex of polygon1 n2 times
     repeated_polygon1 = np.repeat(polygon1, n2, axis=0)
@@ -696,7 +700,15 @@ def cartesian_product(polygon1: FloatLike, polygon2: FloatLike) -> FloatLike:
     return cartesian_product
 
 
-def reflect_through_point(shape: FloatLike, point: FloatLike) -> FloatLike:
+def iterated_cartesian_product(shapes: list[np.ndarray]) -> np.ndarray:
+    """Given a list of shapes, A1, A2, A3, ..., find A1xA2xA3x..."""
+    output = shapes[0]
+    for shape in shapes[1:]:
+        output = cartesian_product(output, shape)
+    return output
+
+
+def reflect_through_point(shape: Numeric, point: Numeric) -> Numeric:
     reflected = point - (shape - point)
     return reflected
 
@@ -751,7 +763,7 @@ def get_circular_angle(point):
     return theta
 
 
-def get_symmetric_reduced_angle(angle, angular_range):
+def get_symmetric_reduced_angle(angle, angular_range=2 * np.pi):
     """Given an angle and a range, reduce the angle to the interval
     [-range/2, range/2]
     """
@@ -814,5 +826,315 @@ def get_simplices_regular(simplices):
     return new_simplices
 
 
-def get_simplices_diff(simplices):
-    pass
+def intersect_hull_with_hyperplane(
+    points: np.ndarray,
+    simplices: np.ndarray,
+    hyperplane: tuple[np.ndarray, float],
+) -> np.ndarray:
+    """Find the intersection of a convex hull object with a hyperplane
+
+    The convex hull object is defined by the two variables points, an array of
+    the points, and simplicies, which is a list of lists of indices telling you
+    which points form each simplex. These basically should look like
+    hull.points and hull.simplices.
+
+    The hyperplane should be given as a tuple containing an array n defining
+    the normal vector n and a float d such that the hyperplane is defined by
+    the equation
+
+    r * n = d
+
+    The output is an array of points that bound the intersection. Note that
+    these points may contain redundancies, i.e. may contain additional points
+    on the edges of the boundary, rather than purely the vertices. This is a
+    feature, not a bug.
+    """
+    n, d = hyperplane
+
+    # Loop over vertices and compute the signs of r*n - d
+    signs = []
+    for point in points:
+        value = np.dot(n, point) - d
+
+        # Clean up edge cases
+        value = 0.0 if np.isclose(value, 0.0) else value
+
+        # Get the sign of r*n -d
+        sign = np.sign(value)
+        signs.append(sign)
+    counter = 0
+    counter2 = 0
+    # Loop over edges and find intersections where they exist
+    sorted_edges = set()
+    intersections = []
+    for simplex in simplices:
+        for edge in itertools.combinations(simplex, 2):
+            # Check if this edge has been done already. There may be repeats
+            # because edges can be shared among multiple simplices
+            sorted_edge = tuple(sorted(edge))
+            if sorted_edge in sorted_edges:
+                continue
+            sorted_edges.add(sorted_edge)
+
+            # This is a new edge that hasn't been checked before. Check for
+            # intersection
+            sign1 = signs[sorted_edge[0]]
+            sign2 = signs[sorted_edge[1]]
+            product = sign1 * sign2
+
+            # Both vertices lie on the same side of the hyperplane
+            if product == 1:
+                continue
+
+            v1 = points[sorted_edge[0]]
+            v2 = points[sorted_edge[1]]
+
+            # At least one vertex is in the plane
+            if product == 0:
+                if sign1 == 0:
+                    if not any(np.allclose(v1, pt) for pt in intersections):
+                        counter += 1
+                        intersections.append(v1)
+                if sign2 == 0:
+                    if not any(np.allclose(v2, pt) for pt in intersections):
+                        intersections.append(v2)
+                        counter += 1
+                continue
+
+            # The product must be -1, so there is an intersection
+            intersection = v1 + (d - np.dot(v1, n)) / np.dot(v2 - v1, n) * (
+                v2 - v1
+            )
+            counter2 += 1
+            intersections.append(intersection)
+    print(counter)
+    print(counter2)
+    print(len(intersections))
+    return np.array(intersections)
+
+
+def intersect_hull_with_hyperplane_v2(
+    points: np.ndarray,
+    simplices: np.ndarray,
+    hyperplane: tuple[np.ndarray, float],
+) -> np.ndarray:
+    """Find the intersection of a convex hull object with a hyperplane
+
+    The convex hull object is defined by the two variables points, an array of
+    the points, and simplicies, which is a list of lists of indices telling you
+    which points form each simplex. These basically should look like
+    hull.points and hull.simplices.
+
+    The hyperplane should be given as a tuple containing an array n defining
+    the normal vector n and a float d such that the hyperplane is defined by
+    the equation
+
+    r * n = d
+
+    The output is an array of points that bound the intersection. Note that
+    these points may contain redundancies, i.e. may contain additional points
+    on the edges of the boundary, rather than purely the vertices. This is a
+    feature, not a bug.
+    """
+    n, d = hyperplane
+
+    # Compute dot products and signs for all points
+    values = np.dot(points, n) - d
+    values[np.isclose(values, 0.0)] = 0.0  # Clean edge cases
+    signs = np.sign(values)
+
+    # Extract edges from simplices and remove duplicates
+    edges = np.vstack(
+        [
+            np.sort(
+                np.array(list(itertools.combinations(simplex, 2)), dtype=int),
+                axis=1,
+            )
+            for simplex in simplices
+        ]
+    )
+    edges = np.unique(edges, axis=0)
+
+    # Get the signs of the two vertices of each edge
+    signs1 = signs[edges[:, 0]]
+    signs2 = signs[edges[:, 1]]
+    product = signs1 * signs2
+
+    # Identify edges intersecting the hyperplane
+    crossing_edges = edges[product == -1]  # Opposite signs
+    on_plane_edges = edges[product == 0]  # At least one vertex on the plane
+
+    # Initialize list of intersections
+    intersections = []
+
+    # Add vertices lying on the plane
+    for edge in on_plane_edges:
+        for idx in edge:
+            if signs[idx] == 0:
+                intersections.append(points[idx])
+
+    intersections = np.unique(intersections, axis=0)
+    # Compute intersections for crossing edges
+    v1 = points[crossing_edges[:, 0]]
+    v2 = points[crossing_edges[:, 1]]
+    t = (d - np.dot(v1, n)) / np.dot(v2 - v1, n)
+    intersection_points = v1 + t[:, None] * (v2 - v1)
+    intersections = np.vstack((intersections, intersection_points))
+    return intersections
+
+
+def get_degenerate_hull_simplices(
+    points: np.ndarray,
+) -> np.ndarray:
+    """Given a set of points that fill out a lower dimensional subspace of the
+    ambient space in which they reside, find a lower dimensional simplex
+    decomposition.
+
+    This works by adding in an extra points to the hull to flesh it out into
+    the unspanned dimensions. The convex hull of the resulting hull is then
+    found. Finally, the additional points are thrown away.
+
+    Example: Image a 2D planar polygon in 3D space. We can imagine
+    triangulating it, but scipy won't. Add a point out of the plane of the
+    polygon and decompose the resulting 3D shape into simplices. The edges of
+    these simplices will also triangulate the original polygon. We then throw
+    away the added point and keep the 2D triangulation.
+    """
+    dimension = points.shape[1]
+    new_point = np.random.randn(dimension)
+    augmented_points = np.vstack([points, new_point])
+    new_point_index = len(augmented_points) - 1
+
+    hull = scipy.spatial.ConvexHull(augmented_points)
+    # Filter out simplices containing the new point index
+    mask = ~np.isin(hull.simplices, new_point_index).any(axis=1)
+    filtered_simplices = hull.simplices[mask]
+    return filtered_simplices
+
+
+def intersect_hull_with_hyperplane_new(
+    points: np.ndarray | cp.ndarray,
+    simplices: np.ndarray | cp.ndarray,
+    hyperplane: tuple[np.ndarray | cp.ndarray, float],
+) -> np.ndarray | cp.ndarray:
+    xp = cp.get_array_module(points)
+    n, d = hyperplane
+    values = xp.dot(points, n) - d
+    values[xp.isclose(values, 0.0)] = 0.0  # Handle edge cases
+    signs = xp.sign(values)
+
+    _, num_dim = points.shape
+    simplices = xp.sort(simplices)
+    pairs = xp.array(list(itertools.combinations(range(num_dim), 2)))
+    edge_indices = simplices[:, pairs].reshape(-1, 2)
+    coded = xp.unique(array_utils.bitwise_hash(edge_indices))
+    edges = array_utils.inverse_bitwise_hash(coded)
+
+    product = signs[edges[:, 0]] * signs[edges[:, 1]]
+    crossing_edges = edges[product == -1]  # Opposite signs
+
+    # Add vertices lying on the plane
+    on_plane_point_indices = np.where(np.isclose(signs, 0.0))
+    on_plane_points = points[on_plane_point_indices]
+
+    # Compute intersections for crossing edges
+    v1 = points[crossing_edges[:, 0]]
+    v2 = points[crossing_edges[:, 1]]
+    t = (d - xp.dot(v1, n)) / xp.dot(v2 - v1, n)
+    crossing_points = v1 + t[:, None] * (v2 - v1)
+
+    return xp.vstack((on_plane_points, crossing_points))
+
+
+def get_convex_hull_iterative(
+    points: np.ndarray,
+    max_iterations: int = 50,
+    verbose: bool = False,
+    qhull_options: str | None = None,
+) -> scipy.spatial.ConvexHull:
+    """Iteratively compute the convex hull of a set of points, using the
+    computed vertices as the input points for the next iteration. This ensures
+    that redundant points are gradually filtered out, resulting in a hull with
+    minimal vertices and simplices."""
+    old_points = points
+    num_old_vertices = len(old_points)
+
+    for i in range(max_iterations):
+        hull = scipy.spatial.ConvexHull(
+            old_points, qhull_options=qhull_options
+        )
+
+        # Check if the number of points has decreased or not.
+        # If it hasn't, continue.
+        new_vertices = hull.vertices
+        new_simplices = hull.simplices
+        new_points = hull.points[new_vertices]
+        num_new_vertices = len(new_vertices)
+        num_new_simplices = len(new_simplices)
+
+        if verbose:
+            print(
+                f"Iteration {i + 1}: "
+                f"Vertices={num_new_vertices}, "
+                f"Simplices={num_new_simplices}, "
+                f"Volume={hull.volume:.4f}."
+            )
+
+        is_equal_vertices = num_new_vertices == num_old_vertices
+        is_equal_simplices = (
+            True if i == 0 else num_new_simplices == num_old_simplices
+        )
+        is_finished = (
+            num_new_vertices == num_old_vertices and is_equal_simplices
+        )
+        if is_finished:
+            break
+
+        # The number of vertices has changed, so repeat
+        old_points = new_points
+        num_old_vertices = num_new_vertices
+        num_old_simplices = num_new_simplices
+
+    return hull
+
+
+def get_intersection_vertices(
+    vertices: np.ndarray | cp.ndarray,
+    correlation_signature: list[int] | None = None,
+) -> np.ndarray | cp.ndarray:
+    """Compute the intersection of the polytope with given vertices with
+    hyperplanes as defined by the memory effect condition described by the
+    given correlation signature."""
+    xp = cp.get_array_module(vertices)
+    # Set up cdd matrix object for the initial polytope
+    t = xp.ones(len(vertices))
+    polytope_mat = cdd.matrix_from_array(
+        xp.column_stack((t.T, vertices)), rep_type=cdd.RepType.GENERATOR
+    )
+
+    # Get the halfspace representation inequalities
+    polytope = cdd.polyhedron_from_matrix(polytope_mat)
+    polytope_inequalities = xp.array(cdd.copy_inequalities(polytope).array)
+
+    # Intersect the polytope with the hyperplanes
+    if correlation_signature is None:
+        correlation_signature = [1, -1, -1, 1]
+    a, b, c, d = correlation_signature
+    hyperplane_equations = xp.array(
+        [[0, a, 0, b, 0, c, 0, d, 0], [0, 0, a, 0, b, 0, c, 0, d]]
+    )
+    lin_set = set([0, 1])
+    augmented_inequalities = xp.vstack(
+        (hyperplane_equations, polytope_inequalities)
+    )
+    intersection_mat = cdd.matrix_from_array(
+        augmented_inequalities,
+        rep_type=cdd.RepType.INEQUALITY,
+        lin_set=lin_set,
+    )
+    intersection = cdd.polyhedron_from_matrix(intersection_mat)
+    intersection_vertices = xp.array(cdd.copy_generators(intersection).array)
+
+    # Truncate the
+    truncated_vertices = intersection_vertices[:, 1:7]
+    return truncated_vertices
