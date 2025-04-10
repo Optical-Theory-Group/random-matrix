@@ -39,7 +39,7 @@ def basic_product_integral(
     scheme:
         The cubature scheme. If not provided, defaults will be used.
 
-    Returns: 
+    Returns:
     --------
     integral:
         The integral of function over the domain
@@ -63,9 +63,7 @@ def basic_product_integral(
             scheme = quadpy.c1.gauss_legendre(10) if scheme is None else scheme
             integral = scheme.integrate(function, *integration_domain)
         case 2:
-            scheme = (
-                quadpy.c2.get_good_scheme(10) if scheme is None else scheme
-            )
+            scheme = quadpy.c2.get_good_scheme(10) if scheme is None else scheme
             integral = scheme.integrate(
                 function, quadpy.c2.rectangle_points(*integration_domain)
             )
@@ -112,13 +110,11 @@ def basic_triangle_integral(
         function = function_utils.vectorize_arguments(function)
 
     if scheme is None:
-        scheme = quadpy.t2.get_good_scheme(12)
+        scheme = quadpy.t2.get_good_scheme(3)
 
     # Reshape domain stack if necessary
     # again to make quadpy happy
-    if np.ndim(integration_domain == 3) and np.shape(integration_domain)[
-        1:
-    ] == (3, 2):
+    if np.ndim(integration_domain == 3) and np.shape(integration_domain)[1:] == (3, 2):
         integration_domain = np.transpose(integration_domain, (1, 0, 2))
 
     integral = scheme.integrate(function, integration_domain)
@@ -164,9 +160,7 @@ def basic_simplex_integral(
 
     # Reshape domain stack if necessary
     # again to make quadpy happy
-    if np.ndim(integration_domain == 3) and np.shape(integration_domain)[
-        1:
-    ] == (7, 6):
+    if np.ndim(integration_domain == 3) and np.shape(integration_domain)[1:] == (7, 6):
         integration_domain = np.transpose(integration_domain, (1, 0, 2))
 
     integral = scheme.integrate(function, integration_domain)

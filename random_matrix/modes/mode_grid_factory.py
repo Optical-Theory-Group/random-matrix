@@ -27,7 +27,11 @@ cute by circles, only grids consisting of convex polygons are currently
 supported. Grids consisting of concave polygons from user data should be used
 with great caution.
 """
+import os
 
+# Change to a new directory
+new_path = r"/home/sdutta/code/random-matrix"
+os.chdir(new_path)
 from typing import Any, Iterator
 
 import numpy as np

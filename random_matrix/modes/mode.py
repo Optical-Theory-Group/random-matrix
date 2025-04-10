@@ -4,7 +4,11 @@ In this context, a mode is defined as a non-zero, finite region of (k_x, k_y)
 space. A mode thus represents a bundle of wavevectors that light can scatter
 from or into.
 """
+import os
 
+# Change to a new directory
+new_path = r"/home/sdutta/code/random-matrix"
+os.chdir(new_path)
 from dataclasses import InitVar, dataclass, field
 from typing import Optional
 
