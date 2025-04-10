@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from random_matrix.utils.types import FloatLike
+from random_matrix.utils.types import Numeric
 
 
 @dataclass(slots=True)
@@ -17,8 +17,8 @@ class MediumParameters:
     L: float = field(init=False)
     k: float = field(init=False)
 
-    mean_const_factor: FloatLike = field(init=False)
-    cov_const_factor: FloatLike = field(init=False)
+    mean_const_factor: Numeric = field(init=False)
+    cov_const_factor: Numeric = field(init=False)
 
     def __post_init__(self) -> None:
         # Physics abbreviations

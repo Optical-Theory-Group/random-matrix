@@ -1,23 +1,18 @@
 import functools
 import os
-import time
 from dataclasses import dataclass, field
 from typing import Self
 import tqdm
 import numpy as np
-import cupy as cp
 import scipy
 from pathos.pools import ProcessPool
-import psutil
 
 from random_matrix.input_statistics import (
     density_integrals,
     input_statistics_logger,
     medium_parameters,
     medium_statistics,
-    shape_classifier,
 )
-from random_matrix.input_statistics.shape_classifier import ClassQuadrupleList
 from random_matrix.modes import mode_grid
 from random_matrix.utils import (
     array_utils,
@@ -150,33 +145,37 @@ class IntegrationTask:
     def execute_task(self) -> IntegrationResult:
         """Perofrm the integral associated with the task."""
 
+        # print(self.statistic_type)
+        # print(self.block_location)
+
         match self.statistic_type:
             case "mean":
-                integral = integration_utils.simplex_integral(
+                integral = integration_utils.basic_triangle_integral(
                     self.integrand, self.domain_stack
                 )
             case "covariance":
-                integral = integration_utils.simplex_integral(
+                integral = integration_utils.basic_simplex_integral(
                     self.integrand, self.domain_stack
                 )
             case "pseudo_covariance":
-                integral = integration_utils.simplex_integral(
+                integral = integration_utils.basic_simplex_integral(
                     self.integrand, self.domain_stack
                 )
 
-        xp = cp.get_array_module(integral)
-
         # Results should be added over the slices. This corresponds to adding
         # integrals over the triangular subregions of the integration domain
-        num_outputs, output_dim = xp.shape(integral)
+        np.nan_to_num(integral, 0.0)
+        output_dim, num_outputs = np.shape(integral)
         slices = [s[0] for s in self.sub_block_locations]
         locations = [s[1] for s in self.sub_block_locations]
         num_slices = len(slices)
-        output = xp.zeros((num_slices, output_dim), dtype=xp.complex128)
+        output = np.zeros((output_dim, num_slices), dtype=np.complex128)
 
         for i, s in enumerate(slices):
-            partial_output = xp.sum(integral[s, :], axis=0)
-            output[i, :] = partial_output
+            partial_output = np.sum(integral[:, s], axis=-1)
+            output[:, i] = partial_output
+
+        output = np.transpose(output, (1, 0))
 
         return IntegrationResult(
             self.statistic_type,
@@ -264,28 +263,9 @@ class IntegrationTaskConfig:
     integrals_per_task:
         A limit for how many integration domains should be allowed in each
         task. If None, there will be no limit.
-    cpu_ram_limit:
-        Maximum percentage that the CPU's RAM is allowed to reach before
-        integration tasks will automatically be executed to free up space
     """
 
     integrals_per_task: int | None = 1
-    ram_limit: float = 0.0
-    use_gpu: bool = True
-
-    def get_current_ram_usage(self, verbose: bool = False) -> float:
-        if self.use_gpu:
-            current_ram_usage = (
-                cp.get_default_memory_pool().used_bytes()
-                / cp.get_default_memory_pool().total_bytes()
-                * 100
-            )
-        else:
-            current_ram_usage = psutil.virtual_memory().percent
-        if verbose:
-            using = "GPU" if self.use_gpu else "CPU"
-            print(f"{using} RAM: {current_ram_usage}")
-        return current_ram_usage
 
 
 class IntegrationTaskPreparer:
@@ -305,9 +285,10 @@ class IntegrationTaskPreparer:
         self.medium_statistics = medium_statistics
         self.logger = logger
 
-    def get_integration_results(
+    def get_integration_tasks(
         self,
-        class_quadruple_list: ClassQuadrupleList,
+        quadruples,
+        independent_elements,
         indices: dict[str, dict[str, set[tuple[int, int]]]],
     ) -> IntegrationTaskList:
         """Get an integration task list consisting of all necessary tasks.
@@ -319,21 +300,21 @@ class IntegrationTaskPreparer:
 
         with self.logger.log("mean"):
             master_result_list.merge_result_list(
-                self._get_mean_integration_results(indices["mean"])
+                self._get_mean_integration_tasks(indices["mean"])
             )
 
         with self.logger.log("covariance"):
             master_result_list.merge_result_list(
-                self._get_covariance_integration_results(
-                    class_quadruple_list, indices["covariance"]
+                self._get_covariance_integration_tasks(
+                    quadruples, independent_elements["pp"]
                 )
             )
-        # with self.logger.log("pseudo_covariance"):
-        #     master_result_list.merge_result_list(
-        #         self._get_pseudo_covariance_integration_tasks(
-        #             quadruples, independent_elements["pp"]
-        #         )
-        #     )
+        with self.logger.log("pseudo_covariance"):
+            master_result_list.merge_result_list(
+                self._get_pseudo_covariance_integration_tasks(
+                    quadruples, independent_elements["pp"]
+                )
+            )
 
         return master_result_list
 
@@ -351,139 +332,120 @@ class IntegrationTaskPreparer:
         k = self.medium_parameters.k
         L = self.medium_parameters.L
 
-        # Sort out signs of k_iz and k_jz
-        ki_z_factor = -1.0 if block in {"r2", "t2"} else 1.0
-        kj_z_factor = -1.0 if block in {"r", "t2"} else 1.0
-        sinc_factor = (
-            special_functions.sinc
-            if block in {"r", "r2"}
-            else special_functions.identity
-        )
-
-        def mean_integrand(
-            integration_domain: np.ndarray | cp.ndarray,
-        ) -> np.ndarray | cp.ndarray:
-            """The integrand should be of shape N x 2, where N is the number
-            of points that need to be evaluated. The final dimension is
-            k_x and k_y"""
-            xp = cp.get_array_module(integration_domain)
-            k_x, k_y = integration_domain.T
-
+        def mean_integrand(k_x: Numeric, k_y: Numeric) -> Numeric:
             ki_x = k_x
             ki_y = k_y
+
             kj_x = k_x
             kj_y = k_y
 
-            partial = xp.sqrt(1.0 - k_x**2 - k_y**2)
-            ki_z = ki_z_factor * partial
-            kj_z = kj_z_factor * partial
+            ki_z = np.sqrt(1.0 - ki_x**2 - ki_y**2)
+            kj_z = np.sqrt(1.0 - kj_x**2 - kj_y**2)
 
-            # SHOULD THIS BE NEGATIVE OR DO I NEED TO USE ABS???
+            # Sort out signs of k_iz and k_jz
+            if block in {"r2", "t2"}:
+                ki_z = -ki_z
+            if block in {"r", "t2"}:
+                kj_z = -kj_z
+
+            sinc_factor = 1.0
+            if block in {"r", "r2"}:
+                sinc_factor = special_functions.sinc(k * L * ki_z)
+
             sec_factor = 1.0 / ki_z
             output = (
                 mean_a_matrix(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z)
-                * sinc_factor(k * L * ki_z)[:, xp.newaxis]
-                * sec_factor[:, xp.newaxis]
+                * sinc_factor
+                * sec_factor
             )
             return output
 
         return mean_integrand
 
-    def _get_mean_integration_results(
+    def _get_mean_integration_tasks(
         self, mean_indices: dict[str, dict[str, tuple[int, int]]]
-    ) -> IntegrationResultList:
-        """Main method for computing mean results"""
+    ) -> IntegrationTaskList:
+        """Main method for preparing mean integral tasks"""
 
         # Factor common to all mean integrals
         const_factor = self.medium_parameters.mean_const_factor
         main_result_list = IntegrationResultList()
 
-        # Prepare the master index set, which contains all possible indices
-        # for which a mean will need to be calculated
-        master_index_set = set()
         for wave_block, d in mean_indices.items():
-            for block, i in d.items():
-                master_index_set.update(i)
+            sub_result_list = IntegrationResultList()
+            for block, index_set in d.items():
+                # The integrand depends only on the matrix blocks. This will
+                # be a function of kappa_inc (assumed to be equal to kappa_sca
+                # due to the delta function constraint)
+                integrand = self._get_mean_integrand(wave_block, block)
+                integration_results = IntegrationResultList()
 
-        # Prepare task dictionary
-        wave_blocks = ["pp", "pe", "ep", "ee"]
-        blocks = ["t", "r", "t2", "r2"]
-        task_dict = {}
-        for wave_block in wave_blocks:
-            task_dict[wave_block] = {}
-            for block in blocks:
-                task_dict[wave_block][block] = IntegrationTask(
-                    self._get_mean_integrand(wave_block, block),
-                    np.zeros((0, 3, 2), dtype=np.float64),
-                    statistic_type="mean",
-                    block_location=(wave_block, block),
-                    sub_block_locations=[],
-                    const_factor=const_factor,
-                )
+                # Variables that will be used for constructing tasks
+                # These reset each time we go to a new block
+                sub_block_locations = []
+                triangle_stack = np.zeros((0, 3, 2), dtype=np.float64)
+                stack_length = 0
 
-        for indices in self.logger.progress_bar(master_index_set):
-            # Get integration domain. We can do this at this stage because,
-            # given that indices exists, it must exist in at least one of the
-            # sets in master_index_set.
-            index = indices[0]
-            mode = self.mode_grid.by_index(index)
-            delaunay = scipy.spatial.Delaunay(mode.vertices)
-            new_triangles = mode.vertices[delaunay.simplices]
+                for indices in self.logger.progress_bar(index_set):
+                    # Get the triangulation of the mode
+                    index = indices[0]
+                    mode = self.mode_grid.by_index(index)
+                    delaunay = scipy.spatial.Delaunay(mode.vertices)
+                    new_triangles = mode.vertices[delaunay.simplices]
 
-            for wave_block in wave_blocks:
-                for block in blocks:
-                    # Check if the mean needs to be calculated for this
-                    # particular wave_block, block pair
-                    if indices not in mean_indices.get(wave_block, {}).get(
-                        block, set()
-                    ):
-                        continue
-
-                    # Add domain to integral task
-                    old_stack_length = len(
-                        task_dict[wave_block][block].domain_stack
-                    )
-                    new_stack_length = old_stack_length + len(new_triangles)
-                    new_slice = slice(old_stack_length, new_stack_length)
-                    new_indices = indices
-                    new_sub_block_location = (new_slice, new_indices)
-                    task_dict[wave_block][block].sub_block_locations.append(
-                        new_sub_block_location
-                    )
-
-                    # Add new triangles to stack
-                    task_dict[wave_block][block].domain_stack = np.vstack(
-                        (
-                            task_dict[wave_block][block].domain_stack,
-                            new_triangles,
-                        )
-                    )
-
-                    # Execute tasks if RAM usage is getting too high.
-                    # Re-initialize relevant integration task
-                    current_cpu_ram_usage = psutil.virtual_memory().percent
+                    # Check how long the stack will become if the new triangles
+                    # are added. If this length exceeds the limit, we begin
+                    # working on a new task
+                    new_stack_length = stack_length + len(new_triangles)
                     if (
-                        current_cpu_ram_usage
-                        > self.integration_task_config.ram_limit
+                        self.integration_task_config.integrals_per_task
+                        is not None
+                        and stack_length > 0
+                        and new_stack_length
+                        > self.integration_task_config.integrals_per_task
                     ):
-                        new_result = task_dict[wave_block][
-                            block
-                        ].execute_task()
-                        main_result_list.append_result(new_result)
-                        task_dict[wave_block][block] = IntegrationTask(
-                            self._get_mean_integrand(wave_block, block),
-                            np.zeros((0, 3, 2), dtype=np.float64),
+                        new_task = IntegrationTask(
+                            integrand,
+                            triangle_stack,
                             statistic_type="mean",
                             block_location=(wave_block, block),
-                            sub_block_locations=[],
+                            sub_block_locations=sub_block_locations,
                             const_factor=const_factor,
                         )
+                        new_result = new_task.execute_task()
+                        integration_results.append_result(new_result)
 
-        # The tasks have all been prepared. Now execute them!
-        for wave_block in wave_blocks:
-            for block in blocks:
-                new_result = task_dict[wave_block][block].execute_task()
-                main_result_list.append_result(new_result)
+                        # Reset the triangle stack and stack length
+                        triangle_stack = np.zeros((0, 3, 2), dtype=np.float64)
+                        stack_length = 0
+                        sub_block_locations = []
+
+                    # Add location to sub_block_locations
+                    new_slice = slice(stack_length, new_stack_length)
+                    new_indices = indices
+                    new_sub_block_location = (new_slice, new_indices)
+                    sub_block_locations.append(new_sub_block_location)
+
+                    # Add new triangles to stack
+                    triangle_stack = np.vstack((triangle_stack, new_triangles))
+                    stack_length += len(new_triangles)
+
+                # Once this point has been reached, we have exahusted all
+                # triangles for a certing block of the scattering matrix
+                # We now make the final task for the group
+                new_task = IntegrationTask(
+                    integrand,
+                    triangle_stack,
+                    statistic_type="mean",
+                    block_location=(wave_block, block),
+                    sub_block_locations=sub_block_locations,
+                    const_factor=const_factor,
+                )
+                new_result = new_task.execute_task()
+                integration_results.append_result(new_result)
+                sub_result_list.merge_result_list(integration_results)
+
+            main_result_list.merge_result_list(sub_result_list)
 
         return main_result_list
 
@@ -502,32 +464,54 @@ class IntegrationTaskPreparer:
         k = self.medium_parameters.k
         L = self.medium_parameters.L
 
-        ki_z_factor = -1.0 if block_one in {"r2", "t2"} else 1.0
-        kj_z_factor = -1.0 if block_one in {"r", "t2"} else 1.0
-        ku_z_factor = -1.0 if block_two in {"r2", "t2"} else 1.0
-        kv_z_factor = -1.0 if block_two in {"r", "t2"} else 1.0
-
         def covariance_integrand(
-            integration_domain: np.ndarray | cp.ndarray,
-        ) -> np.ndarray | cp.ndarray:
-            """The integrand should be of shape N x 6, where N is the number
-            of points that need to be evaluated. The final dimension is
-            ki_x, ki_y, kj_x, kj_y, ku_x, ku_y"""
-            xp = cp.get_array_module(integration_domain)
-            ki_x, ki_y, kj_x, kj_y, ku_x, ku_y = integration_domain.T
+            k1_x: Numeric,
+            k1_y: Numeric,
+            k2_x: Numeric,
+            k2_y: Numeric,
+            d_x: Numeric,
+            d_y: Numeric,
+        ) -> Numeric:
+            # Convert to complex arrays
+            k1_x = np.array(k1_x, dtype=complex)
+            k1_y = np.array(k1_y, dtype=complex)
+            k2_x = np.array(k2_x, dtype=complex)
+            k2_y = np.array(k2_y, dtype=complex)
+            d_x = np.array(d_x, dtype=complex)
+            d_y = np.array(d_y, dtype=complex)
 
-            kv_x = -ki_x + kj_x + ku_x
-            kv_y = -ki_y + kj_y + ku_y
+            ki_x = k1_x + d_x / 2
+            ki_y = k1_y + d_y / 2
 
-            ki_z = ki_z_factor * xp.sqrt(1 - ki_x**2 - ki_y**2)
-            kj_z = kj_z_factor * xp.sqrt(1 - kj_x**2 - kj_y**2)
-            ku_z = ku_z_factor * xp.sqrt(1 - ku_x**2 - ku_y**2)
-            kv_z = kv_z_factor * xp.sqrt(1 - kv_x**2 - kv_y**2)
+            kj_x = k1_x - d_x / 2
+            kj_y = k1_y - d_y / 2
+
+            ku_x = k2_x + d_x / 2
+            ku_y = k2_y + d_y / 2
+
+            kv_x = k2_x - d_x / 2
+            kv_y = k2_y - d_y / 2
+
+            ki_z = np.sqrt(1 - ki_x**2 - ki_y**2)
+            kj_z = np.sqrt(1 - kj_x**2 - kj_y**2)
+            ku_z = np.sqrt(1 - ku_x**2 - ku_y**2)
+            kv_z = np.sqrt(1 - kv_x**2 - kv_y**2)
+
+            # Sort out signs of k_iz and k_jz
+            if block_one in {"r2", "t2"}:
+                ki_z = -ki_z
+            if block_two in {"r2", "t2"}:
+                ku_z = -ku_z
+            if block_one in {"r", "t2"}:
+                kj_z = -kj_z
+            if block_two in {"r", "t2"}:
+                kv_z = -kv_z
 
             sinc_factor = special_functions.sinc(
                 k * L * (ki_z - kj_z - ku_z + kv_z)
             )
-            sec_factor = 1.0 / xp.abs(np.sqrt(ki_z * kj_z * ku_z * kv_z))
+
+            sec_factor = 1.0 / np.abs(np.sqrt(ki_z * kj_z * ku_z * kv_z))
 
             output = (
                 covariance_a_matrix(
@@ -544,47 +528,33 @@ class IntegrationTaskPreparer:
                     kv_y,
                     kv_z,
                 )
-                * sinc_factor[:, xp.newaxis]
-                * sec_factor[:, xp.newaxis]
+                * sinc_factor
+                * sec_factor
             )
+
+            # if np.any(np.isinf(sinc_factor)):
+            #     print("Nan in sinc")
+            # elif np.any(np.isinf(sec_factor)):
+            #     print("Nan in sec")
+            # elif np.any(np.isinf(output)):
+            #     print("Nan in output")
+            # else:
+            #     print("All Good!")
 
             return output
 
         return covariance_integrand
 
-    def _get_covariance_integration_results(
+    def _get_covariance_integration_tasks(
         self,
-        class_quadruple_list: ClassQuadrupleList,
-        covariance_indices: dict[str, dict[str, tuple[int, int, int, int]]],
-    ) -> IntegrationResultList:
-        """Main method for computing covariance results"""
-        start = time.perf_counter()
-        xp = cp if self.integration_task_config.use_gpu else np
+        quadruples,
+        independent_elements: dict[str, dict[str, tuple[int, int, int, int]]],
+    ) -> IntegrationTaskList:
+        # Multiprocessing parameters
+        num_quadruples = len(quadruples)
+        num_processes = min(num_quadruples, os.cpu_count())
 
-        # Factor common to all covariance integrals
-        const_factor = self.medium_parameters.cov_const_factor
-        main_result_list = IntegrationResultList()
-
-        # Prepare the master index set, which contains all possible indices
-        # for which a covariance will need to be calculated
-        master_index_set = set()
-        for wave_block, d in covariance_indices.items():
-            for block, i in d.items():
-                master_index_set.update(i)
-
-        # Prepare task dictionary
-        wave_blocks = [
-            "pp,pp",
-            "pp,pe",
-            "pp,ep",
-            "pp,ee",
-            "pe,pe",
-            "pe,ep",
-            "pe,ee",
-            "ep,ep",
-            "ep,ee",
-            "ee,ee",
-        ]
+        # Prepare integrands since these can't be pickled
         blocks = [
             "t,t",
             "t,r",
@@ -598,134 +568,177 @@ class IntegrationTaskPreparer:
             "r2,r2",
         ]
 
-        # Subset for testing purposes
-        wave_blocks = ["pp,pp"]
-        blocks = ["t,t", "r,r", "r2,r2"]
+        integrand = {}
 
-        task_dict = {}
-        for wave_block in wave_blocks:
-            wave_block_one, wave_block_two = wave_block.split(",")
-            task_dict[wave_block] = {}
-            for block in blocks:
-                block_one, block_two = block.split(",")
+        for key in blocks:
+            block_one, block_two = key.split(",")
+            integrand[key] = self._get_covariance_integrand(
+                "pp", "pp", block_one, block_two
+            )
 
-                task_dict[wave_block][block] = IntegrationTask(
-                    self._get_covariance_integrand(
-                        wave_block_one, wave_block_two, block_one, block_two
-                    ),
-                    xp.zeros((0, 7, 6), dtype=xp.float64),
-                    statistic_type="covariance",
-                    block_location=(wave_block, block),
-                    sub_block_locations=[],
-                    const_factor=const_factor,
-                )
+        parallelised_function = functools.partial(
+            self._get_covariance_integration_tasks_partial,
+            independent_elements=independent_elements,
+            const_factor=self.medium_parameters.cov_const_factor,
+            integrals_per_task=self.integration_task_config.integrals_per_task,
+            integrand=integrand,
+            progress_bar=self.logger.progress_bar,
+        )
 
-        # Hyperplane normals
-        n1 = xp.array([1, 0, -1, 0, -1, 0, 1, 0])
-        n2 = xp.array([0, 1, 0, -1, 0, -1, 0, 1])
-        filter_one = [0, 1, 2, 3, 4, 5, 7]
-        filter_two = [0, 1, 2, 3, 4, 5]
-        columns_to_keep = [0, 1, 2, 3, 4, 5]
+        partial_quadruples = array_utils.split_list(quadruples, num_processes)
+
+        with ProcessPool(processes=num_processes) as pool:
+            out = pool.map(parallelised_function, partial_quadruples)
+
+        main_result_list = IntegrationResultList()
+
+        for result_list in out:
+            main_result_list.merge_result_list(result_list)
+
+        return main_result_list
+
+    @staticmethod
+    def _get_covariance_integration_tasks_partial(
+        quadruples,
+        independent_elements: dict[str, dict[str, tuple[int, int, int, int]]],
+        const_factor,
+        integrals_per_task,
+        integrand,
+        progress_bar,
+    ) -> IntegrationTaskList:
+        """Main method for preparing covariance integral tasks"""
+
+        # Factor common to all covariance integrals
+        main_result_list = IntegrationResultList()
+
+        # wave block will look like "pp,pp", "pp,ep" etc.
+        wave_block = "pp,pp"
+        wave_block_one, wave_block_two = wave_block.split(",")
+
+        # # The integrand depends only on the matrix blocks.
+
+        # Variables that will be used for constructing tasks
+        # These reset each time we go to a new block
+        blocks = [
+            "t,t",
+            "t,r",
+            "t,t2",
+            "t,r2",
+            "r,r",
+            "r,t2",
+            "r,r2",
+            "t2,t2",
+            "t2,r2",
+            "r2,r2",
+        ]
+
+        # Initialise empty dictionaries for storing all the data that will be
+        # used in the ensuing loop
+        sub_block_locations = {}
+        simplex_stack = {}
+        stack_length = {}
+        integration_results = {}
+
+        for key in blocks:
+            sub_block_locations[key] = []
+            simplex_stack[key] = np.zeros((0, 7, 6), dtype=np.float64)
+            stack_length[key] = 0
+            integration_results[key] = IntegrationResultList()
+            block_one, block_two = key.split(",")
 
         # Main loop
-        for class_number, class_quadruple in enumerate(
-            self.logger.progress_bar(class_quadruple_list.classes)
-        ):
-            # Work out the template's integration domain
-            # This involves the higher dimensional geometry
-            template = class_quadruple.template
-            cartesian_product = template.vertices
+        for quadruple in progress_bar(quadruples):
+            # Asses which blocks this particular quadruple will have statistics
+            # for
+            i, j, u, v = quadruple.singles
+            first = (i, j)
+            second = (u, v)
 
-            reduced_intersection_two = (
-                geometry_utils.get_intersection_vertices(cartesian_product)
-            )
+            valid_blocks = ["t,t"]
+            if second in independent_elements["r"]:
+                valid_blocks.append("t,r")
+            if second in independent_elements["t2"]:
+                valid_blocks.append("t,t2")
+            if second in independent_elements["r2"]:
+                valid_blocks.append("t,r2")
 
-            reduced_hull = scipy.spatial.ConvexHull(
-                reduced_intersection_two, qhull_options="QJ"
-            )
+            if first in independent_elements["r"]:
+                if second in independent_elements["r"]:
+                    valid_blocks.append("r,r")
+                if second in independent_elements["t2"]:
+                    valid_blocks.append("r,t2")
+                if second in independent_elements["r2"]:
+                    valid_blocks.append("r,r2")
 
-            # Get the centroid and interweave it into all the simplices
-            centroid = xp.mean(
-                xp.asarray(reduced_hull.points[reduced_hull.vertices]), axis=0
-            )
-            centroid_expanded = xp.tile(
-                centroid, (reduced_hull.simplices.shape[0], 1, 1)
-            )
-            new_simplices = xp.concatenate(
-                [
-                    xp.asarray(reduced_hull.points[reduced_hull.simplices]),
-                    centroid_expanded,
-                ],
-                axis=1,
-            )
+            if first in independent_elements["t2"]:
+                if second in independent_elements["t2"]:
+                    valid_blocks.append("t2,t2")
+                if second in independent_elements["r2"]:
+                    valid_blocks.append("t2,t2")
 
-            for quadruple in class_quadruple.quadruples:
-                indices = quadruple.singles_indices
-                new_domain = new_simplices + xp.asarray(
-                    quadruple.translation_vector[columns_to_keep]
+            if first in independent_elements["r2"]:
+                if second in independent_elements["r2"]:
+                    valid_blocks.append("r2,r2")
+
+            # Check how long the stack will become if the new triangles
+            # are added. If this length exceeds the limit, we begin
+            # working on a new task
+            new_simplices = quadruple.domain
+
+            for block in valid_blocks:
+                new_stack_length = stack_length[block] + len(new_simplices)
+
+                if (
+                    integrals_per_task is not None
+                    and stack_length[block] > 0
+                    and new_stack_length > integrals_per_task
+                ):
+                    new_task = IntegrationTask(
+                        integrand[block],
+                        simplex_stack[block],
+                        statistic_type="covariance",
+                        block_location=(wave_block, block),
+                        sub_block_locations=sub_block_locations[block],
+                        const_factor=const_factor,
+                    )
+                    new_result = new_task.execute_task()
+                    integration_results[block].append_result(new_result)
+
+                    # Reset the triangle stack and stack length
+                    simplex_stack[block] = np.zeros(
+                        (0, 7, 6), dtype=np.float64
+                    )
+                    stack_length[block] = 0
+                    sub_block_locations[block] = []
+
+                # Add location to sub_block_locations
+                new_slice = slice(stack_length[block], new_stack_length)
+                new_indices = (i, j, u, v)
+                new_sub_block_location = (new_slice, new_indices)
+                sub_block_locations[block].append(new_sub_block_location)
+
+                # Add new triangles to stack
+                simplex_stack[block] = np.vstack(
+                    (simplex_stack[block], new_simplices)
                 )
-                for wave_block in wave_blocks:
-                    for block in blocks:
-                        # Check if the mean needs to be calculated for this
-                        # particular wave_block, block pair
-                        if indices not in covariance_indices.get(
-                            wave_block, {}
-                        ).get(block, set()):
-                            continue
+                stack_length[block] += len(new_simplices)
 
-                        # Add domain to integral task
-                        old_stack_length = len(
-                            task_dict[wave_block][block].domain_stack
-                        )
-                        new_stack_length = old_stack_length + len(new_domain)
-                        new_slice = slice(old_stack_length, new_stack_length)
-                        new_indices = indices
-                        new_sub_block_location = (new_slice, new_indices)
-                        task_dict[wave_block][
-                            block
-                        ].sub_block_locations.append(new_sub_block_location)
+        # Once this point has been reached, we have exahusted all
+        # triangles for a certing block of the scattering matrix
+        # We now make the final task for the group
+        for block in blocks:
+            new_task = IntegrationTask(
+                integrand[block],
+                simplex_stack[block],
+                statistic_type="covariance",
+                block_location=(wave_block, block),
+                sub_block_locations=sub_block_locations[block],
+                const_factor=const_factor,
+            )
+            new_result = new_task.execute_task()
+            integration_results[block].append_result(new_result)
+            main_result_list.merge_result_list(integration_results[block])
 
-                        # Add new triangles to stack
-                        task_dict[wave_block][block].domain_stack = xp.vstack(
-                            (
-                                task_dict[wave_block][block].domain_stack,
-                                new_domain,
-                            )
-                        )
-
-                        # Execute tasks if RAM usage is getting too high.
-                        # Re-initialize relevant integration task
-                        current_ram_usage = (
-                            self.integration_task_config.get_current_ram_usage()
-                        )
-                        if class_number % 100 == 0:
-                            new_result = task_dict[wave_block][
-                                block
-                            ].execute_task()
-                            # print("Integral done.")
-                            main_result_list.append_result(new_result)
-                            task_dict[wave_block][block] = IntegrationTask(
-                                self._get_covariance_integrand(
-                                    wave_block_one,
-                                    wave_block_two,
-                                    block_one,
-                                    block_two,
-                                ),
-                                xp.zeros((0, 7, 6), dtype=xp.float64),
-                                statistic_type="covariance",
-                                block_location=(wave_block, block),
-                                sub_block_locations=[],
-                                const_factor=const_factor,
-                            )
-
-        # The tasks have all been prepared. Now execute them!
-
-        for wave_block in wave_blocks:
-            for block in blocks:
-                new_result = task_dict[wave_block][block].execute_task()
-                main_result_list.append_result(new_result)
-        end = time.perf_counter()
-        print(end - start)
         return main_result_list
 
     # -------------------------------------------------------------------------
