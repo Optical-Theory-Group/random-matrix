@@ -455,17 +455,17 @@ class ModeGrid:
         ax.set_yticks([-1.0, -0.5, 0.0, 0.5, 1.0])
 
         # x and y axes
-        plotting_utils.draw_ray(
-            ax, r_min=-1, theta=0, linestyle="-", color="black", alpha=0.5
-        )
-        plotting_utils.draw_ray(
-            ax,
-            r_min=-1,
-            theta=np.pi / 2,
-            linestyle="-",
-            color="black",
-            alpha=0.5,
-        )
+        # plotting_utils.draw_ray(
+        #     ax, r_min=-1, theta=0, linestyle="-", color="black", alpha=0.5
+        # )
+        # plotting_utils.draw_ray(
+        #     ax,
+        #     r_min=-1,
+        #     theta=np.pi / 2,
+        #     linestyle="-",
+        #     color="black",
+        #     alpha=0.5,
+        # )
 
         for mode in self.modes.values():
             mode.plot(
