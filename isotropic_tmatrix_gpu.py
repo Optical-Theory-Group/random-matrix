@@ -32,28 +32,28 @@ The T matrix will have a size of (2*modes X 2*modes).
 
 
 def pi_tau_mn(m, n, theta):
-    if isinstance(theta, (list, np.ndarray)):
-        theta[theta == 0] = np.sqrt(
-            2 * np.finfo(np.float64).eps
+    if isinstance(theta, (list, cp.ndarray)):
+        theta[theta == 0] = cp.sqrt(
+            2 * cp.finfo(cp.float64).eps
         )  # remove issues with divide by zero
-        theta[theta == np.pi] = np.pi + np.sqrt(
-            2 * np.finfo(np.float64).eps
+        theta[theta == cp.pi] = cp.pi + cp.sqrt(
+            2 * cp.finfo(cp.float64).eps
         )  # remove issues with divide by zero
 
     elif isinstance(theta, int):
         if theta == 0:
-            theta = np.sqrt(2 * np.finfo(np.float64).eps)
-        elif theta == np.pi:
-            theta = np.pi + np.sqrt(2 * np.finfo(np.float64).eps)
+            theta = cp.sqrt(2 * cp.finfo(cp.float64).eps)
+        elif theta == cp.pi:
+            theta = cp.pi + cp.sqrt(2 * cp.finfo(cp.float64).eps)
 
-    Ln = lpmv(m, n, np.cos(theta))
-    Lnp1 = lpmv(m, n + 1, np.cos(theta))
+    Ln = lpmv(m, n, cp.cos(theta))
+    Lnp1 = lpmv(m, n + 1, cp.cos(theta))
 
-    norm = np.sqrt(factorial(n - m) / factorial(n + m))
-    pi_out = norm * m * Ln / (np.sin(theta))
+    norm = cp.sqrt(factorial(n - m) / factorial(n + m))
+    pi_out = norm * m * Ln / (cp.sin(theta))
     tau_out = norm * (
-        -(1 + n) * np.cos(theta) * Ln / (np.sin(theta))
-        + (1 - m + n) * Lnp1 / np.sin(theta)
+        -(1 + n) * cp.cos(theta) * Ln / (cp.sin(theta))
+        + (1 - m + n) * Lnp1 / cp.sin(theta)
     )
 
     return (pi_out, tau_out)
@@ -69,7 +69,7 @@ function to Cmn(theta,phi) function.
 @lru_cache(maxsize=None)  # Memoize for all (m, n) pairs
 def const_mn(m, n):
 
-    return ((-1) ** (m)) * np.sqrt(factorial(n + m) / factorial(n - m))
+    return ((-1) ** (m)) * cp.sqrt(factorial(n + m) / factorial(n - m))
 
 
 """
@@ -83,37 +83,37 @@ RgN and RgM functions.
 def gamma_mn(m, n):
     if n == 0:  # To avoid division by zero
         return 0
-    return np.sqrt(
-        ((2 * n + 1) * factorial(n - m)) / (4 * np.pi * n * (n + 1) * factorial(n + m))
+    return cp.sqrt(
+        ((2 * n + 1) * factorial(n - m)) / (4 * cp.pi * n * (n + 1) * factorial(n + m))
     )
 
 
 # Coordinate transformation from cartesian to spherical
 def cart2sph(x, y, z):
     xy = x**2 + y**2
-    r = np.sqrt(xy + z**2)
-    t = np.pi / 2 - np.arctan2(z, np.sqrt(xy))
-    p = np.arctan2(y, x)
-    if np.all(p < 0):
-        p = p + 2 * np.pi
+    r = cp.sqrt(xy + z**2)
+    t = cp.pi / 2 - cp.arctan2(z, cp.sqrt(xy))
+    p = cp.arctan2(y, x)
+    if cp.all(p < 0):
+        p = p + 2 * cp.pi
 
     return (r, t, p)
 
 
 def sph2cart_comp_mat(theta, phi):
-    R = np.array(
+    R = cp.array(
         [
             [
-                np.cos(phi) * np.sin(theta),
-                np.cos(phi) * np.cos(theta),
-                -np.sin(phi),
+                cp.cos(phi) * cp.sin(theta),
+                cp.cos(phi) * cp.cos(theta),
+                -cp.sin(phi),
             ],
             [
-                np.sin(phi) * np.sin(theta),
-                np.sin(phi) * np.cos(theta),
-                np.cos(phi),
+                cp.sin(phi) * cp.sin(theta),
+                cp.sin(phi) * cp.cos(theta),
+                cp.cos(phi),
             ],
-            [np.cos(theta), -np.sin(theta), 0 * theta],
+            [cp.cos(theta), -cp.sin(theta), 0 * theta],
         ]
     )
 
@@ -123,13 +123,13 @@ def sph2cart_comp_mat(theta, phi):
 # Converts a vector from spherical to cartesian coordinates
 def sph2cart_comp_vec(U, theta, phi):
     R = sph2cart_comp_mat(theta, phi)
-    Uout = np.einsum("mn...,n...->m...", R, U)
+    Uout = cp.einsum("mn...,n...->m...", R, U)
 
     return Uout
 
 
 def B_mn(m, n, theta, phi):
-    c = const_mn(m, n) * np.exp(1j * m * phi)
+    c = const_mn(m, n) * cp.exp(1j * m * phi)
 
     pitaumn = pi_tau_mn(m, n, theta)
     theta_comp = c * pitaumn[1]
@@ -138,7 +138,7 @@ def B_mn(m, n, theta, phi):
 
 
 def C_mn(m, n, theta, phi):
-    c = const_mn(m, n) * np.exp(1j * m * phi)
+    c = const_mn(m, n) * cp.exp(1j * m * phi)
 
     pitaumn = pi_tau_mn(m, n, theta)
     theta_comp = 1j * c * pitaumn[0]
@@ -147,9 +147,9 @@ def C_mn(m, n, theta, phi):
 
 
 def d_mn(m, n, theta):
-    x = np.cos(theta)
+    x = cp.cos(theta)
     lp = lpmv(m, n, x)
-    return lp * (np.sqrt(factorial(n - m) / factorial(n + m)))
+    return lp * (cp.sqrt(factorial(n - m) / factorial(n + m)))
 
 
 # Function returns the spherical Bessel functions
@@ -171,7 +171,7 @@ def dh_n(n, x):
 
 
 def P_mn(m, n, theta, phi):
-    c = const_mn(m, n) * np.exp(1j * m * phi)
+    c = const_mn(m, n) * cp.exp(1j * m * phi)
     return c * d_mn(m, n, theta)
 
 
@@ -181,7 +181,7 @@ def RgM_mn(m, n, kr, theta, phi):
     theta_comp = gamma * j_n(n, kr) * Cmn[0]
     phi_comp = gamma * j_n(n, kr) * Cmn[1]
 
-    return np.array([theta_comp, phi_comp], dtype=np.complex128)
+    return cp.array([theta_comp, phi_comp], dtype=cp.complex128)
 
 
 def RgN_mn(m, n, kr, theta, phi):
@@ -198,7 +198,7 @@ def RgN_mn(m, n, kr, theta, phi):
         * B_mn(m, n, theta, phi)[1]
     )
 
-    return np.array([r_comp, theta_comp, phi_comp])
+    return cp.array([r_comp, theta_comp, phi_comp])
 
 
 def N_mn(m, n, kr, theta, phi):
@@ -208,7 +208,7 @@ def N_mn(m, n, kr, theta, phi):
     theta_comp = gamma * (h_n(n, kr) / kr + dh_n(n, kr)) * Bmn[0]
     phi_comp = gamma * (h_n(n, kr) / kr + dh_n(n, kr)) * Bmn[1]
 
-    return np.array([r_comp, theta_comp, phi_comp], dtype=np.complex128)
+    return cp.array([r_comp, theta_comp, phi_comp], dtype=cp.complex128)
 
 
 def M_mn(m, n, kr, theta, phi):
@@ -216,7 +216,7 @@ def M_mn(m, n, kr, theta, phi):
     Cmn = C_mn(m, n, theta, phi)
     theta_comp = gamma * h_n(n, kr) * Cmn[0]
     phi_comp = gamma * h_n(n, kr) * Cmn[1]
-    return np.array([theta_comp, phi_comp], dtype=np.complex128)
+    return cp.array([theta_comp, phi_comp], dtype=cp.complex128)
 
 
 """
@@ -231,7 +231,7 @@ def create_hull_uniform():
     col = 51
     num_linear = row * col
     theta = np.linspace(0, np.pi, col)
-    phi = np.linspace(0, 2 * np.pi, row)
+    phi = np.linspace(0, 2 * cp.pi, row)
     theta_grid, phi_grid = np.meshgrid(theta, phi)
     r = 600e-9  # particle size is 600nm
     x = np.reshape((r * np.sin(theta_grid) * np.cos(phi_grid)), (1, num_linear))
@@ -245,8 +245,8 @@ def create_hull_uniform():
 
 def create_hull_random():
     num_points = 10000
-    points = np.random.rand(num_points, 3)
-    points = points / np.linalg.norm(points, axis=1, keepdims=True) * 600e-9
+    points = cp.random.rand(num_points, 3)
+    points = points / cp.linalg.norm(points, axis=1, keepdims=True) * 600e-9
     hull = ConvexHull(points)
     print("Number of simplices:", hull.simplices.shape[0])
     return hull
@@ -261,15 +261,15 @@ def create_hull_inv_transform():
     row = 50
     col = 51
     num_linear = row * col
-    u = np.linspace(0, 1, col)
-    theta = np.arccos(1 - 2 * u)
-    phi = np.linspace(0, 2 * np.pi, row)
-    theta_grid, phi_grid = np.meshgrid(theta, phi)
+    u = cp.linspace(0, 1, col)
+    theta = cp.arccos(1 - 2 * u)
+    phi = cp.linspace(0, 2 * cp.pi, row)
+    theta_grid, phi_grid = cp.meshgrid(theta, phi)
     r = 600e-9  # particle size is 600nm
-    x = np.reshape((r * np.sin(theta_grid) * np.cos(phi_grid)), (1, num_linear))
-    y = np.reshape((r * np.sin(theta_grid) * np.sin(phi_grid)), (1, num_linear))
-    z = np.reshape((r * np.cos(theta_grid)), (1, num_linear))
-    points = np.transpose(np.vstack((x, y, z)))
+    x = cp.reshape((r * cp.sin(theta_grid) * cp.cos(phi_grid)), (1, num_linear))
+    y = cp.reshape((r * cp.sin(theta_grid) * cp.sin(phi_grid)), (1, num_linear))
+    z = cp.reshape((r * cp.cos(theta_grid)), (1, num_linear))
+    points = cp.transpose(cp.vstack((x, y, z)))
     hull = ConvexHull(points)
     print("Number of simplices:", hull.simplices.shape[0])
     return hull
@@ -280,14 +280,14 @@ def create_hull_GC():
     col = 101
     num_linear = row * col
 
-    theta = np.pi * (np.arange(1, col + 1) - 0.5) / col
-    phi = np.linspace(0, 2 * np.pi, row)
-    theta_grid, phi_grid = np.meshgrid(theta, phi)
+    theta = cp.pi * (cp.arange(1, col + 1) - 0.5) / col
+    phi = cp.linspace(0, 2 * cp.pi, row)
+    theta_grid, phi_grid = cp.meshgrid(theta, phi)
     r = 600e-9  # particle size is 600nm
-    x = np.reshape((r * np.sin(theta_grid) * np.cos(phi_grid)), (1, num_linear))
-    y = np.reshape((r * np.sin(theta_grid) * np.sin(phi_grid)), (1, num_linear))
-    z = np.reshape((r * np.cos(theta_grid)), (1, num_linear))
-    points = np.transpose(np.vstack((x, y, z)))
+    x = cp.reshape((r * cp.sin(theta_grid) * cp.cos(phi_grid)), (1, num_linear))
+    y = cp.reshape((r * cp.sin(theta_grid) * cp.sin(phi_grid)), (1, num_linear))
+    z = cp.reshape((r * cp.cos(theta_grid)), (1, num_linear))
+    points = cp.transpose(cp.vstack((x, y, z)))
     hull = ConvexHull(points)
     print("Number of simplices:", hull.simplices.shape[0])
     return hull
@@ -385,7 +385,7 @@ def compute_Js(hull, k1, k2, n_max):
     k1 = k1
     k2 = k2
     n_max = n_max
-    weights = 1  # np.pi / 101
+    weights = 1  # cp.pi / 101
 
     hull = hull
     modes = sum(2 * n + 1 for n in range(1, n_max + 1))
@@ -396,14 +396,14 @@ def compute_Js(hull, k1, k2, n_max):
     # modes for the interior region (m',n')
     modes_nmp = [(n, m) for n in range(1, n_max + 1) for m in range(-n, n + 1)]
 
-    j11 = np.zeros((len(modes_nmp), len(modes_nm)), dtype=np.complex128)
-    j12 = np.zeros((len(modes_nmp), len(modes_nm)), dtype=np.complex128)
-    j21 = np.zeros((len(modes_nmp), len(modes_nm)), dtype=np.complex128)
-    j22 = np.zeros((len(modes_nmp), len(modes_nm)), dtype=np.complex128)
-    Rgj11 = np.zeros((len(modes_nmp), len(modes_nm)), dtype=np.complex128)
-    Rgj12 = np.zeros((len(modes_nmp), len(modes_nm)), dtype=np.complex128)
-    Rgj21 = np.zeros((len(modes_nmp), len(modes_nm)), dtype=np.complex128)
-    Rgj22 = np.zeros((len(modes_nmp), len(modes_nm)), dtype=np.complex128)
+    j11 = cp.zeros((len(modes_nmp), len(modes_nm)), dtype=cp.complex128)
+    j12 = cp.zeros((len(modes_nmp), len(modes_nm)), dtype=cp.complex128)
+    j21 = cp.zeros((len(modes_nmp), len(modes_nm)), dtype=cp.complex128)
+    j22 = cp.zeros((len(modes_nmp), len(modes_nm)), dtype=cp.complex128)
+    Rgj11 = cp.zeros((len(modes_nmp), len(modes_nm)), dtype=cp.complex128)
+    Rgj12 = cp.zeros((len(modes_nmp), len(modes_nm)), dtype=cp.complex128)
+    Rgj21 = cp.zeros((len(modes_nmp), len(modes_nm)), dtype=cp.complex128)
+    Rgj22 = cp.zeros((len(modes_nmp), len(modes_nm)), dtype=cp.complex128)
 
     for i in range(0, modes):  # for each mode in the interior region
         for j in tqdm(range(0, modes)):  # for each mode in the exterior region
@@ -414,18 +414,18 @@ def compute_Js(hull, k1, k2, n_max):
                 r, theta, phi = cart2sph(x, y, z)
 
                 RgM = RgM_mn(modes_nmp[j][1], modes_nmp[j][0], k2 * r, theta, phi)
-                # RgM = np.hstack((np.zeros(6),RgM))
+                # RgM = cp.hstack((cp.zeros(6),RgM))
                 M = M_mn(-modes_nm[i][1], modes_nm[i][0], k1 * r, theta, phi)
 
                 r_comp = RgM[0] * M[1] - RgM[1] * M[0]
                 theta_comp = 0 * M[1]
                 phi_comp = 0 * RgM[0]
-                cross_prod = np.array([r_comp, theta_comp, phi_comp])
+                cross_prod = cp.array([r_comp, theta_comp, phi_comp])
                 cp_cart = sph2cart_comp_vec(cross_prod, theta, phi)  # do not normalise
 
                 return weights * cp_cart.transpose((1, 0))
 
-            j11[j][i] = hull_surface_integral_vector(integrandj11, hull, use_gpu=False)
+            j11[j][i] = hull_surface_integral_vector(integrandj11, hull, use_gpu=True)
             j11[j][i] *= (-1) ** (modes_nm[i][1])
 
             def integrandj12(input):
@@ -439,12 +439,12 @@ def compute_Js(hull, k1, k2, n_max):
                 r_comp = RgM[0] * N[2] - RgM[1] * N[1]
                 theta_comp = RgM[1] * N[0]
                 phi_comp = -RgM[0] * N[0]
-                cross_prod = np.array([r_comp, theta_comp, phi_comp])
+                cross_prod = cp.array([r_comp, theta_comp, phi_comp])
                 cp_cart = sph2cart_comp_vec(cross_prod, theta, phi)  # do not normalise
 
                 return weights * cp_cart.transpose((1, 0))
 
-            j12[j][i] = hull_surface_integral_vector(integrandj12, hull, use_gpu=False)
+            j12[j][i] = hull_surface_integral_vector(integrandj12, hull, use_gpu=True)
             j12[j][i] *= (-1) ** (modes_nm[i][1])
 
             def integrandj21(input):
@@ -458,12 +458,12 @@ def compute_Js(hull, k1, k2, n_max):
                 r_comp = RgN[1] * M[1] - RgN[2] * M[0]
                 theta_comp = -RgN[0] * M[1]
                 phi_comp = RgN[0] * M[0]
-                cross_prod = np.array([r_comp, theta_comp, phi_comp])
+                cross_prod = cp.array([r_comp, theta_comp, phi_comp])
                 cp_cart = sph2cart_comp_vec(cross_prod, theta, phi)  # do not normalise
 
                 return weights * cp_cart.transpose((1, 0))
 
-            j21[j][i] = hull_surface_integral_vector(integrandj21, hull, use_gpu=False)
+            j21[j][i] = hull_surface_integral_vector(integrandj21, hull, use_gpu=True)
             j21[j][i] *= (-1) ** (modes_nm[i][1])
 
             def integrandj22(input):
@@ -478,12 +478,12 @@ def compute_Js(hull, k1, k2, n_max):
                 r_comp = RgN[1] * N[2] - RgN[2] * N[1]
                 theta_comp = -RgN[0] * N[2] + RgN[2] * N[0]
                 phi_comp = RgN[0] * N[1] - RgN[1] * N[0]
-                cross_prod = np.array([r_comp, theta_comp, phi_comp])
+                cross_prod = cp.array([r_comp, theta_comp, phi_comp])
                 cp_cart = sph2cart_comp_vec(cross_prod, theta, phi)  # do not normalise
 
                 return weights * cp_cart.transpose((1, 0))
 
-            j22[j][i] = hull_surface_integral_vector(integrandj22, hull, use_gpu=False)
+            j22[j][i] = hull_surface_integral_vector(integrandj22, hull, use_gpu=True)
             j22[j][i] *= (-1) ** (modes_nm[i][1])
 
             def integrandRgj11(input):
@@ -492,19 +492,19 @@ def compute_Js(hull, k1, k2, n_max):
                 r, theta, phi = cart2sph(x, y, z)
 
                 RgM1 = RgM_mn(modes_nmp[j][1], modes_nmp[j][0], k2 * r, theta, phi)
-                # RgM = np.hstack((np.zeros(6),RgM))
+                # RgM = cp.hstack((cp.zeros(6),RgM))
                 RgM2 = RgM_mn(-modes_nm[i][1], modes_nm[i][0], k1 * r, theta, phi)
 
                 r_comp = RgM1[0] * RgM2[1] - RgM1[1] * RgM2[0]
                 theta_comp = 0 * RgM2[1]
                 phi_comp = 0 * RgM1[0]
-                cross_prod = np.array([r_comp, theta_comp, phi_comp])
+                cross_prod = cp.array([r_comp, theta_comp, phi_comp])
                 cp_cart = sph2cart_comp_vec(cross_prod, theta, phi)  # do not normalise
 
                 return weights * cp_cart.transpose((1, 0))
 
             Rgj11[j][i] = hull_surface_integral_vector(
-                integrandRgj11, hull, use_gpu=False
+                integrandRgj11, hull, use_gpu=True
             )
             Rgj11[j][i] *= (-1) ** (modes_nm[i][1])
 
@@ -519,13 +519,13 @@ def compute_Js(hull, k1, k2, n_max):
                 r_comp = RgM[0] * RgN[2] - RgM[1] * RgN[1]
                 theta_comp = RgM[1] * RgN[0]
                 phi_comp = -RgM[0] * RgN[0]
-                cross_prod = np.array([r_comp, theta_comp, phi_comp])
+                cross_prod = cp.array([r_comp, theta_comp, phi_comp])
                 cp_cart = sph2cart_comp_vec(cross_prod, theta, phi)  # do not normalise
 
                 return weights * cp_cart.transpose((1, 0))
 
             Rgj12[j][i] = hull_surface_integral_vector(
-                integrandRgj12, hull, use_gpu=False
+                integrandRgj12, hull, use_gpu=True
             )
             Rgj12[j][i] *= (-1) ** (modes_nm[i][1])
 
@@ -540,13 +540,13 @@ def compute_Js(hull, k1, k2, n_max):
                 r_comp = RgN[1] * RgM[1] - RgN[2] * RgM[0]
                 theta_comp = -RgN[0] * RgM[1]
                 phi_comp = RgN[0] * RgM[0]
-                cross_prod = np.array([r_comp, theta_comp, phi_comp])
+                cross_prod = cp.array([r_comp, theta_comp, phi_comp])
                 cp_cart = sph2cart_comp_vec(cross_prod, theta, phi)  # do not normalise
 
                 return weights * cp_cart.transpose((1, 0))
 
             Rgj21[j][i] = hull_surface_integral_vector(
-                integrandRgj21, hull, use_gpu=False
+                integrandRgj21, hull, use_gpu=True
             )
             Rgj21[j][i] *= (-1) ** (modes_nm[i][1])
 
@@ -561,13 +561,13 @@ def compute_Js(hull, k1, k2, n_max):
                 r_comp = RgN1[1] * RgN2[2] - RgN1[2] * RgN2[1]
                 theta_comp = -RgN1[0] * RgN2[2] + RgN1[2] * RgN2[0]
                 phi_comp = RgN1[0] * RgN2[1] - RgN1[1] * RgN2[0]
-                cross_prod = np.array([r_comp, theta_comp, phi_comp])
+                cross_prod = cp.array([r_comp, theta_comp, phi_comp])
                 cp_cart = sph2cart_comp_vec(cross_prod, theta, phi)  # do not normalise
 
                 return weights * cp_cart.transpose((1, 0))
 
             Rgj22[j][i] = hull_surface_integral_vector(
-                integrandRgj22, hull, use_gpu=False
+                integrandRgj22, hull, use_gpu=True
             )
             Rgj22[j][i] *= (-1) ** (modes_nm[i][1])
 
@@ -575,11 +575,6 @@ def compute_Js(hull, k1, k2, n_max):
 
 
 def get_T(hull, k1, k2, n_max):
-    """This function calculates the T matrix for the given modes. The function
-    takes inputs k1,k2 and the convex hull of the particle surface sample points.
-    The rows are (n',m') and the columns are (n,m) for the T matrix.
-    The T matrix will have a size of (2*modes X 2*modes).
-    """
     j11, j12, j21, j22, Rgj11, Rgj12, Rgj21, Rgj22 = compute_Js(hull, k1, k2, n_max)
 
     # Define the Q matrices
@@ -595,35 +590,25 @@ def get_T(hull, k1, k2, n_max):
     RgQ_22 = -1j * k1 * k2 * Rgj12 - 1j * k1**2 * Rgj21
 
     # Arrange the Q matrices in a 2x2 larger matrix
-    Q_matrix = np.block([[Q_11, Q_12], [Q_21, Q_22]])
-    RgQ_matrix = np.block([[RgQ_11, RgQ_12], [RgQ_21, RgQ_22]])
-    T = -RgQ_matrix @ np.linalg.inv(Q_matrix)
+    Q_matrix = cp.block([[Q_11, Q_12], [Q_21, Q_22]])
+    RgQ_matrix = cp.block([[RgQ_11, RgQ_12], [RgQ_21, RgQ_22]])
+    T = -RgQ_matrix @ cp.linalg.inv(Q_matrix)
 
     return T
 
-def get_A_from_T(T,n_max):
-    """
-    This function calculates the amplitude matrix A from the T matrix.
-    The T matrix is assumed to be of size (2*modes X 2*modes).
-    The amplitude matrix will have a size of (modes X modes).
-    """
-    l = T.shape[0]/ 2
-    T_11 =T[:l, :l]  # Top-left
-    T_12 =T[:l, l:]  # Top-right
-    T_21 =T[l:, :l]  # Bottom-left
-    T_22 =T[l:, l:]  # Bottom-right
 
-    theta = np.linspace(0, np.pi, 10)
-    phi = np.linspace(0, 2 * np.pi, 10)
-    pi_array = []
-    tau_array = []
-
-
-    modes_nm = [(n, m) for n in range(1, n_max + 1) for m in range(-n, n + 1)]
-    # modes for the interior region (m',n')
-    modes_nmp = [(n, m) for n in range(1, n_max + 1) for m in range(-n, n + 1)]
-    for mode in modes_nm:
-        pi_row,tau_row = np.array(pi_tau_mn(mode[0],mode[1],theta))
-        pi_array.append(pi_row)
-        tau_array.append(tau_row)
-    
+"""
+hull, points = create_hull()
+wavelength1 = 532e-9
+k1 = (2 * cp.pi) / wavelength1
+wavelength2 = 266e-9
+k2 = 1.5 * k1
+n_max = 2
+modes = sum(2 * n + 1 for n in range(1, n_max + 1))
+print(f"Total number of modes is {modes}")
+T = get_T(hull, points, k1, k2, n_max)
+plt.matshow(cp.abs(T), cmap="viridis")
+plt.title("T Matrix")
+plt.colorbar()
+plt.show()
+"""

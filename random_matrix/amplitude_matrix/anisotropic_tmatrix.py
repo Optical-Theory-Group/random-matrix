@@ -225,7 +225,7 @@ class AmatrixGenerator:
             2 * np.finfo(np.float64).eps
         )  # remove issues with divide by zero
 
-        Ln = lpmv(np.abs(m), n, np.cos(theta))
+        Ln = lpmv(m, n, np.cos(theta))
         Lnp1 = lpmv(np.abs(m), n + 1, np.cos(theta))
 
         norm = 1
