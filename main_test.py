@@ -41,62 +41,49 @@ from random_matrix.scattering_matrix import sampler
 
 seed = 0
 np.random.seed(seed)
-side_length = 0.1
+side_length = 0.2
 
-warnings.filterwarnings("ignore")
 my_grid = mode_grid_factory.from_tiling(
-    tiling_type="hexagons",
-    side_length=(side_length),
-    r_lim=1,
+    tiling_type="rectangles",
+    side_length=(side_length, side_length),
+    r_lim=1.2,
     grid_wave_type="propagating",
     rotation_angle=0.0,
     translation_vector=np.array([0.0, 0.0]),
 )
-print(my_grid.num_propagating)
 my_grid.plot(
     show_indices=False, savefig="/home/nbyrnes/code/random-matrix/figtest.svg"
 )
-
-my_grid = mode_grid_factory.from_dr_dt(
-    dr = 0.1,
-    dt = np.pi/8,
-    r_lim=1,
-)
-print(my_grid.num_propagating)
-my_grid.plot(
-    show_indices=False, savefig="/home/nbyrnes/code/random-matrix/figtest.svg"
+wavelength = 500e-9
+slab_thickness = 1.8992695221776513e-06
+number_density = 5.921762640653617e17
+medium_parameters = MediumParameters(
+    wavelength=wavelength,
+    number_density=number_density,
+    slab_thickness=slab_thickness,
 )
 
-# wavelength = 500e-9
-# slab_thickness = 1.8992695221776513e-06
-# number_density = 5.921762640653617e17
-# medium_parameters = MediumParameters(
-#     wavelength=wavelength,
-#     number_density=number_density,
-#     slab_thickness=slab_thickness,
-# )
-
-# term = DensityFunctionTerm.from_delta({"x": 2.0, "m": 1.2})
-# particle_statistics = ParticleStatistics(
-#     term,
-#     isotropic_sphere.get_A,
-#     isotropic_sphere.get_A_product,
-#     isotropic_sphere.get_A_product_conj,
-# )
-# medium_statistics = MediumStatistics([particle_statistics])
+term = DensityFunctionTerm.from_delta({"x": 2.0, "m": 1.2})
+particle_statistics = ParticleStatistics(
+    term,
+    isotropic_sphere.get_A,
+    isotropic_sphere.get_A_product,
+    isotropic_sphere.get_A_product_conj,
+)
+medium_statistics = MediumStatistics([particle_statistics])
 
 
-# input_statistics_manager = InputStatisticsManager(
-#     medium_parameters, medium_statistics, my_grid
-# )
+input_statistics_manager = InputStatisticsManager(
+    medium_parameters, medium_statistics, my_grid
+)
 
-# start = time.perf_counter()
-# integration_result_list, mean_S, cov, sigma, chol = (
-#     input_statistics_manager.get_statistics()
-# )
-# end = time.perf_counter()
-# print(end-start)
-# assert False
+start = time.perf_counter()
+integration_result_list, mean_S, cov, sigma, chol = (
+    input_statistics_manager.get_statistics()
+)
+end = time.perf_counter()
+print(end-start)
+assert False
 
 # cov_dense = cov.todense()
 # S_matrices = S_sampler(mean_S, chol, 10**4)
