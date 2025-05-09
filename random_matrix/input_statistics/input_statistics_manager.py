@@ -1,11 +1,13 @@
 import os
 import pickle
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import scipy.sparse
 import sksparse.cholmod
 
+from random_matrix import DATA_DIRECTORY
 from random_matrix.input_statistics import (
     index_finder,
     input_statistics_logger,
@@ -23,13 +25,26 @@ from random_matrix.utils.types import Numeric
 class InputStatisticsManager:
     def __init__(
         self,
+        simulation_name: str,
         medium_parameters: medium_parameters.MediumParameters,
         medium_statistics: medium_statistics.MediumStatistics,
         mode_grid: mode_grid.ModeGrid,
+        parent_data_dir: str | Path | None = None,
         use_logger: bool = True,
     ) -> None:
         """Input statistics manager class"""
 
+        # Default to the current working directory if none is given
+        self.parent_data_dir = (
+            Path(parent_data_dir) if parent_data_dir else Path.cwd()
+        )
+        self._validate_parent_data_dir()
+
+        # Set up folder for simulation output and metadata
+        self.simulation_name = simulation_name
+        self._validate_simulation_name()
+
+        # Save variables
         self.medium_parameters = medium_parameters
         self.medium_statistics = medium_statistics
         self.mode_grid = mode_grid
@@ -73,10 +88,21 @@ class InputStatisticsManager:
             )
         )
 
+    def _validate_parent_data_dir(self) -> None:
+        """Create the ouput_dir based on the given path"""
+        if not self.parent_data_dir.exists():
+            self.parent_data_dir.mkdir(parents=True, exist_ok=True)
+
+    def _validate_simulation_name(self) -> None:
+        """Create folder and subfolders for simulation data"""
+        simulation_path = self.parent_data_dir / Path(simulation_name)
+        if not self.simulation_path.exists():
+            self.simulation_path.mkdir(parents=True, exist_ok=True)
+
     def get_statistics(self) -> Numeric:
         """Compute the mean, covariance and pseudo-covariance for the elements
         of the scattering matrix."""
-
+        assert False
         # Find indices
         independent_elements, indices = self._get_indices()
 
