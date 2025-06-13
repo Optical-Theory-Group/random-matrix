@@ -1138,3 +1138,54 @@ def get_intersection_vertices(
     # Truncate the
     truncated_vertices = intersection_vertices[:, 1:7]
     return truncated_vertices
+
+
+def get_intersection_vertices_dirac_density(
+    vertices: np.ndarray | cp.ndarray,
+    kj: np.ndarray | cp.ndarray,
+    kv: np.ndarray | cp.ndarray,
+    correlation_signature: list[int] | None = None,
+) -> np.ndarray | cp.ndarray:
+    """Compute the intersection of the polytope with given vertices with
+    hyperplanes as defined by the memory effect condition described by the
+    given correlation signature."""
+    xp = cp.get_array_module(vertices)
+    # Set up cdd matrix object for the initial polytope
+    t = xp.ones(len(vertices))
+    polytope_mat = cdd.matrix_from_array(
+        xp.column_stack((t.T, vertices)), rep_type=cdd.RepType.GENERATOR
+    )
+
+    # Get the halfspace representation inequalities
+    polytope = cdd.polyhedron_from_matrix(polytope_mat)
+    polytope_inequalities = xp.array(cdd.copy_inequalities(polytope).array)
+
+    # Intersect the polytope with the hyperplanes
+    if correlation_signature is None:
+        correlation_signature = [1, -1, -1, 1]
+    a, b, c, d = correlation_signature
+    hyperplane_equations = xp.array(
+        [
+            [0, a, 0, b, 0, c, 0, d, 0],
+            [0, 0, a, 0, b, 0, c, 0, d],
+            [kj[0], 0, 0, -1, 0, 0, 0, 0, 0],
+            [kj[1], 0, 0, 0, -1, 0, 0, 0, 0],
+            [kv[0], 0, 0, 0, 0, 0, 0, -1, 0],
+            [kv[1], 0, 0, 0, 0, 0, 0, 0, -1],
+        ]
+    )
+    lin_set = set([0, 1, 2, 3, 4, 5])
+    augmented_inequalities = xp.vstack(
+        (hyperplane_equations, polytope_inequalities)
+    )
+    intersection_mat = cdd.matrix_from_array(
+        augmented_inequalities,
+        rep_type=cdd.RepType.INEQUALITY,
+        lin_set=lin_set,
+    )
+    intersection = cdd.polyhedron_from_matrix(intersection_mat)
+    intersection_vertices = xp.array(cdd.copy_generators(intersection).array)
+
+    # Truncate the
+    truncated_vertices = intersection_vertices[:, 1:]
+    return truncated_vertices
