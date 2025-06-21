@@ -1,5 +1,6 @@
 import functools
 import os
+from abc import ABC, abstractmethod
 import time
 from dataclasses import dataclass, field
 from typing import Self, Any
@@ -104,8 +105,8 @@ class IntegrationResultList:
         return new_result_list
 
 
-@dataclass(slots=True)
-class IntegrationTask:
+@dataclass(slots=True, kw_only=True)
+class IntegrationTask(ABC):
     """General integration task container.
 
     Consists of a function that is to be integrated over many different domains
@@ -132,39 +133,31 @@ class IntegrationTask:
     """
 
     integrand: MathematicalFunction
-    domain_stack: Numeric
     statistic_type: str
     block_location: tuple[str, str]
     sub_block_locations: list[tuple[slice, tuple[int, int]]]
+
     const_factor: Numeric = 1.0
+    extra_factor: Numeric = 1.0
+    use_cupy: bool = False
+
+    @property
+    def get_xp(self):
+        return cp if self.use_cupy else np
 
     def __str__(self) -> str:
         string = (
             f"Statistic type: {self.statistic_type}\n"
             f"Matrix block: {self.block_location}\n"
-            f"Number of integrals: {len(self.domain_stack)}"
+            f"Number of integrals: {self.num_integrals()}"
         )
 
         return string
 
-    def execute_task(self, scheme: Any | None = None) -> IntegrationResult:
+    def execute_task(self) -> IntegrationResult:
         """Perofrm the integral associated with the task."""
-
-        match self.statistic_type:
-            case "mean":
-                integral = integration_utils.simplex_integral(
-                    self.integrand, self.domain_stack
-                )
-            case "covariance":
-                integral = integration_utils.simplex_integral(
-                    self.integrand, self.domain_stack, scheme
-                )
-            case "pseudo_covariance":
-                integral = integration_utils.simplex_integral(
-                    self.integrand, self.domain_stack, scheme
-                )
-
-        xp = cp.get_array_module(integral)
+        xp = self.get_xp
+        integral = self.compute_integral()
 
         # Results should be added over the slices. This corresponds to adding
         # integrals over the triangular subregions of the integration domain
@@ -182,8 +175,80 @@ class IntegrationTask:
             self.statistic_type,
             self.block_location,
             locations,
-            self.const_factor * output,
+            self.const_factor * self.extra_factor * output,
         )
+
+    @abstractmethod
+    def compute_integral(self) -> Numeric:
+        pass
+
+    @abstractmethod
+    def num_integrals(self) -> int:
+        pass
+
+
+@dataclass(slots=True, kw_only=True)
+class MidpointIntegrationTask(IntegrationTask):
+    midpoint_array: np.ndarray | None = None
+    volume_array: np.ndarray | None = None
+
+    def __post_init__(self):
+        """Initialize arrays"""
+        xp = self.get_xp
+        if self.midpoint_array is None:
+            self.midpoint_array = xp.zeros((0, 6), dtype=xp.float64)
+        if self.volume_array is None:
+            self.volume_array = xp.zeros((0, 1), dtype=xp.float64)
+
+    def compute_integral(self) -> Numeric:
+        return integration_utils.midpoint_integral(
+            self.integrand, self.midpoint_array, self.volume_array
+        )
+
+    def num_integrals(self) -> int:
+        return len(self.midpoint_array)
+
+
+@dataclass(slots=True)
+class CubatureIntegrationTask(IntegrationTask):
+    simplex_array: np.ndarray | None = None
+    cubature_scheme: Any = None
+    use_dirac_density: bool = False
+
+    def __post_init__(self):
+        """Validate simplex shape based on use_dirac_density flag"""
+        xp = self.get_xp
+        expected_shape = (3, 2) if self.use_dirac_density else (7, 6)
+
+        if self.simplex_array is None:
+            num_vertices, num_dimensions = expected_shape
+            self.simplex_array = xp.zeros(
+                (0, *expected_shape), dtype=xp.float64
+            )
+
+        # Validate dimensionality
+        if self.simplex_array.ndim != 3:
+            raise ValueError(
+                f"Expected simplex_array to have 3 dimensions (N, {expected_shape[0]}, {expected_shape[1]}), "
+                f"but got shape {self.simplex_array.shape} with {self.simplex_array.ndim} dimensions."
+            )
+
+        num_simplices, num_vertices, num_dimensions = self.simplex_array.shape
+        if (num_vertices, num_dimensions) != expected_shape:
+            raise ValueError(
+                f"Invalid simplex shape: expected each simplex to have shape {expected_shape} "
+                f"(i.e., {expected_shape[0]} vertices in {expected_shape[1]}D), "
+                f"but got ({num_vertices} vertices in {num_dimensions}D). "
+                f"Full array shape is {self.simplex_array.shape}."
+            )
+
+    def compute_integral(self) -> Numeric:
+        return integration_utils.simplex_integral(
+            self.integrand, self.simplex_array, self.cubature_scheme
+        )
+
+    def num_integrals(self) -> int:
+        return len(self.simplex_array)
 
 
 @dataclass(slots=True)
@@ -198,7 +263,7 @@ class IntegrationTaskList:
         for i, task in enumerate(self.tasks):
             string += (
                 f"{i}, {task.statistic_type}, "
-                f"{len(task.domain_stack)} triangles, "
+                f"{task.num_integrals()} triangles, "
                 f"{task.block_location}\n"
             )
 
@@ -289,6 +354,31 @@ class IntegrationTaskConfig:
 
 
 class IntegrationTaskPreparer:
+    WAVE_BLOCKS = [
+        "pp,pp",
+        "pp,pe",
+        "pp,ep",
+        "pp,ee",
+        "pe,pe",
+        "pe,ep",
+        "pe,ee",
+        "ep,ep",
+        "ep,ee",
+        "ee,ee",
+    ]
+    BLOCKS = [
+        "t,t",
+        "t,r",
+        "t,t2",
+        "t,r2",
+        "r,r",
+        "r,t2",
+        "r,r2",
+        "t2,t2",
+        "t2,r2",
+        "r2,r2",
+    ]
+
     def __init__(
         self,
         mode_grid: mode_grid.ModeGrid,
@@ -311,6 +401,7 @@ class IntegrationTaskPreparer:
         indices: dict[str, dict[str, set[tuple[int, int]]]],
         covariance_cubature_scheme: Any | None = None,
         use_dirac_density: bool = True,
+        integration_method: str = "cubature",
     ) -> IntegrationTaskList:
         """Get an integration task list consisting of all necessary tasks.
 
@@ -327,7 +418,7 @@ class IntegrationTaskPreparer:
         with self.logger.log("covariance"):
             if use_dirac_density:
                 master_result_list.merge_result_list(
-                    self._get_covariance_integration_results_dirac_density(
+                    self._get_covariance_integration_results_two_dimensions(
                         class_quadruple_list,
                         indices["covariance"],
                         covariance_cubature_scheme=covariance_cubature_scheme,
@@ -335,13 +426,13 @@ class IntegrationTaskPreparer:
                 )
             else:
                 master_result_list.merge_result_list(
-                    self._get_covariance_integration_results(
+                    self._get_covariance_integration_results_six_dimensions(
                         class_quadruple_list,
                         indices["covariance"],
+                        integration_method=integration_method,
                         covariance_cubature_scheme=covariance_cubature_scheme,
                     )
                 )
-
         # with self.logger.log("pseudo_covariance"):
         #     master_result_list.merge_result_list(
         #         self._get_pseudo_covariance_integration_tasks(
@@ -635,78 +726,86 @@ class IntegrationTaskPreparer:
 
         return covariance_integrand
 
-    def _get_covariance_integration_results(
+    def _build_integration_task(
+        self,
+        integration_method: str,
+        integrand: MathematicalFunction,
+        statistic_type: str,
+        block_location: tuple[str, str],
+        sub_block_locations: list[tuple[slice, tuple[int, int]]],
+        const_factor: Numeric,
+        use_cupy: bool,
+        cubature_scheme: Any = None,
+        use_dirac_density: bool = False,
+    ) -> IntegrationTask:
+        if integration_method == "cubature":
+            return CubatureIntegrationTask(
+                integrand=integrand,
+                statistic_type=statistic_type,
+                block_location=block_location,
+                sub_block_locations=sub_block_locations,
+                const_factor=const_factor,
+                use_cupy=use_cupy,
+                cubature_scheme=cubature_scheme,
+                use_dirac_density=use_dirac_density,
+            )
+        elif integration_method == "midpoint":
+            return MidpointIntegrationTask(
+                integrand=integrand,
+                statistic_type=statistic_type,
+                block_location=block_location,
+                sub_block_locations=sub_block_locations,
+                const_factor=const_factor,
+                use_cupy=use_cupy,
+            )
+        else:
+            raise ValueError(
+                f"Unknown integration method '{integration_method}'"
+            )
+
+    def _get_covariance_integration_results_six_dimensions(
         self,
         class_quadruple_list: ClassQuadrupleList,
         covariance_indices: dict[str, dict[str, tuple[int, int, int, int]]],
+        integration_method: str = "cubature",
         covariance_cubature_scheme: Any | None = None,
     ) -> IntegrationResultList:
-        """Main method for computing covariance results"""
-        start = time.perf_counter()
+        """Main method for computing covariance results based on
+        six dimensional integrals"""
         xp = cp if self.integration_task_config.use_gpu else np
 
         # Factor common to all covariance integrals
         const_factor = self.medium_parameters.cov_const_factor
         main_result_list = IntegrationResultList()
 
-        # Prepare the master index set, which contains all possible indices
-        # for which a covariance will need to be calculated
-        master_index_set = set()
-        for wave_block, d in covariance_indices.items():
-            for block, i in d.items():
-                master_index_set.update(i)
+        columns_to_keep = [0, 1, 2, 3, 4, 5]
 
         # Prepare task dictionary
-        wave_blocks = [
-            "pp,pp",
-            "pp,pe",
-            "pp,ep",
-            "pp,ee",
-            "pe,pe",
-            "pe,ep",
-            "pe,ee",
-            "ep,ep",
-            "ep,ee",
-            "ee,ee",
-        ]
-        blocks = [
-            "t,t",
-            "t,r",
-            "t,t2",
-            "t,r2",
-            "r,r",
-            "r,t2",
-            "r,r2",
-            "t2,t2",
-            "t2,r2",
-            "r2,r2",
-        ]
-
-        # Subset for testing purposes
         task_dict = {}
-        for wave_block in wave_blocks:
+        for wave_block in self.WAVE_BLOCKS:
             wave_block_one, wave_block_two = wave_block.split(",")
             task_dict[wave_block] = {}
-            for block in blocks:
-                block_one, block_two = block.split(",")
 
-                task_dict[wave_block][block] = IntegrationTask(
-                    self._get_covariance_integrand(
-                        wave_block_one, wave_block_two, block_one, block_two
-                    ),
-                    xp.zeros((0, 7, 6), dtype=xp.float64),
-                    statistic_type="covariance",
-                    block_location=(wave_block, block),
-                    sub_block_locations=[],
-                    const_factor=const_factor,
+            for block in self.BLOCKS:
+                block_one, block_two = block.split(",")
+                block_location = (wave_block, block)
+
+                integrand = self._get_covariance_integrand(
+                    wave_block_one, wave_block_two, block_one, block_two
                 )
 
-        # Hyperplane normals
-        n1 = xp.array([1, 0, -1, 0, -1, 0, 1, 0])
-        n2 = xp.array([0, 1, 0, -1, 0, -1, 0, 1])
-        filter_one = [0, 1, 2, 3, 4, 5, 7]
-        filter_two = [0, 1, 2, 3, 4, 5]
-        columns_to_keep = [0, 1, 2, 3, 4, 5]
+                task = self._build_integration_task(
+                    integration_method=integration_method,
+                    integrand=integrand,
+                    statistic_type="covariance",
+                    block_location=block_location,
+                    sub_block_locations=[],
+                    const_factor=const_factor,
+                    use_cupy=self.integration_task_config.use_gpu,
+                    cubature_scheme=covariance_cubature_scheme,
+                    use_dirac_density=False,
+                )
+                task_dict[wave_block][block] = task
 
         # Main loop
         for class_number, class_quadruple in enumerate(
@@ -717,39 +816,53 @@ class IntegrationTaskPreparer:
             template = class_quadruple.template
             cartesian_product = template.vertices
 
-            # Uniform density
-            start = time.perf_counter()
+            # Get the integration domain
             reduced_intersection = geometry_utils.get_intersection_vertices(
                 cartesian_product
             )
             reduced_hull = scipy.spatial.ConvexHull(
                 reduced_intersection, qhull_options="QJ"
             )
-            end = time.perf_counter()
 
             # Get the centroid and interweave it into all the simplices
-            centroid = xp.mean(
-                xp.asarray(reduced_hull.points[reduced_hull.vertices]), axis=0
-            )
-            centroid_expanded = xp.tile(
-                centroid, (reduced_hull.simplices.shape[0], 1, 1)
-            )
-            new_simplices = xp.concatenate(
-                [
-                    xp.asarray(reduced_hull.points[reduced_hull.simplices]),
-                    centroid_expanded,
-                ],
-                axis=1,
-            )
+            centroid = xp.mean(reduced_intersection, axis=0)
+
+            if integration_method == "cubature":
+                centroid_expanded = xp.tile(
+                    centroid, (reduced_hull.simplices.shape[0], 1, 1)
+                )
+                template_simplex_array = xp.concatenate(
+                    [
+                        xp.asarray(
+                            reduced_hull.points[reduced_hull.simplices]
+                        ),
+                        centroid_expanded,
+                    ],
+                    axis=1,
+                )
+            elif integration_method == "midpoint":
+                template_midpoint_array = xp.array([centroid])
+                template_volume_array = xp.array([reduced_hull.volume])
 
             for quadruple in class_quadruple.quadruples:
                 indices = quadruple.singles_indices
-                new_domain = new_simplices + xp.asarray(
+                new_translation_vector = xp.asarray(
                     quadruple.translation_vector[columns_to_keep]
                 )
-                for wave_block in wave_blocks:
+
+                if integration_method == "cubature":
+                    new_simplex_array = (
+                        template_simplex_array + new_translation_vector
+                    )
+                elif integration_method == "midpoint":
+                    new_midpoint_array = (
+                        template_midpoint_array + new_translation_vector
+                    )
+                    new_volume_array = np.copy(template_volume_array)
+
+                for wave_block in self.WAVE_BLOCKS:
                     wave_block_one, wave_block_two = wave_block.split(",")
-                    for block in blocks:
+                    for block in self.BLOCKS:
                         block_one, block_two = block.split(",")
                         # Check if the mean needs to be calculated for this
                         # particular wave_block, block pair
@@ -759,10 +872,52 @@ class IntegrationTaskPreparer:
                             continue
 
                         # Add domain to integral task
-                        old_stack_length = len(
-                            task_dict[wave_block][block].domain_stack
-                        )
-                        new_stack_length = old_stack_length + len(new_domain)
+                        if integration_method == "cubature":
+                            old_stack_length = len(
+                                task_dict[wave_block][block].simplex_array
+                            )
+                            new_stack_length = old_stack_length + len(
+                                new_simplex_array
+                            )
+                            task_dict[wave_block][block].simplex_array = (
+                                xp.vstack(
+                                    (
+                                        task_dict[wave_block][
+                                            block
+                                        ].simplex_array,
+                                        new_simplex_array,
+                                    )
+                                )
+                            )
+
+                        elif integration_method == "midpoint":
+                            old_stack_length = len(
+                                task_dict[wave_block][block].midpoint_array
+                            )
+                            new_stack_length = old_stack_length + len(
+                                new_midpoint_array
+                            )
+                            task_dict[wave_block][block].midpoint_array = (
+                                xp.vstack(
+                                    (
+                                        task_dict[wave_block][
+                                            block
+                                        ].midpoint_array,
+                                        new_midpoint_array,
+                                    )
+                                )
+                            )
+                            task_dict[wave_block][block].volume_array = (
+                                xp.vstack(
+                                    (
+                                        task_dict[wave_block][
+                                            block
+                                        ].volume_array,
+                                        new_volume_array,
+                                    )
+                                )
+                            )
+
                         new_slice = slice(old_stack_length, new_stack_length)
                         new_indices = indices
                         new_sub_block_location = (new_slice, new_indices)
@@ -770,58 +925,58 @@ class IntegrationTaskPreparer:
                             block
                         ].sub_block_locations.append(new_sub_block_location)
 
-                        # Add new triangles to stack
-                        task_dict[wave_block][block].domain_stack = xp.vstack(
-                            (
-                                task_dict[wave_block][block].domain_stack,
-                                new_domain,
-                            )
-                        )
-
                         # Execute tasks if RAM usage is getting too high.
                         # Re-initialize relevant integration task
                         current_ram_usage = (
                             self.integration_task_config.get_current_ram_usage()
                         )
-                        if class_number % 100 == 0:
+                        if (
+                            current_ram_usage
+                            > self.integration_task_config.ram_limit
+                        ):
                             new_result = task_dict[wave_block][
                                 block
-                            ].execute_task(covariance_cubature_scheme)
-
+                            ].execute_task()
+                            print(new_result.integral)
                             main_result_list.append_result(new_result)
-                            task_dict[wave_block][block] = IntegrationTask(
-                                self._get_covariance_integrand(
-                                    wave_block_one,
-                                    wave_block_two,
-                                    block_one,
-                                    block_two,
-                                ),
-                                xp.zeros((0, 7, 6), dtype=xp.float64),
-                                statistic_type="covariance",
-                                block_location=(wave_block, block),
-                                sub_block_locations=[],
-                                const_factor=const_factor,
+
+                            # Reset task object
+                            block_location = (wave_block, block)
+
+                            integrand = self._get_covariance_integrand(
+                                wave_block_one,
+                                wave_block_two,
+                                block_one,
+                                block_two,
                             )
 
-        # The tasks have all been prepared. Now execute them!
+                            task = self._build_integration_task(
+                                integration_method=integration_method,
+                                integrand=integrand,
+                                statistic_type="covariance",
+                                block_location=block_location,
+                                sub_block_locations=[],
+                                const_factor=const_factor,
+                                use_cupy=self.integration_task_config.use_gpu,
+                                cubature_scheme=covariance_cubature_scheme,
+                                use_dirac_density=False,
+                            )
+                            task_dict[wave_block][block] = task
 
-        for wave_block in wave_blocks:
-            for block in blocks:
-                new_result = task_dict[wave_block][block].execute_task(
-                    covariance_cubature_scheme
-                )
+        # Execute remaining tasks
+        for wave_block in self.WAVE_BLOCKS:
+            for block in self.BLOCKS:
+                new_result = task_dict[wave_block][block].execute_task()
                 main_result_list.append_result(new_result)
-        end = time.perf_counter()
         return main_result_list
 
-    def _get_covariance_integration_results_dirac_density(
+    def _get_covariance_integration_results_two_dimensions(
         self,
         class_quadruple_list: ClassQuadrupleList,
         covariance_indices: dict[str, dict[str, tuple[int, int, int, int]]],
         covariance_cubature_scheme: Any | None = None,
     ) -> IntegrationResultList:
         """Main method for computing covariance results"""
-        start = time.perf_counter()
         xp = cp if self.integration_task_config.use_gpu else np
 
         # Factor common to all covariance integrals
@@ -835,37 +990,7 @@ class IntegrationTaskPreparer:
             for block, i in d.items():
                 master_index_set.update(i)
 
-        # Prepare task dictionary
-        wave_blocks = [
-            "pp,pp",
-            "pp,pe",
-            "pp,ep",
-            "pp,ee",
-            "pe,pe",
-            "pe,ep",
-            "pe,ee",
-            "ep,ep",
-            "ep,ee",
-            "ee,ee",
-        ]
-        blocks = [
-            "t,t",
-            "t,r",
-            "t,t2",
-            "t,r2",
-            "r,r",
-            "r,t2",
-            "r,r2",
-            "t2,t2",
-            "t2,r2",
-            "r2,r2",
-        ]
-
         # Hyperplane normals
-        n1 = xp.array([1, 0, -1, 0, -1, 0, 1, 0])
-        n2 = xp.array([0, 1, 0, -1, 0, -1, 0, 1])
-        filter_one = [0, 1, 2, 3, 4, 5, 7]
-        filter_two = [0, 1, 2, 3, 4, 5]
         columns_to_keep = [0, 1]
         ct = 0
 
@@ -878,6 +1003,15 @@ class IntegrationTaskPreparer:
             template = class_quadruple.template
             cartesian_product = template.vertices
 
+            # The 'true" region
+            reduced_intersection = geometry_utils.get_intersection_vertices(
+                cartesian_product
+            )
+            reduced_hull = scipy.spatial.ConvexHull(
+                reduced_intersection, qhull_options="QJ"
+            )
+            true_volume = reduced_hull.volume
+
             # Dirac density
             _, j, _, v = class_quadruple.template.singles_indices
             kj = self.mode_grid.by_index(j).center
@@ -887,6 +1021,7 @@ class IntegrationTaskPreparer:
                     cartesian_product, kj, kv
                 )
             )
+            geometric_factor = 1
             reduced_region = intersection[:, columns_to_keep]
             delaunay = scipy.spatial.Delaunay(reduced_region)
             new_simplices = xp.asarray(delaunay.points[delaunay.simplices])
@@ -905,9 +1040,9 @@ class IntegrationTaskPreparer:
                 new_indices = indices
                 new_sub_block_location = (new_slice, new_indices)
 
-                for wave_block in wave_blocks:
+                for wave_block in self.WAVE_BLOCKS:
                     wave_block_one, wave_block_two = wave_block.split(",")
-                    for block in blocks:
+                    for block in self.BLOCKS:
                         block_one, block_two = block.split(",")
 
                         # Check if the mean needs to be calculated for this
@@ -916,8 +1051,9 @@ class IntegrationTaskPreparer:
                             wave_block, {}
                         ).get(block, set()):
                             continue
-                        ct +=1
-                        new_task = IntegrationTask(
+                        ct += 1
+
+                        integrand = (
                             self._get_covariance_integrand_dirac_density(
                                 wave_block_one,
                                 wave_block_two,
@@ -925,16 +1061,36 @@ class IntegrationTaskPreparer:
                                 block_two,
                                 xp.asarray(kj),
                                 xp.asarray(kv),
-                            ),
-                            new_domain,
+                            )
+                        )
+                        block_location = (wave_block, block)
+                        integrand = (
+                            self._get_covariance_integrand_dirac_density(
+                                wave_block_one,
+                                wave_block_two,
+                                block_one,
+                                block_two,
+                                xp.asarray(kj),
+                                xp.asarray(kv),
+                            )
+                        )
+                        new_task = CubatureIntegrationTask(
+                            integrand=integrand,
                             statistic_type="covariance",
                             block_location=(wave_block, block),
                             sub_block_locations=[new_sub_block_location],
                             const_factor=const_factor,
+                            use_cupy=self.integration_task_config.use_gpu,
+                            simplex_array=new_domain,
+                            cubature_scheme=covariance_cubature_scheme,
+                            use_dirac_density=True,
                         )
-                        new_result = new_task.execute_task(
-                            covariance_cubature_scheme
+
+                        new_result = new_task.execute_task()
+                        new_result.integral = (
+                            new_result.integral * geometric_factor
                         )
+                        print(np.linalg.norm(new_result.integral))
                         main_result_list.append_result(new_result)
 
         return main_result_list

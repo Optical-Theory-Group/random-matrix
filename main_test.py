@@ -74,6 +74,7 @@ medium_statistics = MediumStatistics([particle_statistics])
 # Set up the relevant indices
 propagating_indices = my_grid.propagating_indices
 quads = [(0, i, 0, i) for i in propagating_indices]
+quads = [(0, 0, 0, 0)]
 first = [
     "pp,pp",
     "pp,pe",
@@ -107,7 +108,7 @@ for key in ["t,t", "r,r"]:
 
 
 parent_data_dir = "/home/nbyrnes/code/random-matrix/"
-simulation_name = "test8"
+simulation_name = "test1"
 input_statistics_manager = InputStatisticsManager(
     simulation_name,
     medium_parameters,
@@ -115,8 +116,9 @@ input_statistics_manager = InputStatisticsManager(
     my_grid,
     supplied_indices=supplied_indices,
     use_dirac_density=True,
-    covariance_cubature_scheme=quadpy.tn.grundmann_moeller(2, 5)
+    integration_method="cubature",
 )
+integration_result_list, tee = input_statistics_manager.get_statistics()
 
 # # start = time.perf_counter()
 # end = time.perf_counter()

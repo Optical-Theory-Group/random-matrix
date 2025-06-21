@@ -6,6 +6,7 @@ debug/
 temporary/
 .venv/
 data/
+.history/
 
 .gitignore
 cov.pkl
