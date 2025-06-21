@@ -35,6 +35,7 @@ class InputStatisticsManager:
         supplied_indices: dict | None = None,
         covariance_cubature_scheme: Any | None = None,
         use_dirac_density: bool = True,
+        integration_method: str = "midpoint",
     ) -> None:
         """Input statistics manager class"""
 
@@ -67,6 +68,8 @@ class InputStatisticsManager:
         self.supplied_indices = supplied_indices
         self.covariance_cubature_scheme = covariance_cubature_scheme
         self.use_dirac_density = use_dirac_density
+        self.integration_method = integration_method
+
         for name, obj in objects_to_save.items():
             save_path = self.simulation_path / f"{name}.pkl"
             if not save_path.exists():
@@ -269,6 +272,7 @@ class InputStatisticsManager:
             indices,
             covariance_cubature_scheme=self.covariance_cubature_scheme,
             use_dirac_density=self.use_dirac_density,
+            integration_method=self.integration_method,
         )
 
     def show_report(self):

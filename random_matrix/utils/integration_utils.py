@@ -280,8 +280,7 @@ def simplex_integral(
     if scheme is None:
         # The second parameter to quadpy's scheme method here is about
         # accuracy of the scheme, not the number of spatial dimensions.
-        scheme = quadpy.tn.grundmann_moeller(num_dimensions, 10)
-        scheme = quadpy.tn.stroud_tn_2_1a(6)
+        scheme = quadpy.tn.grundmann_moeller(num_dimensions, 3)
 
     # barycentric weights should be of shape M x (n+1),
     # where n is the number of dimensions (vertices in the simplex)
@@ -320,4 +319,23 @@ def simplex_integral(
 
     # Sum over the points per simplex axis
     integral = xp.sum(weighted_output, axis=1)
+    return integral
+
+def midpoint_integral(
+    function: Callable,
+    midpoint_array: np.ndarray,
+    volume_array: np.ndarray,
+    use_gpu: bool = False,
+) -> np.ndarray | cp.ndarray:
+    """Compute the integral of a function over a domain by using a midpoint
+    approximation.
+
+    function: The function to be integrated.
+    midpoint_array: Array of the midpoints.
+    volume_array: Array of the volumes.
+    use_gpu: If true, use cupy instead of numpy
+    """
+    xp = cp.get_array_module(midpoint_array)
+    function_output = function(midpoint_array)
+    integral = function_output * volume_array
     return integral
