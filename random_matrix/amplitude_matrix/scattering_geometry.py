@@ -163,3 +163,13 @@ def get_transformation_matrices(
     T_j[:, 1, 1] = sign_factor * cos_alpha_j
 
     return T_i, T_j
+
+
+def get_two_to_three_matrices(
+    k_x: np.ndarray | cp.ndarray,
+    k_y: np.ndarray | cp.ndarray,
+    k_z: np.ndarray | cp.ndarray,
+) -> np.ndarray | cp.ndarray:
+    e_theta, e_phi = get_e_theta_phi(k_x, k_y, k_z)
+    P = np.stack([e_theta, e_phi], axis=1)
+    return P

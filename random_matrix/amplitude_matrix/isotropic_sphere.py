@@ -1,7 +1,6 @@
 import time
 
 
-
 # import numba
 
 import numpy as np
@@ -151,6 +150,34 @@ def get_A(
     output = (T_j @ A_scattering_plane.reshape(length, 2, 2) @ T_i).reshape(
         length, 4
     )
+    return output
+
+
+def get_A_3d(
+    ki_x: np.ndarray | cp.ndarray,
+    ki_y: np.ndarray | cp.ndarray,
+    ki_z: np.ndarray | cp.ndarray,
+    kj_x: np.ndarray | cp.ndarray,
+    kj_y: np.ndarray | cp.ndarray,
+    kj_z: np.ndarray | cp.ndarray,
+    x: np.ndarray | cp.ndarray,
+    m: np.ndarray | cp.ndarray,
+) -> np.ndarray | cp.ndarray:
+
+    length = len(ki_x)
+    # Get geometric transformation matrices for converting between
+    # different basis vectors
+    T_i, T_j = scattering_geometry.get_transformation_matrices(
+        ki_x, ki_y, ki_z, kj_x, kj_y, kj_z
+    )
+    P_i = scattering_geometry.get_two_to_three_matrices(ki_x, ki_y, ki_z)
+    P_j = scattering_geometry.get_two_to_three_matrices(kj_x, kj_y, kj_z)
+    P_j_T = P_j.swapaxes(1, 2)
+
+    # Get A in the scattering plane
+    mu = ki_x * kj_x + ki_y * kj_y + ki_z * kj_z
+    A_scattering_plane = get_A_scattering_plane(mu, x, m).reshape(length, 2, 2)
+    output = (P_j_T @ T_j @ A_scattering_plane @ T_i @ P_i).reshape(length, 9)
     return output
 
 
@@ -375,31 +402,7 @@ def get_A(
 
 
 get_A.particle_type = "sphere"
-
-
-# # @numba.njit(fastmath=True, parallel=True)
-# def get_A_product_conj(
-#     ki_x: np.ndarray | cp.ndarray,
-#     ki_y: np.ndarray | cp.ndarray,
-#     ki_z: np.ndarray | cp.ndarray,
-#     kj_x: np.ndarray | cp.ndarray,
-#     kj_y: np.ndarray | cp.ndarray,
-#     kj_z: np.ndarray | cp.ndarray,
-#     ku_x: np.ndarray | cp.ndarray,
-#     ku_y: np.ndarray | cp.ndarray,
-#     ku_z: np.ndarray | cp.ndarray,
-#     kv_x: np.ndarray | cp.ndarray,
-#     kv_y: np.ndarray | cp.ndarray,
-#     kv_z: np.ndarray | cp.ndarray,
-#     x: np.ndarray | cp.ndarray,
-#     m: np.ndarray | cp.ndarray,
-# ) -> np.ndarray | cp.ndarray:
-#     xp = array_utils.get_module(ki_x)
-#     A_ij = get_A_new(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
-#     A_uv_new = get_A_new(ku_x, ku_y, ku_z, kv_x, kv_y, kv_z, x, m)
-#     return (
-#         A_ij[:, xp.newaxis, :, :] * xp.conj(A_uv[xp.newaxis, :, :, :])
-#     ).reshape(16, *A_ij.shape[1:])
+get_A_3d.particle_type = "sphere"
 
 
 # @numba.njit(fastmath=True, parallel=True)
@@ -424,6 +427,30 @@ def get_A_product_conj(
     A_uv = get_A(ku_x, ku_y, ku_z, kv_x, kv_y, kv_z, x, m)
     product = A_ij[:, :, xp.newaxis] * xp.conj(A_uv[:, xp.newaxis, :])
     output = np.reshape(product, (len(ki_x), 16))
+    return output
+
+
+def get_A_product_conj_3d(
+    ki_x: np.ndarray | cp.ndarray,
+    ki_y: np.ndarray | cp.ndarray,
+    ki_z: np.ndarray | cp.ndarray,
+    kj_x: np.ndarray | cp.ndarray,
+    kj_y: np.ndarray | cp.ndarray,
+    kj_z: np.ndarray | cp.ndarray,
+    ku_x: np.ndarray | cp.ndarray,
+    ku_y: np.ndarray | cp.ndarray,
+    ku_z: np.ndarray | cp.ndarray,
+    kv_x: np.ndarray | cp.ndarray,
+    kv_y: np.ndarray | cp.ndarray,
+    kv_z: np.ndarray | cp.ndarray,
+    x: np.ndarray | cp.ndarray,
+    m: np.ndarray | cp.ndarray,
+) -> np.ndarray | cp.ndarray:
+    xp = array_utils.get_module(ki_x)
+    A_ij = get_A_3d(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
+    A_uv = get_A_3d(ku_x, ku_y, ku_z, kv_x, kv_y, kv_z, x, m)
+    product = A_ij[:, :, xp.newaxis] * xp.conj(A_uv[:, xp.newaxis, :])
+    output = np.reshape(product, (len(ki_x), 81))
     return output
 
 
@@ -452,21 +479,255 @@ def get_A_product(
     return output
 
 
-if __name__ == "__main__":
-    mu = np.array([0.8])
-    x = 1
-    m = 1.3
-    # A = get_A_scattering_plane(mu,x,m)
-    # print(A)
+def get_A_product_3d(
+    ki_x: np.ndarray | cp.ndarray,
+    ki_y: np.ndarray | cp.ndarray,
+    ki_z: np.ndarray | cp.ndarray,
+    kj_x: np.ndarray | cp.ndarray,
+    kj_y: np.ndarray | cp.ndarray,
+    kj_z: np.ndarray | cp.ndarray,
+    ku_x: np.ndarray | cp.ndarray,
+    ku_y: np.ndarray | cp.ndarray,
+    ku_z: np.ndarray | cp.ndarray,
+    kv_x: np.ndarray | cp.ndarray,
+    kv_y: np.ndarray | cp.ndarray,
+    kv_z: np.ndarray | cp.ndarray,
+    x: np.ndarray | cp.ndarray,
+    m: np.ndarray | cp.ndarray,
+) -> np.ndarray | cp.ndarray:
+    xp = array_utils.get_module(ki_x)
+    A_ij = get_A_3d(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
+    A_uv = get_A_3d(ku_x, ku_y, ku_z, kv_x, kv_y, kv_z, x, m)
+    product = A_ij[:, :, xp.newaxis] * A_uv[:, xp.newaxis, :]
+    output = np.reshape(product, (*ki_x.shape, 81))
+    return output
 
-    ki_x = np.array([1.0])
+
+if __name__ == "__main__":
+    ki_x = np.random.randn(1)
+    ki_y = np.random.randn(1)
+    ki_z = np.random.randn(1)
+    xp = array_utils.get_module(ki_x)
+
+    kj_x = np.random.randn(1)
+    kj_y = np.random.randn(1)
+    kj_z = np.random.randn(1)
+
+    kj_x = np.copy(ki_x)
+    kj_y = np.copy(ki_y)
+    kj_z = -np.copy(ki_z)
+
+    x = np.array([2.0])
+    m = np.array([1.2])
+    A_two = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m).reshape(2, 2)
+    A_three = get_A_3d(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m).reshape(3, 3)
+
+    random_pol_i = np.random.randn(2) + 1j * np.random.randn(2)
+    random_pol_j = A_two @ random_pol_i
+    print("Using size 2 matrix")
+    print("Incident:")
+    print(random_pol_i)
+    print("Scattered:")
+    print(random_pol_j)
+
+    # Convert to three D
+    e_theta_i, e_phi_i = scattering_geometry.get_e_theta_phi(ki_x, ki_y, ki_z)
+    e_theta_i = e_theta_i[0]
+    e_phi_i = e_phi_i[0]
+
+    e_theta_j, e_phi_j = scattering_geometry.get_e_theta_phi(kj_x, kj_y, kj_z)
+    e_theta_j = e_theta_j[0]
+    e_phi_j = e_phi_j[0]
+
+    random_pol_i_three = (
+        random_pol_i[0] * e_theta_i + random_pol_i[1] * e_phi_i
+    )
+    P_i = scattering_geometry.get_two_to_three_matrices(ki_x, ki_y, ki_z)[0]
+    P_j = scattering_geometry.get_two_to_three_matrices(kj_x, kj_y, kj_z)[0]
+
+    print("Incident three:")
+    print(random_pol_i_three)
+    print(P_i.T @ random_pol_i)
+    print(np.allclose(P_i.T @ random_pol_i - random_pol_i_three, 0.0))
+
+    random_pol_j_three = A_three @ random_pol_i_three
+    print("Scattered three:")
+    print(random_pol_j_three)
+    print("Converted back to two:")
+    converted = np.array(
+        [
+            np.dot(random_pol_j_three, e_theta_j),
+            np.dot(random_pol_j_three, e_phi_j),
+        ]
+    )
+    print(converted)
+    print(P_j @ random_pol_j_three)
+    print(np.allclose(converted - P_j @ random_pol_j_three, 0.0))
+
+    print("---------------")
+    print("---------------")
+    print("---------------")
+    #
+    assert False
+    ki_x = np.array([0.0])
     ki_y = np.array([0.0])
-    ki_z = np.array([0.0])
-    kj_x = np.array([0.0])
-    kj_y = np.array([1.0])
-    kj_z = np.array([0.0])
-    A = get_A(ki_x, ki_y, ki_z, kj_x, kj_y, kj_z, x, m)
-    print(A)
+    ki_z = np.array([1.0])
+
+    kj_x = np.array([0.0]) / np.sqrt(3)
+    kj_y = np.array([0.0]) / np.sqrt(3)
+    kj_z = np.array([-1.0])
+
+    e_theta_i, e_phi_i = scattering_geometry.get_e_theta_phi(ki_x, ki_y, ki_z)
+    e_theta_i = e_theta_i[0]
+    e_phi_i = e_phi_i[0]
+
+    print("theta, phi, i")
+    print(e_theta_i)
+    print(e_phi_i)
+
+    e_theta_j, e_phi_j = scattering_geometry.get_e_theta_phi(kj_x, kj_y, kj_z)
+    e_theta_j = e_theta_j[0]
+    e_phi_j = e_phi_j[0]
+
+    print("theta, phi, j")
+    print(e_theta_j)
+    print(e_phi_j)
+
+    e_per = xp.cross(
+        xp.stack([ki_x, ki_y, ki_z], axis=-1),
+        xp.stack([kj_x, kj_y, kj_z], axis=-1),
+    )
+    e_per_norms = xp.sqrt(
+        e_per[:, 0] ** 2 + e_per[:, 1] ** 2 + e_per[:, 2] ** 2
+    )
+
+    # Clean up cases where ki and kj are parallel
+    all_indices = xp.arange(len(e_per_norms))
+    zero_indices = xp.where(xp.isclose(e_per_norms, 0.0))
+    non_zero_indices = xp.setdiff1d(all_indices, zero_indices)
+
+    # Normalize non-zero cases
+    e_per[non_zero_indices] /= e_per_norms[non_zero_indices][..., xp.newaxis]
+    e_per = e_per[0]
+
+    e_par_i = xp.cross(
+        e_per,
+        xp.stack([ki_x, ki_y, ki_z], axis=-1),
+    )[0]
+    e_par_j = xp.cross(
+        e_per,
+        xp.stack([kj_x, kj_y, kj_z], axis=-1),
+    )[0]
+
+    print("per, par, i")
+    print(e_per)
+    print(e_par_i)
+
+    print("per, par, j")
+    print(e_per)
+    print(e_par_j)
+
+    print("--------")
+    xp = array_utils.get_module(ki_x)
+
+    num_linear = len(ki_x)
+
+    e_theta_i, e_phi_i = get_e_theta_phi(ki_x, ki_y, ki_z)
+    e_theta_j, e_phi_j = get_e_theta_phi(kj_x, kj_y, kj_z)
+
+    e_per = xp.cross(
+        xp.stack([ki_x, ki_y, ki_z], axis=-1),
+        xp.stack([kj_x, kj_y, kj_z], axis=-1),
+    )
+    e_per_norms = xp.sqrt(
+        e_per[:, 0] ** 2 + e_per[:, 1] ** 2 + e_per[:, 2] ** 2
+    )
+
+    # Clean up cases where ki and kj are parallel
+    all_indices = xp.arange(len(e_per_norms))
+    zero_indices = xp.where(xp.isclose(e_per_norms, 0.0))
+    non_zero_indices = xp.setdiff1d(all_indices, zero_indices)
+
+    # Normalize non-zero cases
+    e_per[non_zero_indices] /= e_per_norms[non_zero_indices][..., xp.newaxis]
+
+    # Fix zero cases
+    e_per[zero_indices] = e_phi_i[zero_indices]
+    new_e_per_norms = xp.sqrt(
+        e_per[zero_indices, 0] ** 2
+        + e_per[zero_indices, 1] ** 2
+        + e_per[zero_indices, 2] ** 2
+    )[0]
+    e_per[zero_indices] /= new_e_per_norms[..., xp.newaxis]
+
+    # Get the parallel basis vectors
+    e_par_i = xp.cross(
+        e_per,
+        xp.stack([ki_x, ki_y, ki_z], axis=-1),
+    )
+    e_par_j = xp.cross(
+        e_per,
+        xp.stack([kj_x, kj_y, kj_z], axis=-1),
+    )
+
+    # Work out rotation angles
+    cos_alpha_i = (
+        e_par_i[:, 0] * e_theta_i[:, 0]
+        + e_par_i[:, 1] * e_theta_i[:, 1]
+        + e_par_i[:, 2] * e_theta_i[:, 2]
+    )
+
+    cross_i = xp.cross(e_theta_i, e_par_i)
+    cross_i_norms = xp.sqrt(
+        cross_i[:, 0] ** 2 + cross_i[:, 1] ** 2 + cross_i[:, 2] ** 2
+    )
+    signs = xp.sign(
+        cross_i[..., 0] * ki_x
+        + cross_i[..., 1] * ki_y
+        + cross_i[..., 2] * ki_z
+    )
+    sin_alpha_i = cross_i_norms * signs
+
+    # Same for j
+    cos_alpha_j = (
+        e_par_j[:, 0] * e_theta_j[:, 0]
+        + e_par_j[:, 1] * e_theta_j[:, 1]
+        + e_par_j[:, 2] * e_theta_j[:, 2]
+    )
+
+    cross_j = xp.cross(e_theta_j, e_par_j)
+    cross_j_norms = xp.sqrt(
+        cross_j[:, 0] ** 2 + cross_j[:, 1] ** 2 + cross_j[:, 2] ** 2
+    )
+    signs = xp.sign(
+        cross_j[..., 0] * kj_x
+        + cross_j[..., 1] * kj_y
+        + cross_j[..., 2] * kj_z
+    )
+    sin_alpha_j = cross_j_norms * signs
+
+    # Build transformation matrices
+    # Not
+    sign_convention = "BH"
+    sign_factor = 1.0
+    if sign_convention == "BH":
+        sign_factor = -1.0
+
+    T_i = xp.zeros((num_linear, 2, 2))
+    T_j = xp.zeros((num_linear, 2, 2))
+
+    T_i[:, 0, 0] = cos_alpha_i
+    T_i[:, 0, 1] = sin_alpha_i
+    T_i[:, 1, 0] = -sign_factor * sin_alpha_i
+    T_i[:, 1, 1] = sign_factor * cos_alpha_i
+
+    T_j[:, 0, 0] = cos_alpha_j
+    T_j[:, 0, 1] = -sign_factor * sin_alpha_j
+    T_j[:, 1, 0] = sin_alpha_j
+    T_j[:, 1, 1] = sign_factor * cos_alpha_j
+
+    # P = scattering_geometry.get_two_to_three_matrices(ki_x, ki_y, ki_z)[0]
+    # print(P @ random_pol_i)
 
 # # Test
 # num_one = 1000
