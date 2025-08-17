@@ -34,8 +34,9 @@ class InputStatisticsManager:
         parent_data_dir: str | Path | None = None,
         supplied_indices: dict | None = None,
         covariance_cubature_scheme: Any | None = None,
-        use_dirac_density: bool = True,
+        use_dirac_density: bool = False,
         integration_method: str = "midpoint",
+        integration_task_config: integration_task.IntegrationTaskConfig = integration_task.IntegrationTaskConfig(),
     ) -> None:
         """Input statistics manager class"""
 
@@ -69,6 +70,7 @@ class InputStatisticsManager:
         self.covariance_cubature_scheme = covariance_cubature_scheme
         self.use_dirac_density = use_dirac_density
         self.integration_method = integration_method
+        self.integration_task_config = integration_task_config
 
         for name, obj in objects_to_save.items():
             save_path = self.simulation_path / f"{name}.pkl"
@@ -116,6 +118,7 @@ class InputStatisticsManager:
                 medium_parameters,
                 medium_statistics,
                 integration_task_preparer_logger,
+                integration_task_config=integration_task_config,
             )
         )
 
@@ -182,6 +185,10 @@ class InputStatisticsManager:
         class_quadruple_list_path = (
             self.simulation_path / "class_quadruple_list.pkl"
         )
+        integration_result_list_path = (
+            self.simulation_path / "integration_result_list.pkl"
+        )
+        integration_time_path = self.simulation_path / "integration_time.pkl"
 
         # Find indices
         index_variables_exists = (
@@ -215,43 +222,58 @@ class InputStatisticsManager:
             self._save_class_quadruple_list_bar_chart(class_quadruple_list)
 
         # Prepare and execute integration tasks
-        start = time.perf_counter()
-        integration_result_list = self._get_integration_results(
-            class_quadruple_list, indices
+        integration_result_list_exists = (
+            integration_result_list_path.exists()
+            and integration_time_path.exists()
         )
-        end = time.perf_counter()
-
-        return integration_result_list, end - start
-        # Extract results from the list and build up statistical matrices
-        mean_result_list = integration_result_list.by_statistic_type("mean")
-        cov_result_list = integration_result_list.by_statistic_type(
-            "covariance"
-        )
-        pseudo_cov_result_list = integration_result_list.by_statistic_type(
-            "pseudo_covariance"
-        )
-
-        with self.logger.log("mean"):
-            mean_S = self._get_mean_S(mean_result_list)
-
-        with self.logger.log("covariance"):
-            cov = self._get_covariance_matrix(cov_result_list)
-
-        with self.logger.log("pseudo_covariance"):
-            pseudo_cov = self._get_covariance_matrix(
-                pseudo_cov_result_list, is_pseudo=True
+        if integration_result_list_exists:
+            with open(integration_result_list_path, "rb") as f:
+                integration_result_list = pickle.load(f)
+            with open(integration_time_path, "rb") as f:
+                integration_time = pickle.load(f)
+        else:
+            start = time.perf_counter()
+            integration_result_list = self._get_integration_results(
+                class_quadruple_list, indices
             )
+            end = time.perf_counter()
+            integration_time = end - start
+            with open(integration_result_list_path, "wb") as f:
+                pickle.dump(integration_result_list, f)
+            with open(integration_time_path, "wb") as f:
+                pickle.dump(integration_time, f)
 
-        sigma = 0.5 * scipy.sparse.bmat(
-            [
-                [np.real(cov + pseudo_cov), np.imag(-cov + pseudo_cov)],
-                [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
-            ]
-        )
+        return integration_result_list, integration_time
+        # # Extract results from the list and build up statistical matrices
+        # mean_result_list = integration_result_list.by_statistic_type("mean")
+        # cov_result_list = integration_result_list.by_statistic_type(
+        #     "covariance"
+        # )
+        # pseudo_cov_result_list = integration_result_list.by_statistic_type(
+        #     "pseudo_covariance"
+        # )
 
-        chol = self._get_chol(sigma)
+        # with self.logger.log("mean"):
+        #     mean_S = self._get_mean_S(mean_result_list)
 
-        return integration_result_list, mean_S, cov, sigma, chol
+        # with self.logger.log("covariance"):
+        #     cov = self._get_covariance_matrix(cov_result_list)
+
+        # with self.logger.log("pseudo_covariance"):
+        #     pseudo_cov = self._get_covariance_matrix(
+        #         pseudo_cov_result_list, is_pseudo=True
+        #     )
+
+        # sigma = 0.5 * scipy.sparse.bmat(
+        #     [
+        #         [np.real(cov + pseudo_cov), np.imag(-cov + pseudo_cov)],
+        #         [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
+        #     ]
+        # )
+
+        # chol = self._get_chol(sigma)
+
+        # return integration_result_list, mean_S, cov, sigma, chol
 
     def _get_indices(self) -> dict[str, dict[str, set[tuple[int, int]]]]:
         if self.supplied_indices is None:
@@ -293,6 +315,7 @@ class InputStatisticsManager:
         ax.set_xlim(-100, len(frequencies))
         ax.set_title(f"{total}")
         fig.savefig(self.simulation_path / "class_bars.svg", format="svg")
+        plt.close()
 
     # -------------------------------------------------------------------------
     # Mean

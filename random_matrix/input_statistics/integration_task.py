@@ -400,7 +400,7 @@ class IntegrationTaskPreparer:
         class_quadruple_list: ClassQuadrupleList,
         indices: dict[str, dict[str, set[tuple[int, int]]]],
         covariance_cubature_scheme: Any | None = None,
-        use_dirac_density: bool = True,
+        use_dirac_density: bool = False,
         integration_method: str = "cubature",
     ) -> IntegrationTaskList:
         """Get an integration task list consisting of all necessary tasks.
@@ -937,7 +937,6 @@ class IntegrationTaskPreparer:
                             new_result = task_dict[wave_block][
                                 block
                             ].execute_task()
-                            print(new_result.integral)
                             main_result_list.append_result(new_result)
 
                             # Reset task object
