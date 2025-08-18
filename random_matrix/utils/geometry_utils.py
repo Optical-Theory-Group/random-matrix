@@ -1136,7 +1136,7 @@ def get_intersection_vertices(
     intersection_vertices = xp.array(cdd.copy_generators(intersection).array)
 
     # Truncate the
-    truncated_vertices = intersection_vertices[:, 1:7]
+    truncated_vertices = intersection_vertices[:, 1:]
     return truncated_vertices
 
 
