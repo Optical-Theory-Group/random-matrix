@@ -657,6 +657,74 @@ class IntegrationTaskPreparer:
 
         return covariance_integrand
 
+    # DEBUGGING CODE
+    # ---------------------------------------------------
+    # ---------------------------------------------------
+    # ---------------------------------------------------
+    # ---------------------------------------------------
+    # ---------------------------------------------------
+    # ---------------------------------------------------
+    def _get_covariance_integrand_symmetric(
+        self,
+        wave_block_one: str,
+        wave_block_two: str,
+        block_one: str,
+        block_two: str,
+    ) -> MathematicalFunction:
+        covariance_a_matrix = self.medium_statistics.get_covariance_a_matrix()
+        k = self.medium_parameters.k
+        L = self.medium_parameters.L
+
+        ki_z_factor = -1.0 if block_one in {"r2", "t2"} else 1.0
+        kj_z_factor = -1.0 if block_one in {"r", "t2"} else 1.0
+        ku_z_factor = -1.0 if block_two in {"r2", "t2"} else 1.0
+        kv_z_factor = -1.0 if block_two in {"r", "t2"} else 1.0
+
+        def covariance_integrand(
+            integration_domain: np.ndarray | cp.ndarray,
+        ) -> np.ndarray | cp.ndarray:
+            """The integrand should be of shape N x 6, where N is the number
+            of points that need to be evaluated. The final dimension is
+            ki_x, ki_y, kj_x, kj_y, ku_x, ku_y"""
+            xp = cp.get_array_module(integration_domain)
+            ki_x, ki_y, kj_y, ku_x, ku_y, kv_x = integration_domain.T
+
+            kj_x = kv_x + ki_x - ku_x
+            kv_y = -ki_y + kj_y + ku_y
+
+            ki_z = ki_z_factor * xp.sqrt(1 - ki_x**2 - ki_y**2)
+            kj_z = kj_z_factor * xp.sqrt(1 - kj_x**2 - kj_y**2)
+            ku_z = ku_z_factor * xp.sqrt(1 - ku_x**2 - ku_y**2)
+            kv_z = kv_z_factor * xp.sqrt(1 - kv_x**2 - kv_y**2)
+
+            sinc_factor = special_functions.sinc(
+                k * L * (ki_z - kj_z - ku_z + kv_z)
+            )
+            sec_factor = 1.0 / xp.abs(np.sqrt(ki_z * kj_z * ku_z * kv_z))
+
+            output = (
+                covariance_a_matrix(
+                    ki_x,
+                    ki_y,
+                    ki_z,
+                    kj_x,
+                    kj_y,
+                    kj_z,
+                    ku_x,
+                    ku_y,
+                    ku_z,
+                    kv_x,
+                    kv_y,
+                    kv_z,
+                )
+                * sinc_factor[:, xp.newaxis]
+                * sec_factor[:, xp.newaxis]
+            )
+
+            return output
+
+        return covariance_integrand
+
     def _get_covariance_integrand_dirac_density(
         self,
         wave_block_one: str,
@@ -778,8 +846,15 @@ class IntegrationTaskPreparer:
         const_factor = self.medium_parameters.cov_const_factor
         main_result_list = IntegrationResultList()
 
+        # DEBUGGING CODE
+        # ---------------------------------------------------
+        # ---------------------------------------------------
+        # ---------------------------------------------------
+        # ---------------------------------------------------
+        # ---------------------------------------------------
+        # ---------------------------------------------------
         columns_to_keep = [0, 1, 2, 3, 4, 5]
-
+        columns_to_keep = [0, 1, 3, 4, 5, 6]
         # Prepare task dictionary
         task_dict = {}
         for wave_block in self.WAVE_BLOCKS:
@@ -790,7 +865,17 @@ class IntegrationTaskPreparer:
                 block_one, block_two = block.split(",")
                 block_location = (wave_block, block)
 
+                # DEBUGGING CODE
+                # ---------------------------------------------------
+                # ---------------------------------------------------
+                # ---------------------------------------------------
+                # ---------------------------------------------------
+                # ---------------------------------------------------
+                # ---------------------------------------------------
                 integrand = self._get_covariance_integrand(
+                    wave_block_one, wave_block_two, block_one, block_two
+                )
+                integrand = self._get_covariance_integrand_symmetric(
                     wave_block_one, wave_block_two, block_one, block_two
                 )
 
@@ -819,7 +904,8 @@ class IntegrationTaskPreparer:
             # Get the integration domain
             reduced_intersection = geometry_utils.get_intersection_vertices(
                 cartesian_product
-            )
+            )[:,columns_to_keep]
+
             reduced_hull = scipy.spatial.ConvexHull(
                 reduced_intersection, qhull_options="QJ"
             )
@@ -942,7 +1028,21 @@ class IntegrationTaskPreparer:
                             # Reset task object
                             block_location = (wave_block, block)
 
+
+                            # DEBUGGING CODE
+                            # ---------------------------------------------------
+                            # ---------------------------------------------------
+                            # ---------------------------------------------------
+                            # ---------------------------------------------------
+                            # ---------------------------------------------------
+                            # ---------------------------------------------------
                             integrand = self._get_covariance_integrand(
+                                wave_block_one,
+                                wave_block_two,
+                                block_one,
+                                block_two,
+                            )
+                            integrand = self._get_covariance_integrand_symmetric(
                                 wave_block_one,
                                 wave_block_two,
                                 block_one,
