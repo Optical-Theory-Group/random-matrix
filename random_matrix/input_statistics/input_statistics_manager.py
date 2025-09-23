@@ -22,6 +22,7 @@ from random_matrix.input_statistics.shape_classifier import ClassQuadrupleList
 from random_matrix.modes import mode_grid
 from random_matrix.utils import matrix_utils
 from random_matrix.utils.types import Numeric
+from random_matrix.scattering_matrix import matrix_pool
 
 
 class InputStatisticsManager:
@@ -175,7 +176,7 @@ class InputStatisticsManager:
         with self.metadata_path.open("w") as f:
             json.dump(metadata, f, indent=1)
 
-    def get_statistics(self) -> Numeric:
+    def get_matrix_pool(self) -> tuple[np.ndarray, np.ndarray]:
         """Compute the mean, covariance and pseudo-covariance for the elements
         of the scattering matrix."""
         independent_elements_path = (
@@ -189,6 +190,10 @@ class InputStatisticsManager:
             self.simulation_path / "integration_result_list.pkl"
         )
         integration_time_path = self.simulation_path / "integration_time.pkl"
+        mean_S_path = self.simulation_path / "mean_S.npy"
+        chol_path = self.simulation_path / "chol.npz"
+        cov_path = self.simulation_path / "cov.npz"
+        pseudo_cov_path = self.simulation_path / "pseudo_cov.npz"
 
         # Find indices
         index_variables_exists = (
@@ -243,37 +248,52 @@ class InputStatisticsManager:
             with open(integration_time_path, "wb") as f:
                 pickle.dump(integration_time, f)
 
-        return integration_result_list, integration_time
-        # # Extract results from the list and build up statistical matrices
-        # mean_result_list = integration_result_list.by_statistic_type("mean")
-        # cov_result_list = integration_result_list.by_statistic_type(
-        #     "covariance"
-        # )
-        # pseudo_cov_result_list = integration_result_list.by_statistic_type(
-        #     "pseudo_covariance"
-        # )
+        # Extract results from the list and build up statistical matrices
+        mean_result_list = integration_result_list.by_statistic_type("mean")
+        cov_result_list = integration_result_list.by_statistic_type(
+            "covariance"
+        )
+        pseudo_cov_result_list = integration_result_list.by_statistic_type(
+            "pseudo_covariance"
+        )
 
-        # with self.logger.log("mean"):
-        #     mean_S = self._get_mean_S(mean_result_list)
+        with self.logger.log("mean"):
+            mean_S = self._get_mean_S(mean_result_list)
 
-        # with self.logger.log("covariance"):
-        #     cov = self._get_covariance_matrix(cov_result_list)
+        with self.logger.log("covariance"):
+            cov = self._get_covariance_matrix(cov_result_list)
 
-        # with self.logger.log("pseudo_covariance"):
-        #     pseudo_cov = self._get_covariance_matrix(
-        #         pseudo_cov_result_list, is_pseudo=True
-        #     )
+        with self.logger.log("pseudo_covariance"):
+            pseudo_cov = self._get_covariance_matrix(
+                pseudo_cov_result_list, is_pseudo=True
+            )
 
-        # sigma = 0.5 * scipy.sparse.bmat(
-        #     [
-        #         [np.real(cov + pseudo_cov), np.imag(-cov + pseudo_cov)],
-        #         [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
-        #     ]
-        # )
+        sigma = 0.5 * scipy.sparse.bmat(
+            [
+                [np.real(cov + pseudo_cov), np.imag(-cov + pseudo_cov)],
+                [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
+            ]
+        )
 
-        # chol = self._get_chol(sigma)
+        chol = self._get_chol(sigma)
 
-        # return integration_result_list, mean_S, cov, sigma, chol
+        # Save final statistics to disk
+        np.save(mean_S_path, mean_S)
+        scipy.sparse.save_npz(cov_path, cov)
+        scipy.sparse.save_npz(pseudo_cov_path, pseudo_cov)
+        scipy.sparse.save_npz(chol_path, chol)
+
+        # Construct the matrix pool
+        pool = matrix_pool.MatrixPool(
+            self.simulation_name,
+            self.medium_parameters,
+            self.medium_statistics,
+            self.mode_grid,
+            mean_S,
+            chol,
+            self.parent_data_path,
+        )
+        return pool
 
     def _get_indices(self) -> dict[str, dict[str, set[tuple[int, int]]]]:
         if self.supplied_indices is None:
@@ -339,13 +359,13 @@ class InputStatisticsManager:
                 result.integral, result.sub_block_locations
             ):
                 sub_block = integral.reshape(2, 2)
-                j, i = matrix_utils.get_sub_block_indices(
+                indices = matrix_utils.get_sub_block_indices(
                     block,
                     sub_block_location,
                     self.mode_grid.is_reciprocal,
                     self.mode_grid.num_propagating,
                 )
-                mean_S[j : j + 2, i : i + 2] = sub_block
+                mean_S[indices] = sub_block
 
                 # If reciprocal, fill out other elements of S that weren't
                 # calculated
@@ -354,15 +374,12 @@ class InputStatisticsManager:
                     reciprocal_sub_block = matrix_utils.r_sym(sub_block)
 
                     # Where does the new sub block go within S?
-                    (
-                        j,
-                        i,
-                    ) = matrix_utils.get_reciprocal_sub_block_indices(
+                    indices = matrix_utils.get_reciprocal_sub_block_indices(
                         block,
                         sub_block_location,
                         self.mode_grid.num_propagating,
                     )
-                    mean_S[j : j + 2, i : i + 2] = reciprocal_sub_block
+                    mean_S[indices] = reciprocal_sub_block
 
         # Multiply by weights
         mean_weight_matrix = self._get_mean_weight_matrix()
@@ -446,6 +463,16 @@ class InputStatisticsManager:
         """Construct the regular covariance matrix from the covariance results
         list"""
 
+        REC_BLOCKS = {"r": "r", "t": "t2", "t2": "t", "r2": "r2"}
+        REC_TRANSFORM = np.array(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, -1.0, 0.0],
+                [0.0, -1.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        )
+
         # Four for the fourst matrices, another 4 for polarisation
         # 4x4 correlation matrices
 
@@ -472,72 +499,47 @@ class InputStatisticsManager:
                     (i, j, -v, -u),
                     (-j, -i, -v, -u),
                 ]
-                extended_sub_block_locations = [(i, j, u, v), (-j, -i, -v, -u)]
 
                 block_ij, block_uv = block.split(",")
-                rec_block_ij = (
-                    "t2"
-                    if block_ij == "t"
-                    else "t" if block_ij == "t2" else block_ij
-                )
-                rec_block_uv = (
-                    "t2"
-                    if block_uv == "t"
-                    else "t" if block_uv == "t2" else block_uv
-                )
+                rec_block_ij = REC_BLOCKS.get(block_ij)
+                rec_block_uv = REC_BLOCKS.get(block_uv)
 
-                extended_block_ij = [
-                    block_ij,
-                    rec_block_ij,
-                    block_ij,
-                    rec_block_ij,
-                ]
-                extended_block_ij = [
-                    block_ij,
-                    rec_block_ij,
+                extended_block_locations = [
+                    f"{block_ij},{block_uv}",
+                    f"{rec_block_ij},{block_uv}",
+                    f"{block_ij},{rec_block_uv}",
+                    f"{rec_block_ij},{rec_block_uv}",
                 ]
 
-                extended_block_uv = [
-                    block_uv,
-                    block_uv,
-                    rec_block_uv,
-                    rec_block_uv,
-                ]
-                extended_block_uv = [
-                    block_uv,
-                    rec_block_uv,
+                correlation_matrix = integral.reshape(4, 4)
+                extended_correlation_matrices = [
+                    correlation_matrix,
+                    REC_TRANSFORM @ correlation_matrix,
+                    correlation_matrix @ REC_TRANSFORM,
+                    REC_TRANSFORM @ correlation_matrix @ REC_TRANSFORM,
                 ]
 
-                for sub_block_location, block_ij, block_uv in zip(
+                for (
+                    sub_block_location,
+                    block_location,
+                    correlation_matrix,
+                ) in zip(
                     extended_sub_block_locations,
-                    extended_block_ij,
-                    extended_block_uv,
+                    extended_block_locations,
+                    extended_correlation_matrices,
                 ):
-                    i, j, u, v = sub_block_location
-                    row = matrix_utils.get_cov_sub_block_index(
-                        block_ij, (i, j), self.mode_grid.num_propagating
+                    indices = matrix_utils.get_cov_sub_block_indices(
+                        block_location,
+                        sub_block_location,
+                        self.mode_grid.is_reciprocal,
+                        self.mode_grid.num_propagating,
                     )
 
-                    col = matrix_utils.get_cov_sub_block_index(
-                        block_uv, (u, v), self.mode_grid.num_propagating
-                    )
-                    sub_block = integral.reshape(4, 4)
                     if not is_pseudo:
-                        if row == col:
-                            sub_block = (
-                                sub_block + np.conj(sub_block.T)
-                            ) / 2.0
-
-                        cov[row : row + 4, col : col + 4] = sub_block
-                        cov[col : col + 4, row : row + 4] = np.conj(
-                            sub_block.T
-                        )
+                        cov[indices] = correlation_matrix
+                        cov[indices[::-1]] = np.conj(correlation_matrix.T)
                     else:
-                        if row == col:
-                            sub_block = (sub_block + sub_block.T) / 2.0
-
-                        cov[row : row + 4, col : col + 4] = sub_block
-                        cov[col : col + 4, row : row + 4] = sub_block.T
+                        pass
 
         # Multiply by weights
         cov_weight_matrix = self._get_cov_weight_matrix()

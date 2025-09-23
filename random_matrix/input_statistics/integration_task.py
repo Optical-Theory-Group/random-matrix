@@ -104,6 +104,24 @@ class IntegrationResultList:
         )
         return new_result_list
 
+    def get(
+        self,
+        statistic_type: str = "covariance",
+        wave_block: str = "pp,pp",
+        block: str = "t,t",
+        sub_block: tuple[int, int, int, int] = (0, 0, 0, 0),
+    ) -> IntegrationResult | None:
+        """Get a statistic from the list based on desired properties"""
+        for result in self.results:
+            is_correct = (
+                result.statistic_type == statistic_type
+                and result.block_location == (wave_block, block)
+                and sub_block in result.sub_block_locations
+            )
+            if is_correct:
+                return result
+        return None
+
 
 @dataclass(slots=True, kw_only=True)
 class IntegrationTask(ABC):
@@ -218,7 +236,10 @@ class CubatureIntegrationTask(IntegrationTask):
     def __post_init__(self):
         """Validate simplex shape based on use_dirac_density flag"""
         xp = self.get_xp
-        expected_shape = (3, 2) if self.use_dirac_density else (7, 6)
+        if self.statistic_type == "mean":
+            expected_shape = (3, 2)
+        else:
+            expected_shape = (3, 2) if self.use_dirac_density else (7, 6)
 
         if self.simplex_array is None:
             num_vertices, num_dimensions = expected_shape
@@ -410,10 +431,10 @@ class IntegrationTaskPreparer:
 
         master_result_list = IntegrationResultList()
 
-        # with self.logger.log("mean"):
-        #     master_result_list.merge_result_list(
-        #         self._get_mean_integration_results(indices["mean"])
-        #     )
+        with self.logger.log("mean"):
+            master_result_list.merge_result_list(
+                self._get_mean_integration_results(indices["mean"])
+            )
 
         with self.logger.log("covariance"):
             if use_dirac_density:
@@ -517,14 +538,22 @@ class IntegrationTaskPreparer:
         for wave_block in wave_blocks:
             task_dict[wave_block] = {}
             for block in blocks:
-                task_dict[wave_block][block] = IntegrationTask(
-                    self._get_mean_integrand(wave_block, block),
-                    np.zeros((0, 3, 2), dtype=np.float64),
+
+                block_location = (wave_block, block)
+                integrand = self._get_mean_integrand(wave_block, block)
+
+                task = self._build_integration_task(
+                    integration_method="cubature",
+                    integrand=integrand,
                     statistic_type="mean",
-                    block_location=(wave_block, block),
+                    block_location=block_location,
                     sub_block_locations=[],
                     const_factor=const_factor,
+                    use_cupy=False,
+                    cubature_scheme=None,
+                    use_dirac_density=False,
                 )
+                task_dict[wave_block][block] = task
 
         for indices in self.logger.progress_bar(master_index_set):
             # Get integration domain. We can do this at this stage because,
@@ -546,7 +575,7 @@ class IntegrationTaskPreparer:
 
                     # Add domain to integral task
                     old_stack_length = len(
-                        task_dict[wave_block][block].domain_stack
+                        task_dict[wave_block][block].simplex_array
                     )
                     new_stack_length = old_stack_length + len(new_triangles)
                     new_slice = slice(old_stack_length, new_stack_length)
@@ -557,9 +586,9 @@ class IntegrationTaskPreparer:
                     )
 
                     # Add new triangles to stack
-                    task_dict[wave_block][block].domain_stack = np.vstack(
+                    task_dict[wave_block][block].simplex_array = np.vstack(
                         (
-                            task_dict[wave_block][block].domain_stack,
+                            task_dict[wave_block][block].simplex_array,
                             new_triangles,
                         )
                     )
@@ -575,14 +604,22 @@ class IntegrationTaskPreparer:
                             block
                         ].execute_task()
                         main_result_list.append_result(new_result)
-                        task_dict[wave_block][block] = IntegrationTask(
-                            self._get_mean_integrand(wave_block, block),
-                            np.zeros((0, 3, 2), dtype=np.float64),
+
+                        block_location = (wave_block, block)
+                        integrand = self._get_mean_integrand(wave_block, block)
+
+                        task = self._build_integration_task(
+                            integration_method="cubature",
+                            integrand=integrand,
                             statistic_type="mean",
-                            block_location=(wave_block, block),
+                            block_location=block_location,
                             sub_block_locations=[],
                             const_factor=const_factor,
+                            use_cupy=False,
+                            cubature_scheme=None,
+                            use_dirac_density=False,
                         )
+                        task_dict[wave_block][block] = task
 
         # The tasks have all been prepared. Now execute them!
         for wave_block in wave_blocks:
@@ -624,15 +661,15 @@ class IntegrationTaskPreparer:
             kv_x = -ki_x + kj_x + ku_x
             kv_y = -ki_y + kj_y + ku_y
 
-            ki_z = ki_z_factor * xp.sqrt(1 - ki_x**2 - ki_y**2)
-            kj_z = kj_z_factor * xp.sqrt(1 - kj_x**2 - kj_y**2)
-            ku_z = ku_z_factor * xp.sqrt(1 - ku_x**2 - ku_y**2)
-            kv_z = kv_z_factor * xp.sqrt(1 - kv_x**2 - kv_y**2)
+            ki_z = ki_z_factor * xp.sqrt(1.0 - ki_x**2 - ki_y**2)
+            kj_z = kj_z_factor * xp.sqrt(1.0 - kj_x**2 - kj_y**2)
+            ku_z = ku_z_factor * xp.sqrt(1.0 - ku_x**2 - ku_y**2)
+            kv_z = kv_z_factor * xp.sqrt(1.0 - kv_x**2 - kv_y**2)
 
             sinc_factor = special_functions.sinc(
                 k * L * (ki_z - kj_z - ku_z + kv_z)
             )
-            sec_factor = 1.0 / xp.abs(np.sqrt(ki_z * kj_z * ku_z * kv_z))
+            sec_factor = 1.0 / xp.sqrt(xp.abs(ki_z * kj_z * ku_z * kv_z))
 
             output = (
                 covariance_a_matrix(
@@ -657,13 +694,6 @@ class IntegrationTaskPreparer:
 
         return covariance_integrand
 
-    # DEBUGGING CODE
-    # ---------------------------------------------------
-    # ---------------------------------------------------
-    # ---------------------------------------------------
-    # ---------------------------------------------------
-    # ---------------------------------------------------
-    # ---------------------------------------------------
     def _get_covariance_integrand_symmetric(
         self,
         wave_block_one: str,
@@ -845,16 +875,7 @@ class IntegrationTaskPreparer:
         # Factor common to all covariance integrals
         const_factor = self.medium_parameters.cov_const_factor
         main_result_list = IntegrationResultList()
-
-        # DEBUGGING CODE
-        # ---------------------------------------------------
-        # ---------------------------------------------------
-        # ---------------------------------------------------
-        # ---------------------------------------------------
-        # ---------------------------------------------------
-        # ---------------------------------------------------
         columns_to_keep = [0, 1, 2, 3, 4, 5]
-        columns_to_keep = [0, 1, 3, 4, 5, 6]
         # Prepare task dictionary
         task_dict = {}
         for wave_block in self.WAVE_BLOCKS:
@@ -865,17 +886,7 @@ class IntegrationTaskPreparer:
                 block_one, block_two = block.split(",")
                 block_location = (wave_block, block)
 
-                # DEBUGGING CODE
-                # ---------------------------------------------------
-                # ---------------------------------------------------
-                # ---------------------------------------------------
-                # ---------------------------------------------------
-                # ---------------------------------------------------
-                # ---------------------------------------------------
                 integrand = self._get_covariance_integrand(
-                    wave_block_one, wave_block_two, block_one, block_two
-                )
-                integrand = self._get_covariance_integrand_symmetric(
                     wave_block_one, wave_block_two, block_one, block_two
                 )
 
@@ -904,7 +915,7 @@ class IntegrationTaskPreparer:
             # Get the integration domain
             reduced_intersection = geometry_utils.get_intersection_vertices(
                 cartesian_product
-            )[:,columns_to_keep]
+            )[:, columns_to_keep]
 
             reduced_hull = scipy.spatial.ConvexHull(
                 reduced_intersection, qhull_options="QJ"
@@ -1028,7 +1039,6 @@ class IntegrationTaskPreparer:
                             # Reset task object
                             block_location = (wave_block, block)
 
-
                             # DEBUGGING CODE
                             # ---------------------------------------------------
                             # ---------------------------------------------------
@@ -1042,12 +1052,12 @@ class IntegrationTaskPreparer:
                                 block_one,
                                 block_two,
                             )
-                            integrand = self._get_covariance_integrand_symmetric(
-                                wave_block_one,
-                                wave_block_two,
-                                block_one,
-                                block_two,
-                            )
+                            # integrand = self._get_covariance_integrand_symmetric(
+                            #     wave_block_one,
+                            #     wave_block_two,
+                            #     block_one,
+                            #     block_two,
+                            # )
 
                             task = self._build_integration_task(
                                 integration_method=integration_method,
@@ -1133,7 +1143,11 @@ class IntegrationTaskPreparer:
                 _, j, _, v = quadruple.singles_indices
                 kj = self.mode_grid.by_index(j).center
                 kv = self.mode_grid.by_index(v).center
-
+                dirac_factor = (
+                    self.medium_parameters.k**4
+                    * self.mode_grid.by_index(j).weight
+                    * self.mode_grid.by_index(v).weight
+                )
                 new_stack_length = len(new_domain)
                 new_slice = slice(0, new_stack_length)
                 new_indices = indices
@@ -1152,16 +1166,6 @@ class IntegrationTaskPreparer:
                             continue
                         ct += 1
 
-                        integrand = (
-                            self._get_covariance_integrand_dirac_density(
-                                wave_block_one,
-                                wave_block_two,
-                                block_one,
-                                block_two,
-                                xp.asarray(kj),
-                                xp.asarray(kv),
-                            )
-                        )
                         block_location = (wave_block, block)
                         integrand = (
                             self._get_covariance_integrand_dirac_density(
@@ -1187,9 +1191,8 @@ class IntegrationTaskPreparer:
 
                         new_result = new_task.execute_task()
                         new_result.integral = (
-                            new_result.integral * geometric_factor
+                            new_result.integral * dirac_factor
                         )
-                        print(np.linalg.norm(new_result.integral))
                         main_result_list.append_result(new_result)
 
         return main_result_list

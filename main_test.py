@@ -116,7 +116,7 @@ input_statistics_manager = InputStatisticsManager(
     my_grid,
     supplied_indices=supplied_indices,
     use_dirac_density=False,
-    integration_method="cubature",
+    integration_method="midpoint",
 )
 integration_result_list, tee = input_statistics_manager.get_statistics()
 
