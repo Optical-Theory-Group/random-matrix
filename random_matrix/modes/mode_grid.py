@@ -432,6 +432,7 @@ class ModeGrid:
         self,
         show_indices: bool = False,
         savefig: None | str = None,
+        close: bool = True,
     ) -> None:
         """
         Draws the grid of modes.
@@ -478,4 +479,5 @@ class ModeGrid:
         plotting_utils.draw_circle(ax, r=self.r_lim)
         if savefig is not None:
             fig.savefig(savefig, format="svg")
-        plt.close()
+        if close:
+            plt.close()

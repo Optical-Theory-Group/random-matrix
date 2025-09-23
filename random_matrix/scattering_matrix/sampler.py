@@ -1,9 +1,9 @@
 import numpy as np
 
-from random_matrix.utils.types import Numeric
+from random_matrix.utils import matrix_utils
 
 
-def reorder_block(elements: Numeric) -> Numeric:
+def reorder_block(elements: np.ndarray) -> np.ndarray:
     length_of_elements, num_matrices = np.shape(elements)
     size_of_block = int(np.sqrt(len(elements)))
 
@@ -43,7 +43,12 @@ def reorder_block(elements: Numeric) -> Numeric:
     return final
 
 
-def S_sampler(mean_S: Numeric, chol: Numeric, num_matrices: int = 1) -> Numeric:
+def S_sampler(
+    mean_S: np.ndarray,
+    chol: np.ndarray,
+    num_matrices: int = 1,
+    symmetrize: bool = True,
+) -> np.ndarray:
     size_of_S, _ = np.shape(mean_S)
     size_of_block = int(size_of_S / 2)
     num_random_numbers, _ = np.shape(chol)
@@ -52,7 +57,9 @@ def S_sampler(mean_S: Numeric, chol: Numeric, num_matrices: int = 1) -> Numeric:
     random_numbers = np.random.randn(num_random_numbers, num_matrices)
     random_numbers = chol @ random_numbers
     reals = random_numbers[0 : int(num_random_numbers / 2)]
-    imags = random_numbers[int(num_random_numbers / 2) : int(num_random_numbers)]
+    imags = random_numbers[
+        int(num_random_numbers / 2) : int(num_random_numbers)
+    ]
 
     # Extract matrix elements from random numbers
     num_random_numbers = int(num_random_numbers / 2)
@@ -66,7 +73,8 @@ def S_sampler(mean_S: Numeric, chol: Numeric, num_matrices: int = 1) -> Numeric:
     )
     t2 = (
         reals[int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)]
-        + 1j * imags[int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)]
+        + 1j
+        * imags[int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)]
     )
     r2 = (
         reals[int(num_random_numbers * 3 / 4) : num_random_numbers]
@@ -84,11 +92,14 @@ def S_sampler(mean_S: Numeric, chol: Numeric, num_matrices: int = 1) -> Numeric:
     t = t + identity[:, :, np.newaxis]
     t2 = t2 + identity[:, :, np.newaxis]
 
-    top = np.hstack([r, t])
+    top = np.hstack([r, t2])
     bottom = np.hstack([t, r2])
     whole = np.vstack([top, bottom])
 
     # Add the mean matrix to each instance
-    whole = whole + mean_S[:, :, np.newaxis]
+    whole = whole - mean_S[:, :, np.newaxis]
+    output = np.transpose(whole, (2, 0, 1))
 
-    return whole
+    if symmetrize:
+        output = matrix_utils.get_closest_unitary_approximation(output)
+    return output

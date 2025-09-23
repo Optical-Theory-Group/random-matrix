@@ -109,20 +109,20 @@ class IndexFinder:
         for i in self.logger.progress_bar(indices):
             for j in indices:
                 # All elements of t must be included
-                independent_elements["t"].add((j, i))
+                independent_elements["t"].add((i, j))
 
                 if not self.mode_grid.is_reciprocal:
-                    independent_elements["t2"].add((j, i))
-                    independent_elements["r"].add((j, i))
-                    independent_elements["r2"].add((j, i))
+                    independent_elements["t2"].add((i, j))
+                    independent_elements["r"].add((i, j))
+                    independent_elements["r2"].add((i, j))
                 else:
                     # Only accept elements above or on the anti-diagonals of
                     # r and r2.
                     # No elements of t2 are accepted, since it can be found
                     # entirely from t by reciprocity.
                     if i + j <= 0:
-                        independent_elements["r"].add((j, i))
-                        independent_elements["r2"].add((j, i))
+                        independent_elements["r"].add((i, j))
+                        independent_elements["r2"].add((i, j))
 
         return independent_elements
 

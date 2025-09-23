@@ -125,6 +125,9 @@ for extra in extra_list:
                 ) = input_statistics_manager.get_statistics()
 
 
+print("h")
+
+
 # -----------------------------------------------------------------------------
 # Trying to get the nearest PSD matrix
 # -----------------------------------------------------------------------------
@@ -135,6 +138,8 @@ for extra in extra_list:
 
 # c_d = np.diag(c)
 # p_d = np.diag(p)
+
+
 # s_d = np.diag(s)
 
 # c_md = c - np.diag(c_d)
