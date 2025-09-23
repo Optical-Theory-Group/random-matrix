@@ -8,6 +8,8 @@ temporary/
 data/
 .history/
 paper_data/
+paper_data/data/
+paper_data/*
 
 
 .gitignore
