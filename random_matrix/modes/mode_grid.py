@@ -347,6 +347,17 @@ class ModeGrid:
     @property
     def propagating_modes_list(self) -> list[Mode]:
         return [self.by_index(index) for index in self.propagating_indices]
+    
+    @property
+    def propagating_modes_vertices_dict(self) -> list[Mode]:
+        propagating_modes_list = self.propagating_modes_list
+        return {mode.index: mode.vertices for mode in propagating_modes_list}
+
+    @property
+    def propagating_modes_weights_dict(self) -> list[Mode]:
+        propagating_modes_list = self.propagating_modes_list
+        return {mode.index: mode.weight for mode in propagating_modes_list}
+
 
     @property
     def evanescent_modes_list(self) -> list[Mode]:

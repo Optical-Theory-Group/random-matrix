@@ -231,9 +231,7 @@ def rotate_points(
     rotation_matrix = np.array([[c, -s], [s, c]])
     translated_points = points - axis
     rotated_points = rotation_matrix @ translated_points.T
-    output: npt.NDArray[np.float64] | npt.NDArray[np.float64] = (
-        rotated_points.T + axis
-    )
+    output: npt.NDArray[np.float64] | npt.NDArray[np.float64] = rotated_points.T + axis
     return output
 
 
@@ -259,9 +257,7 @@ def translate_points(
     if (np.ndim(points) == 1 and len(points) != len(translation_vector)) or (
         np.ndim(points) == 2 and np.shape(points)[1] != len(translation_vector)
     ):
-        raise ValueError(
-            "Dimension of point and translation vector do not " "match"
-        )
+        raise ValueError("Dimension of point and translation vector do not " "match")
 
     translated_points = points + translation_vector
     return translated_points
@@ -315,9 +311,7 @@ def get_convex_polygon_area(
     return area
 
 
-def get_edge_area(
-    points: npt.NDArray[np.float64], radius: np.float64
-) -> np.float64:
+def get_edge_area(points: npt.NDArray[np.float64], radius: np.float64) -> np.float64:
     """Compute the area of a small circle segment bounded by a chord connecting
     two points lying on the circle and the arc in between.
 
@@ -342,9 +336,7 @@ def get_edge_area(
 
 def get_line_segment_circle_intersection_points(
     line_segment: npt.NDArray[np.float64],
-    circle: skspatial.objects.Circle = skspatial.objects.Circle(
-        [0.0, 0.0], 1.0
-    ),
+    circle: skspatial.objects.Circle = skspatial.objects.Circle([0.0, 0.0], 1.0),
 ) -> npt.NDArray[np.float64] | None:
     """Computes the intersection points between a line segment and a circle.
 
@@ -366,9 +358,7 @@ def get_line_segment_circle_intersection_points(
     """
 
     if np.shape(line_segment) != (2, 2):
-        raise ValueError(
-            "line_segment should be given as a (2,2) array of " "points"
-        )
+        raise ValueError("line_segment should be given as a (2,2) array of " "points")
 
     intersection_points = np.empty((0, 2), dtype=np.float32)
     first_point = line_segment[0]
@@ -404,9 +394,7 @@ def get_line_segment_circle_intersection_points(
 
 def get_polygon_circle_intersection_points(
     points: npt.NDArray[np.float64],
-    circle: skspatial.objects.Circle = skspatial.objects.Circle(
-        [0.0, 0.0], 1.0
-    ),
+    circle: skspatial.objects.Circle = skspatial.objects.Circle([0.0, 0.0], 1.0),
 ) -> npt.NDArray[np.float64] | None:
     """Returns a matrix of intersection points between a polygon defined by its
     boundary points and a circle.
@@ -455,9 +443,7 @@ def get_polygon_circle_intersection_points(
         return None
     else:
         # Remove possible duplicates
-        intersection_points = array_utils.remove_duplicate_points(
-            intersection_points
-        )
+        intersection_points = array_utils.remove_duplicate_points(intersection_points)
         return intersection_points
 
 
@@ -515,9 +501,7 @@ def minkowski_sum(points_one: Numeric, points_two: Numeric) -> Numeric:
     y_coordinates = points_one[:, 1]
     x_coordinates = points_one[:, 0]
     min_y_index = np.argmin(y_coordinates)
-    min_y_values = np.where(
-        np.isclose(y_coordinates, y_coordinates[min_y_index])
-    )[0]
+    min_y_values = np.where(np.isclose(y_coordinates, y_coordinates[min_y_index]))[0]
     min_x_index = min_y_values[np.argmin(x_coordinates[min_y_values])]
     points_one = np.roll(points_one, -2 * min_x_index)
     points_one = np.append(points_one, [points_one[0]], axis=0)
@@ -526,9 +510,7 @@ def minkowski_sum(points_one: Numeric, points_two: Numeric) -> Numeric:
     y_coordinates = points_two[:, 1]
     x_coordinates = points_two[:, 0]
     min_y_index = np.argmin(y_coordinates)
-    min_y_values = np.where(
-        np.isclose(y_coordinates, y_coordinates[min_y_index])
-    )[0]
+    min_y_values = np.where(np.isclose(y_coordinates, y_coordinates[min_y_index]))[0]
     min_x_index = min_y_values[np.argmin(x_coordinates[min_y_values])]
     points_two = np.roll(points_two, -2 * min_x_index)
     points_two = np.append(points_two, [points_two[0]], axis=0)
@@ -616,9 +598,7 @@ def create_geometry(points):
 def intersection(points_one, points_two):
     # Shapes are identical. In this case, there's no point intersecting
     # anything
-    if len(points_one) == len(points_two) and np.allclose(
-        points_one, points_two
-    ):
+    if len(points_one) == len(points_two) and np.allclose(points_one, points_two):
         return points_one
 
     # Form a shapely shape depending on the number of points present
@@ -693,9 +673,7 @@ def cartesian_product(polygon1: Numeric, polygon2: Numeric) -> Numeric:
     tiled_polygon2 = np.tile(polygon2, (n1, 1))
 
     # Concatenate the repeated polygon1 and tiled polygon2
-    cartesian_product = np.concatenate(
-        (repeated_polygon1, tiled_polygon2), axis=1
-    )
+    cartesian_product = np.concatenate((repeated_polygon1, tiled_polygon2), axis=1)
 
     return cartesian_product
 
@@ -902,9 +880,7 @@ def intersect_hull_with_hyperplane(
                 continue
 
             # The product must be -1, so there is an intersection
-            intersection = v1 + (d - np.dot(v1, n)) / np.dot(v2 - v1, n) * (
-                v2 - v1
-            )
+            intersection = v1 + (d - np.dot(v1, n)) / np.dot(v2 - v1, n) * (v2 - v1)
             counter2 += 1
             intersections.append(intersection)
     print(counter)
@@ -1060,9 +1036,7 @@ def get_convex_hull_iterative(
     num_old_vertices = len(old_points)
 
     for i in range(max_iterations):
-        hull = scipy.spatial.ConvexHull(
-            old_points, qhull_options=qhull_options
-        )
+        hull = scipy.spatial.ConvexHull(old_points, qhull_options=qhull_options)
 
         # Check if the number of points has decreased or not.
         # If it hasn't, continue.
@@ -1081,12 +1055,8 @@ def get_convex_hull_iterative(
             )
 
         is_equal_vertices = num_new_vertices == num_old_vertices
-        is_equal_simplices = (
-            True if i == 0 else num_new_simplices == num_old_simplices
-        )
-        is_finished = (
-            num_new_vertices == num_old_vertices and is_equal_simplices
-        )
+        is_equal_simplices = True if i == 0 else num_new_simplices == num_old_simplices
+        is_finished = num_new_vertices == num_old_vertices and is_equal_simplices
         if is_finished:
             break
 
@@ -1124,9 +1094,7 @@ def get_intersection_vertices(
         [[0, a, 0, b, 0, c, 0, d, 0], [0, 0, a, 0, b, 0, c, 0, d]]
     )
     lin_set = set([0, 1])
-    augmented_inequalities = xp.vstack(
-        (hyperplane_equations, polytope_inequalities)
-    )
+    augmented_inequalities = xp.vstack((hyperplane_equations, polytope_inequalities))
     intersection_mat = cdd.matrix_from_array(
         augmented_inequalities,
         rep_type=cdd.RepType.INEQUALITY,
@@ -1136,6 +1104,9 @@ def get_intersection_vertices(
     intersection_vertices = xp.array(cdd.copy_generators(intersection).array)
 
     # Truncate the
+    if intersection_vertices.ndim == 1:
+        return None
+
     truncated_vertices = intersection_vertices[:, 1:]
     return truncated_vertices
 
@@ -1175,9 +1146,7 @@ def get_intersection_vertices_dirac_density(
         ]
     )
     lin_set = set([0, 1, 2, 3, 4, 5])
-    augmented_inequalities = xp.vstack(
-        (hyperplane_equations, polytope_inequalities)
-    )
+    augmented_inequalities = xp.vstack((hyperplane_equations, polytope_inequalities))
     intersection_mat = cdd.matrix_from_array(
         augmented_inequalities,
         rep_type=cdd.RepType.INEQUALITY,
@@ -1189,3 +1158,35 @@ def get_intersection_vertices_dirac_density(
     # Truncate the
     truncated_vertices = intersection_vertices[:, 1:]
     return truncated_vertices
+
+
+def get_minkowski_filter_area(
+    mode_i: np.ndarray, mode_j: np.ndarray, mode_u: np.ndarray, mode_v: np.ndarray
+) -> np.float128:
+    """Given four shapes (defined by vertices), find the area of the minkowski filtering process"""
+    try:
+        # Find the centroids
+        mean_i = np.mean(mode_i, axis=0)
+        mean_j = np.mean(mode_j, axis=0)
+        centre_ij = np.mean(np.vstack((mean_i, mean_j)), axis=0)
+        mean_u = np.mean(mode_u, axis=0)
+        mean_v = np.mean(mode_v, axis=0)
+        centre_uv = np.mean(np.vstack((mean_u, mean_v)), axis=0)
+
+        # Find the difference space associated with centre_ij
+        mode_j_ref = reflect_through_point(mode_j, centre_ij)
+        ij_intersect = intersection(mode_i, mode_j_ref)
+        new_ij = 2 * translate_points(ij_intersect, -centre_ij)
+
+        # Find the difference space associated with centre_uv
+        mode_v_ref = reflect_through_point(mode_v, centre_uv)
+        uv_intersect = intersection(mode_u, mode_v_ref)
+        new_uv = 2 * translate_points(uv_intersect, -centre_uv)
+
+        # Find the intersection of the difference spaces and get
+        # its area
+        ijuv_intersect = intersection(new_ij, new_uv)
+        area = get_polygon_area(ijuv_intersect)
+        return np.float128(area if np.isfinite(area) else 0.0)
+    except Exception as e:
+        return np.float128(0.0)

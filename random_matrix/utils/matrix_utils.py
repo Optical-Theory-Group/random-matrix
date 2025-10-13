@@ -48,9 +48,7 @@ def get_block(matrix: np.ndarray | cp.ndarray, block: str):
     elif matrix.ndim == 3:
         return matrix[:, block_indices[0], block_indices[1]]
     else:
-        raise ValueError(
-            f"matrix has ndim {matrix.ndim}, but it must be 2 or 3"
-        )
+        raise ValueError(f"matrix has ndim {matrix.ndim}, but it must be 2 or 3")
 
 
 def get_sub_block_indices(
@@ -209,6 +207,48 @@ def get_cov_sub_block_indices(
     return (row_slice, col_slice)
 
 
+def get_cov_block_indices(
+    blocks: str,
+    num_propagating: int,
+    num_evanescent: int = 0,
+    wave_block: str = "pp",
+) -> tuple[int, int]:
+    """Get the cov matrix indices as slice objects from information about the
+    block"""
+
+    block_ij, block_uv = blocks.split(",")
+
+    start_row_index = get_cov_starting_index(block_ij, (0, 0), False, num_propagating)
+    end_row_index = get_cov_starting_index(
+        block_ij, (num_propagating - 1, num_propagating - 1), False, num_propagating
+    )
+
+    start_col_index = get_cov_starting_index(block_uv, (0, 0), False, num_propagating)
+    end_col_index = get_cov_starting_index(
+        block_uv, (num_propagating - 1, num_propagating - 1), False, num_propagating
+    )
+
+    row_slice = slice(start_row_index, end_row_index + 4)
+    col_slice = slice(start_col_index, end_col_index + 4)
+
+    return (row_slice, col_slice)
+
+
+def get_cov_block(
+    cov: np.ndarray,
+    blocks: str,
+    is_reciprocal: bool = True,
+):
+    """Get the sub-block from a cov matrix determined by the block and "
+    sub_block variables"""
+    num_propagating = int(np.sqrt(cov.shape[0] / 16))
+    cov_block_indices = get_cov_block_indices(
+        blocks, num_propagating
+    )
+    cov_block = cov[cov_block_indices]
+    return cov_block
+
+
 def get_cov_sub_block(
     cov: np.ndarray,
     blocks: str,
@@ -222,7 +262,7 @@ def get_cov_sub_block(
         blocks, sub_blocks, is_reciprocal, num_propagating
     )
     cov_sub_block = cov[cov_sub_block_indices]
-    return cov_sub_block.todense()
+    return cov_sub_block
 
 
 def get_cov_sub_block_from_indices(
@@ -325,9 +365,7 @@ def get_closest_unitary_approximation(
     return u @ vh
 
 
-def get_exchange_matrix(
-    size: int, use_cupy: bool = False
-) -> np.ndarray | cp.ndarray:
+def get_exchange_matrix(size: int, use_cupy: bool = False) -> np.ndarray | cp.ndarray:
     """Return the exchange matrix with 1s on the anti diagonal and zeros
     elsewhere"""
     xp = cp if use_cupy else np
@@ -367,9 +405,7 @@ def get_S_reciprocity_matrix(
     return product
 
 
-def get_M_energy_matrix(
-    size: int, use_cupy: bool = False
-) -> np.ndarray | cp.ndarray:
+def get_M_energy_matrix(size: int, use_cupy: bool = False) -> np.ndarray | cp.ndarray:
     """Return Omega as defined in Niall's thesis such that
 
     M^dag Omega M = Omega
