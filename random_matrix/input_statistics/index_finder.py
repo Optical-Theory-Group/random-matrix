@@ -56,9 +56,7 @@ class IndexFinder:
             indices["mean"] = self._get_mean_indices(independent_elements)
 
         with self.logger.log("covariance"):
-            indices["covariance"] = self._get_covariance_indices(
-                independent_elements
-            )
+            indices["covariance"] = self._get_covariance_indices(independent_elements)
 
         with self.logger.log("pseudo_covariance"):
             indices["pseudo_covariance"] = self._get_pseudo_covariance_indices(
@@ -188,9 +186,7 @@ class IndexFinder:
         Quadruples should be understood in the order (i,j,u,v)
         """
 
-        covariance_indices: dict[
-            str, dict[str, set[tuple[int, int, int, int]]]
-        ] = {
+        covariance_indices: dict[str, dict[str, set[tuple[int, int, int, int]]]] = {
             "pp,pp": self._get_covariance_indices_pppp(
                 independent_elements["pp"], independent_elements["pp"]
             ),
@@ -244,9 +240,7 @@ class IndexFinder:
         # just use one
         num_elements = len(elements)
         num_cores = os.cpu_count()
-        num_processes = (
-            min(num_elements, num_cores) if num_cores is not None else 1
-        )
+        num_processes = min(num_elements, num_cores) if num_cores is not None else 1
 
         # Prepare function and arguments for multiprocessing
         parallelised_function = functools.partial(
@@ -302,7 +296,15 @@ class IndexFinder:
 
         # Area used to determine whether memory effect type correlations are
         # kept or not
-        threshold_area = mode_grid.by_index(mode_grid.central_index).weight * 2
+        central_mode_vertices = mode_grid.by_index(0).vertices
+        central_area = geometry_utils.get_minkowski_filter_area(
+            central_mode_vertices,
+            central_mode_vertices,
+            central_mode_vertices,
+            central_mode_vertices,
+        )
+        threshold_area = central_area / 10.0
+        central_weight = mode_grid.by_index(0).weight
 
         for index_one, i, j in progress_bar(partial_elements):
             # Second loop starts form index one. We can ignore half of
@@ -316,10 +318,18 @@ class IndexFinder:
                 is_autocorrelation = i == u and j == v
 
                 if not is_autocorrelation:
-                    continue
                     # Here we are looking at off-diagonal terms of the
                     # correlation matrix. These will be memory effect type
                     # correlations.
+
+                    weights = [
+                        mode_grid.by_index(i).weight,
+                        mode_grid.by_index(j).weight,
+                        mode_grid.by_index(u).weight,
+                        mode_grid.by_index(v).weight,
+                    ]
+                    if np.min(weights) < central_weight:
+                        continue
 
                     # Get all four modes
                     mode_i = mode_grid.by_index(i).vertices
@@ -327,48 +337,15 @@ class IndexFinder:
                     mode_u = mode_grid.by_index(u).vertices
                     mode_v = mode_grid.by_index(v).vertices
 
-                    # Find the centroids
-                    mean_i = np.mean(mode_i, axis=0)
-                    mean_j = np.mean(mode_j, axis=0)
-                    centre_ij = np.mean(np.vstack((mean_i, mean_j)), axis=0)
-                    mean_u = np.mean(mode_u, axis=0)
-                    mean_v = np.mean(mode_v, axis=0)
-                    centre_uv = np.mean(np.vstack((mean_u, mean_v)), axis=0)
 
-                    # Find the difference space associated with centre_ij
-                    mode_j_ref = geometry_utils.reflect_through_point(
-                        mode_j, centre_ij
+                    intersection_area = geometry_utils.get_minkowski_filter_area(
+                        mode_i, mode_j, mode_u, mode_v
                     )
-                    ij_intersect = geometry_utils.intersection(
-                        mode_i, mode_j_ref
-                    )
-                    new_ij = 2 * geometry_utils.translate_points(
-                        ij_intersect, -centre_ij
-                    )
-
-                    # Find the difference space associated with centre_uv
-                    mode_v_ref = geometry_utils.reflect_through_point(
-                        mode_v, centre_uv
-                    )
-                    uv_intersect = geometry_utils.intersection(
-                        mode_u, mode_v_ref
-                    )
-                    new_uv = 2 * geometry_utils.translate_points(
-                        uv_intersect, -centre_uv
-                    )
-
-                    # Find the intersection of the difference spaces and get
-                    # its area
-                    ijuv_intersect = geometry_utils.intersection(
-                        new_ij, new_uv
-                    )
-                    area = geometry_utils.get_polygon_area(ijuv_intersect)
-
                     # If the area is too small (compared to our threshold),
                     # we ignore these correlations
                     if (
-                        np.isclose(area, threshold_area)
-                        or area < threshold_area
+                        np.isclose(intersection_area, threshold_area)
+                        or intersection_area < threshold_area
                     ):
                         continue
 
@@ -376,28 +353,28 @@ class IndexFinder:
                 # be calculated. Which blocks it must be found for, however,
                 # depends on the independent elements
                 covariance_indices["t,t"].append((i, j, u, v))
-                if (u, v) in independent_elements_two["r"]:
-                    covariance_indices["t,r"].append((i, j, u, v))
-                if (u, v) in independent_elements_two["t2"]:
-                    covariance_indices["t,t2"].append((i, j, u, v))
-                if (u, v) in independent_elements_two["r2"]:
-                    covariance_indices["t,r2"].append((i, j, u, v))
+                # if (u, v) in independent_elements_two["r"]:
+                #     covariance_indices["t,r"].append((i, j, u, v))
+                # if (u, v) in independent_elements_two["t2"]:
+                #     covariance_indices["t,t2"].append((i, j, u, v))
+                # if (u, v) in independent_elements_two["r2"]:
+                #     covariance_indices["t,r2"].append((i, j, u, v))
 
                 # Correlations of r with others
                 if (i, j) in independent_elements_one["r"]:
                     if (u, v) in independent_elements_two["r"]:
                         covariance_indices["r,r"].append((i, j, u, v))
-                    if (u, v) in independent_elements_two["t2"]:
-                        covariance_indices["r,t2"].append((i, j, u, v))
-                    if (u, v) in independent_elements_two["r2"]:
-                        covariance_indices["r,r2"].append((i, j, u, v))
+                    # if (u, v) in independent_elements_two["t2"]:
+                    #     covariance_indices["r,t2"].append((i, j, u, v))
+                    # if (u, v) in independent_elements_two["r2"]:
+                    #     covariance_indices["r,r2"].append((i, j, u, v))
 
                 # Correlations of t2 with others
                 if (i, j) in independent_elements_one["t2"]:
                     if (u, v) in independent_elements_two["t2"]:
                         covariance_indices["t2,t2"].append((i, j, u, v))
-                    if (u, v) in independent_elements_two["r2"]:
-                        covariance_indices["t2,r2"].append((i, j, u, v))
+                    # if (u, v) in independent_elements_two["r2"]:
+                    #     covariance_indices["t2,r2"].append((i, j, u, v))
 
                 # Correlations of r2 with others
                 if (i, j) in independent_elements_one["r2"]:

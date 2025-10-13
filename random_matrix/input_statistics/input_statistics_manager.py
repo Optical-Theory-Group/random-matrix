@@ -45,12 +45,12 @@ class InputStatisticsManager:
         self.parent_data_path = (
             Path(parent_data_dir) if parent_data_dir else Path.cwd() / "data"
         )
-        if not parent_data_dir:
-            warnings.warn(
-                f"No parent_data_dir provided. Defaulting to current working"
-                f" directory: {Path.cwd() / 'data'}.",
-                stacklevel=2,  # Makes the warning point to the caller, not here
-            )
+        # if not parent_data_dir:
+        #     warnings.warn(
+        #         f"No parent_data_dir provided. Defaulting to current working"
+        #         f" directory: {Path.cwd() / 'data'}.",
+        #         stacklevel=2,  # Makes the warning point to the caller, not here
+        #     )
         self._validate_parent_data_path()
 
         # Set up folder for simulation output and metadata
@@ -211,20 +211,20 @@ class InputStatisticsManager:
             with open(indices_path, "wb") as f:
                 pickle.dump(indices, f)
 
-        # Classify shapes. We use the "t,t" indices because these
-        class_quadruple_list_exists = class_quadruple_list_path.exists()
-        if class_quadruple_list_exists:
-            with open(class_quadruple_list_path, "rb") as f:
-                class_quadruple_list = pickle.load(f)
-        else:
-            class_quadruple_list = self._classify_shapes(
-                indices["covariance"]["pp,pp"]["t,t"]
-            )
-            with open(class_quadruple_list_path, "wb") as f:
-                pickle.dump(class_quadruple_list, f)
+        # # Classify shapes. We use the "t,t" indices because these
+        # class_quadruple_list_exists = class_quadruple_list_path.exists()
+        # if class_quadruple_list_exists:
+        #     with open(class_quadruple_list_path, "rb") as f:
+        #         class_quadruple_list = pickle.load(f)
+        # else:
+        #     class_quadruple_list = self._classify_shapes(
+        #         indices["covariance"]["pp,pp"]["t,t"]
+        #     )
+        #     with open(class_quadruple_list_path, "wb") as f:
+        #         pickle.dump(class_quadruple_list, f)
 
-            # Show class histrogram (to get an idea of run time)
-            self._save_class_quadruple_list_bar_chart(class_quadruple_list)
+        #     # Show class histrogram (to get an idea of run time)
+        #     self._save_class_quadruple_list_bar_chart(class_quadruple_list)
 
         # Prepare and execute integration tasks
         integration_result_list_exists = (
@@ -238,9 +238,7 @@ class InputStatisticsManager:
                 integration_time = pickle.load(f)
         else:
             start = time.perf_counter()
-            integration_result_list = self._get_integration_results(
-                class_quadruple_list, indices
-            )
+            integration_result_list = self._get_integration_results(indices)
             end = time.perf_counter()
             integration_time = end - start
             with open(integration_result_list_path, "wb") as f:
@@ -270,18 +268,25 @@ class InputStatisticsManager:
 
         sigma = 0.5 * scipy.sparse.bmat(
             [
-                [np.real(cov + pseudo_cov), np.imag(-cov + pseudo_cov)],
-                [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
+                [np.real(cov), np.imag(-cov)],
+                [np.imag(cov), np.real(cov)],
             ]
         )
+
+        # sigma = 0.5 * scipy.sparse.bmat(
+        #     [
+        #         [np.real(cov + pseudo_cov), np.imag(-cov + pseudo_cov)],
+        #         [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
+        #     ]
+        # )
 
         chol = self._get_chol(sigma)
 
         # Save final statistics to disk
         np.save(mean_S_path, mean_S)
-        scipy.sparse.save_npz(cov_path, cov)
-        scipy.sparse.save_npz(pseudo_cov_path, pseudo_cov)
-        scipy.sparse.save_npz(chol_path, chol)
+        scipy.sparse.save_npz(cov_path, cov.tocsr())
+        scipy.sparse.save_npz(pseudo_cov_path, pseudo_cov.tocsr())
+        scipy.sparse.save_npz(chol_path, chol.tocsr())
 
         # Construct the matrix pool
         pool = matrix_pool.MatrixPool(
@@ -306,11 +311,9 @@ class InputStatisticsManager:
 
     def _get_integration_results(
         self,
-        class_quadruples_list: ClassQuadrupleList,
         indices: dict[str, dict[str, set[tuple[int, int]]]],
     ) -> integration_task.IntegrationResultList:
         return self.integration_task_preparer.get_integration_results(
-            class_quadruples_list,
             indices,
             covariance_cubature_scheme=self.covariance_cubature_scheme,
             use_dirac_density=self.use_dirac_density,
@@ -472,6 +475,7 @@ class InputStatisticsManager:
                 [0.0, 0.0, 0.0, 1.0],
             ]
         )
+        WEIGHTS = self.mode_grid.propagating_modes_weights_dict
 
         # Four for the fourst matrices, another 4 for polarisation
         # 4x4 correlation matrices
@@ -534,16 +538,25 @@ class InputStatisticsManager:
                         self.mode_grid.is_reciprocal,
                         self.mode_grid.num_propagating,
                     )
+                    # Get weights
+                    i, j, u, v = sub_block_location
+                    w_i = WEIGHTS.get(i)
+                    w_j = WEIGHTS.get(j)
+                    w_u = WEIGHTS.get(u)
+                    w_v = WEIGHTS.get(v)
+                    correlation_matrix = (
+                        correlation_matrix * 1 / np.sqrt(w_i * w_j * w_u * w_v)
+                    )
+                    cov[indices] = correlation_matrix
 
                     if not is_pseudo:
-                        cov[indices] = correlation_matrix
                         cov[indices[::-1]] = np.conj(correlation_matrix.T)
                     else:
-                        pass
+                        cov[indices[::-1]] = correlation_matrix.T
 
         # Multiply by weights
-        cov_weight_matrix = self._get_cov_weight_matrix()
-        cov = cov_weight_matrix @ cov @ cov_weight_matrix
+        # cov_weight_matrix = self._get_cov_weight_matrix()
+        # cov = cov_weight_matrix @ cov @ cov_weight_matrix
 
         return cov
 
