@@ -318,6 +318,9 @@ class IndexFinder:
                 is_autocorrelation = i == u and j == v
 
                 if not is_autocorrelation:
+
+                    # ADD A CONTINUE HERE TO TURN OFF MEMORY EFFECT
+
                     # Here we are looking at off-diagonal terms of the
                     # correlation matrix. These will be memory effect type
                     # correlations.
