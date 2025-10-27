@@ -281,7 +281,7 @@ class InputStatisticsManager:
         # )
 
         chol = self._get_chol(sigma)
-
+        print(np.max(sigma))
         # Save final statistics to disk
         np.save(mean_S_path, mean_S)
         scipy.sparse.save_npz(cov_path, cov.tocsr())
