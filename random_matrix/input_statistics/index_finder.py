@@ -56,7 +56,9 @@ class IndexFinder:
             indices["mean"] = self._get_mean_indices(independent_elements)
 
         with self.logger.log("covariance"):
-            indices["covariance"] = self._get_covariance_indices(independent_elements)
+            indices["covariance"] = self._get_covariance_indices(
+                independent_elements
+            )
 
         with self.logger.log("pseudo_covariance"):
             indices["pseudo_covariance"] = self._get_pseudo_covariance_indices(
@@ -186,7 +188,9 @@ class IndexFinder:
         Quadruples should be understood in the order (i,j,u,v)
         """
 
-        covariance_indices: dict[str, dict[str, set[tuple[int, int, int, int]]]] = {
+        covariance_indices: dict[
+            str, dict[str, set[tuple[int, int, int, int]]]
+        ] = {
             "pp,pp": self._get_covariance_indices_pppp(
                 independent_elements["pp"], independent_elements["pp"]
             ),
@@ -240,7 +244,10 @@ class IndexFinder:
         # just use one
         num_elements = len(elements)
         num_cores = os.cpu_count()
-        num_processes = min(num_elements, num_cores) if num_cores is not None else 1
+        num_cores = 100
+        num_processes = (
+            min(num_elements, num_cores) if num_cores is not None else 1
+        )
 
         # Prepare function and arguments for multiprocessing
         parallelised_function = functools.partial(
@@ -294,92 +301,112 @@ class IndexFinder:
             "r2,r2": [],
         }
 
+        weight_dict = mode_grid.weight_dict
+        vertices_dict = mode_grid.vertices_dict
+        centers_dict = mode_grid.centers_dict
+
         # Area used to determine whether memory effect type correlations are
         # kept or not
-        central_mode_vertices = mode_grid.by_index(0).vertices
+        central_mode_vertices = vertices_dict[0]
         central_area = geometry_utils.get_minkowski_filter_area(
             central_mode_vertices,
             central_mode_vertices,
             central_mode_vertices,
             central_mode_vertices,
         )
-        threshold_area = central_area / 10.0
-        central_weight = mode_grid.by_index(0).weight
+        tol = 1e-8
+        threshold_area = central_area / 10.0 - tol
+        central_weight_tol = weight_dict[0] - tol
+        memory_effect_vector_norm_threshold = central_area - tol
 
         for index_one, i, j in progress_bar(partial_elements):
             # Second loop starts form index one. We can ignore half of
             # the cases, because they're just the same thing with the order
             # of the shapes swapped.
             for _, u, v in elements[index_one:]:
-                # Check here for autocorrelations
-                # Autocorrelations MUST be included, because they are
-                # essentially mean intensities. For autocorrelations we don't
-                # need to do any other checks.
+
+                # We do checks to test if the correlation should be calculated
+                # or not. If we pass, we keep it. If we continue we skip it.
+
+                # Always calculate autocorrelations
                 is_autocorrelation = i == u and j == v
-
-                if not is_autocorrelation:
-                    # Here we are looking at off-diagonal terms of the
-                    # correlation matrix. These will be memory effect type
-                    # correlations.
-
-                    weights = [
-                        mode_grid.by_index(i).weight,
-                        mode_grid.by_index(j).weight,
-                        mode_grid.by_index(u).weight,
-                        mode_grid.by_index(v).weight,
-                    ]
-                    if np.min(weights) < central_weight:
-                        continue
-
-                    # Get all four modes
-                    mode_i = mode_grid.by_index(i).vertices
-                    mode_j = mode_grid.by_index(j).vertices
-                    mode_u = mode_grid.by_index(u).vertices
-                    mode_v = mode_grid.by_index(v).vertices
-
-
-                    intersection_area = geometry_utils.get_minkowski_filter_area(
-                        mode_i, mode_j, mode_u, mode_v
+                if is_autocorrelation:
+                    update_covariance_indices(
+                        i,
+                        j,
+                        u,
+                        v,
+                        covariance_indices,
+                        independent_elements_one,
+                        independent_elements_two,
                     )
-                    # If the area is too small (compared to our threshold),
-                    # we ignore these correlations
-                    if (
-                        np.isclose(intersection_area, threshold_area)
-                        or intersection_area < threshold_area
-                    ):
-                        continue
+                    continue
 
-                # If we reach this point, we have found a correlation that must
-                # be calculated. Which blocks it must be found for, however,
-                # depends on the independent elements
-                covariance_indices["t,t"].append((i, j, u, v))
-                # if (u, v) in independent_elements_two["r"]:
-                #     covariance_indices["t,r"].append((i, j, u, v))
-                # if (u, v) in independent_elements_two["t2"]:
-                #     covariance_indices["t,t2"].append((i, j, u, v))
-                # if (u, v) in independent_elements_two["r2"]:
-                #     covariance_indices["t,r2"].append((i, j, u, v))
+                # Skip correlations for small edge modes
+                min_weight = min(
+                    weight_dict[i],
+                    weight_dict[j],
+                    weight_dict[u],
+                    weight_dict[v],
+                )
+                is_small_weight = min_weight < central_weight_tol
+                if is_small_weight:
+                    continue
 
-                # Correlations of r with others
-                if (i, j) in independent_elements_one["r"]:
-                    if (u, v) in independent_elements_two["r"]:
-                        covariance_indices["r,r"].append((i, j, u, v))
-                    # if (u, v) in independent_elements_two["t2"]:
-                    #     covariance_indices["r,t2"].append((i, j, u, v))
-                    # if (u, v) in independent_elements_two["r2"]:
-                    #     covariance_indices["r,r2"].append((i, j, u, v))
+                # Check the memory effect condition quickly to kill off
+                # obvious bad candidates and keep obviously good candidates
+                memory_effect_vector = (
+                    centers_dict[i]
+                    - centers_dict[j]
+                    - centers_dict[u]
+                    + centers_dict[v]
+                )
+                squared_norm = (
+                    memory_effect_vector[0] ** 2 + memory_effect_vector[1] ** 2
+                )
+                is_zero_memory_effect_vector_norm = squared_norm < tol
+                if is_zero_memory_effect_vector_norm:
+                    update_covariance_indices(
+                        i,
+                        j,
+                        u,
+                        v,
+                        covariance_indices,
+                        independent_elements_one,
+                        independent_elements_two,
+                    )
+                    continue
 
-                # Correlations of t2 with others
-                if (i, j) in independent_elements_one["t2"]:
-                    if (u, v) in independent_elements_two["t2"]:
-                        covariance_indices["t2,t2"].append((i, j, u, v))
-                    # if (u, v) in independent_elements_two["r2"]:
-                    #     covariance_indices["t2,r2"].append((i, j, u, v))
+                is_large_memory_effect_vector_norm = (
+                    squared_norm > memory_effect_vector_norm_threshold
+                )
+                if is_large_memory_effect_vector_norm:
+                    continue
 
-                # Correlations of r2 with others
-                if (i, j) in independent_elements_one["r2"]:
-                    if (u, v) in independent_elements_two["r2"]:
-                        covariance_indices["r2,r2"].append((i, j, u, v))
+                # # For the final survivors
+                # intersection_area = geometry_utils.get_minkowski_filter_area(
+                #     vertices_dict[i],
+                #     vertices_dict[j],
+                #     vertices_dict[u],
+                #     vertices_dict[v],
+                # )
+                # # If the area is too small (compared to our threshold),
+                # # we ignore these correlations
+                # if intersection_area < threshold_area:
+                #     print("Mode failed minkowski filter")
+                #     print(i, j, u, v)
+                #     continue
+
+                # Final survivors are kept
+                update_covariance_indices(
+                    i,
+                    j,
+                    u,
+                    v,
+                    covariance_indices,
+                    independent_elements_one,
+                    independent_elements_two,
+                )
 
         return covariance_indices
 
@@ -429,3 +456,44 @@ class IndexFinder:
             + len(independent_elements["r2"])
         )
         return total
+
+
+def update_covariance_indices(
+    i: int,
+    j: int,
+    u: int,
+    v: int,
+    covariance_indices: dict,
+    independent_elements_one: dict,
+    independent_elements_two: dict,
+) -> None:
+    """Update covariance_indices dictionary with the correlation (i,j,u,v)."""
+
+    covariance_indices["t,t"].append((i, j, u, v))
+    # if (u, v) in independent_elements_two["r"]:
+    #     covariance_indices["t,r"].append((i, j, u, v))
+    # if (u, v) in independent_elements_two["t2"]:
+    #     covariance_indices["t,t2"].append((i, j, u, v))
+    # if (u, v) in independent_elements_two["r2"]:
+    #     covariance_indices["t,r2"].append((i, j, u, v))
+
+    # Correlations of r with others
+    if (i, j) in independent_elements_one["r"]:
+        if (u, v) in independent_elements_two["r"]:
+            covariance_indices["r,r"].append((i, j, u, v))
+        # if (u, v) in independent_elements_two["t2"]:
+        #     covariance_indices["r,t2"].append((i, j, u, v))
+        # if (u, v) in independent_elements_two["r2"]:
+        #     covariance_indices["r,r2"].append((i, j, u, v))
+
+    # Correlations of t2 with others
+    if (i, j) in independent_elements_one["t2"]:
+        if (u, v) in independent_elements_two["t2"]:
+            covariance_indices["t2,t2"].append((i, j, u, v))
+        # if (u, v) in independent_elements_two["r2"]:
+        #     covariance_indices["t2,r2"].append((i, j, u, v))
+
+    # Correlations of r2 with others
+    if (i, j) in independent_elements_one["r2"]:
+        if (u, v) in independent_elements_two["r2"]:
+            covariance_indices["r2,r2"].append((i, j, u, v))
