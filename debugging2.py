@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 import os
 import warnings
+
 # warnings.filterwarnings("error")
 # Add parent directory to Python path
 project_root = Path("/home/nbyrnes/code/random-matrix/")  # <-- adjust this
@@ -21,7 +22,11 @@ from random_matrix.amplitude_matrix import (
     isotropic_sphere,
     scattering_geometry,
 )
-from random_matrix.input_statistics import density_function, density_integrals
+from random_matrix.input_statistics import (
+    density_function,
+    density_integrals,
+    input_statistics_manager,
+)
 from random_matrix.input_statistics.density_function import (
     DeltaDensityFactor,
     DensityFunction,
@@ -78,7 +83,7 @@ medium_statistics_2d = MediumStatistics([particle_statistics_2d])
 
 my_grid = mode_grid_factory.from_tiling(
     tiling_type="rectangles",
-    side_length=(0.2, 0.2),
+    side_length=(0.5, 0.5),
     r_lim=1.2,
     grid_wave_type="propagating",
     rotation_angle=0.0,
@@ -91,7 +96,7 @@ use_np_config = IntegrationTaskConfig(use_gpu=False)
 num_modes = my_grid.num_propagating
 print(f"Starting num_modes = {num_modes}")
 # 2D
-simulation_name = f"6d_test_midpoint"
+simulation_name = f"hdf5_test"
 input_statistics_manager_2d = InputStatisticsManager(
     simulation_name,
     medium_parameters,
@@ -104,10 +109,13 @@ input_statistics_manager_2d = InputStatisticsManager(
     integration_task_config=use_np_config,
 )
 pool = input_statistics_manager_2d.get_matrix_pool()
+assert False
 
 chol_path = input_statistics_manager_2d.simulation_path / "chol.npz"
 cov_path = input_statistics_manager_2d.simulation_path / "cov.npz"
-pseudo_cov_path = input_statistics_manager_2d.simulation_path / "pseudo_cov.npz"
+pseudo_cov_path = (
+    input_statistics_manager_2d.simulation_path / "pseudo_cov.npz"
+)
 
 cov = scipy.sparse.load_npz(cov_path).todense()
 pseudo_cov = scipy.sparse.load_npz(pseudo_cov_path).todense()
@@ -188,6 +196,7 @@ def pair_test(i, j, u, v):
     print(f"combined min eigval = {combined_min_eig}")
     print(f"combined max val = {np.max(combined)}")
 
+
 opts = ["r", "t", "t2", "r2"]
 for b1 in opts:
     for b2 in opts:
@@ -219,7 +228,9 @@ for b1 in opts:
                         ff_mat = matrix_utils.get_cov_sub_block(cov, b_11, ff)
                         ss_mat = matrix_utils.get_cov_sub_block(cov, b_22, ss)
                         sf_mat = matrix_utils.get_cov_sub_block(cov, b_21, sf)
-                        combined = np.block([[ff_mat, fs_mat], [sf_mat, ss_mat]])
+                        combined = np.block(
+                            [[ff_mat, fs_mat], [sf_mat, ss_mat]]
+                        )
                         combined_min_eig = np.min(np.linalg.eigvals(combined))
                         data[i, j, u, v] = combined_min_eig
         print(b_12)
@@ -264,8 +275,12 @@ mode_v_vertices = my_grid.by_index(j).vertices
 cartesian_product_ij = geometry_utils.iterated_cartesian_product(
     [mode_i_vertices, mode_j_vertices, mode_u_vertices, mode_v_vertices]
 )
-reduced_intersection_ij = geometry_utils.get_intersection_vertices(cartesian_product_ij)
-reduced_hull_ij = scipy.spatial.ConvexHull(reduced_intersection_ij[:, columns_to_keep], qhull_options="QJ")
+reduced_intersection_ij = geometry_utils.get_intersection_vertices(
+    cartesian_product_ij
+)
+reduced_hull_ij = scipy.spatial.ConvexHull(
+    reduced_intersection_ij[:, columns_to_keep], qhull_options="QJ"
+)
 centroid_ij = np.mean(reduced_intersection_ij, axis=0)
 ki_x, ki_y, kj_x, kj_y, ku_x, ku_y = centroid_ij.T[columns_to_keep]
 
@@ -296,7 +311,7 @@ A_ijij_uv = isotropic_sphere.get_A(
     np.array([2.0]),
     np.array([1.2]),
 )
-#----------------------------------------------------------------
+# ----------------------------------------------------------------
 mode_i_vertices = my_grid.by_index(u).vertices
 mode_j_vertices = my_grid.by_index(v).vertices
 mode_u_vertices = my_grid.by_index(u).vertices
@@ -306,8 +321,12 @@ mode_v_vertices = my_grid.by_index(v).vertices
 cartesian_product_uv = geometry_utils.iterated_cartesian_product(
     [mode_i_vertices, mode_j_vertices, mode_u_vertices, mode_v_vertices]
 )
-reduced_intersection_uv = geometry_utils.get_intersection_vertices(cartesian_product_uv)
-reduced_hull_uv = scipy.spatial.ConvexHull(reduced_intersection_uv[:, columns_to_keep], qhull_options="QJ")
+reduced_intersection_uv = geometry_utils.get_intersection_vertices(
+    cartesian_product_uv
+)
+reduced_hull_uv = scipy.spatial.ConvexHull(
+    reduced_intersection_uv[:, columns_to_keep], qhull_options="QJ"
+)
 centroid_uv = np.mean(reduced_intersection_uv, axis=0)
 ki_x, ki_y, kj_x, kj_y, ku_x, ku_y = centroid_uv.T[columns_to_keep]
 
@@ -339,7 +358,7 @@ A_uvuv_uv = isotropic_sphere.get_A(
     np.array([1.2]),
 )
 
-#----------------------------------------------------------------
+# ----------------------------------------------------------------
 
 mode_i_vertices = my_grid.by_index(i).vertices
 mode_j_vertices = my_grid.by_index(j).vertices
@@ -350,8 +369,12 @@ mode_v_vertices = my_grid.by_index(v).vertices
 cartesian_product_ijuv = geometry_utils.iterated_cartesian_product(
     [mode_i_vertices, mode_j_vertices, mode_u_vertices, mode_v_vertices]
 )
-reduced_intersection_ijuv = geometry_utils.get_intersection_vertices(cartesian_product_ijuv)
-reduced_hull_ijuv = scipy.spatial.ConvexHull(reduced_intersection_ijuv[:, columns_to_keep], qhull_options="QJ")
+reduced_intersection_ijuv = geometry_utils.get_intersection_vertices(
+    cartesian_product_ijuv
+)
+reduced_hull_ijuv = scipy.spatial.ConvexHull(
+    reduced_intersection_ijuv[:, columns_to_keep], qhull_options="QJ"
+)
 centroid_ijuv = np.mean(reduced_intersection_ijuv, axis=0)
 ki_x, ki_y, kj_x, kj_y, ku_x, ku_y = centroid_ijuv.T[columns_to_keep]
 

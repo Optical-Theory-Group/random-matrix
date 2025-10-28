@@ -271,8 +271,7 @@ class MatrixPool:
         analysis_functions: dict[str, Callable],
         use_transfer_matrices: bool = False,
     ):
-        """Main method for doing studies of random media at different
-        thicknesses"""
+        """Method for doing small-scale cascades. Ideal for quick tests."""
         xp = self.single_pool_S_array_module
 
         # Check if analysis points has ints or floats
@@ -297,7 +296,96 @@ class MatrixPool:
             )
             top = xp.concatenate((half_zeros, half_identity), axis=1)
             bottom = xp.concatenate((half_identity, half_zeros), axis=1)
-            S_empty = xp.concatenate((top, bottom), axis=0)            
+            S_empty = xp.concatenate((top, bottom), axis=0)
+            working_matrices = xp.tile(S_empty, (num_samples, 1, 1))
+
+        # Initialize data collection dictionary
+        data = {key: [] for key in analysis_functions}
+
+        # Main cascade loop
+        for i in tqdm(range(1, max_iteration + 1)):
+
+            # Check if need to swtich to using scattering matrices
+            # TO BE IMPLEMENTED
+
+            # Do matrix products
+            for j in range(num_samples):
+                random_matrix_index = random.randrange(0, self.pool_size)
+
+                if use_transfer_matrices:
+                    working_matrices[j] = (
+                        self.single_pool_M[random_matrix_index]
+                        @ working_matrices[j]
+                    )
+                else:
+                    working_matrices[j] = matrix_utils.S_product(
+                        working_matrices[j],
+                        self.single_pool_S[random_matrix_index],
+                    )
+
+            # Do the analysis
+            if i in analysis_points:
+                print(f"Collecting data at index {i}")
+                for key, analysis_function in analysis_functions.items():
+                    new_output = analysis_function(working_matrices)
+                    data[key].append(new_output)
+
+        return data
+
+    def cascade_hdf5(
+        self,
+        cascade_name: str,
+        num_samples: int,
+        batch_size: int,
+        analysis_points: list[int] | list[np.float64],
+        analysis_functions: dict[str, Callable],
+        use_transfer_matrices: bool = False,
+    ):
+        """Method for more intense data runs. Data is automatically saved"""
+        xp = self.single_pool_S_array_module
+
+        # Check for cascade data files
+        cascade_data_parent_path = self.simulation_path / Path("cascade_data")
+        cascade_data_path = cascade_data_parent_path / Path(cascade_name)
+        if not cascade_data_parent_path.exists():
+            cascade_data_parent_path.mkdir()
+            print(
+                f"Creating parent directory for cascade data at " 
+                f"{cascade_data_parent_path}"
+            )
+        if not cascade_data_path.exists():
+            cascade_data_path.mkdir()
+            print(
+                f"Creating data directory for cascade data at " 
+                f"{cascade_data_path}"
+            )
+
+
+
+
+        # Check if analysis points has ints or floats
+        if isinstance(analysis_points[0], int):
+            pass
+        else:
+            # Convert to appropriate ints based on the thickness of the
+            # elementary slab
+            pass
+        max_iteration = analysis_points[-1]
+
+        # Initialize working matrix array
+        if use_transfer_matrices:
+            M_empty = xp.identity(self.matrix_size, dtype=xp.complex128)
+            working_matrices = xp.tile(M_empty, (num_samples, 1, 1))
+        else:
+            half_identity = xp.identity(
+                self.half_matrix_size, dtype=xp.complex128
+            )
+            half_zeros = xp.zeros(
+                (self.half_matrix_size, self.half_matrix_size), xp.complex128
+            )
+            top = xp.concatenate((half_zeros, half_identity), axis=1)
+            bottom = xp.concatenate((half_identity, half_zeros), axis=1)
+            S_empty = xp.concatenate((top, bottom), axis=0)
             working_matrices = xp.tile(S_empty, (num_samples, 1, 1))
 
         # Initialize data collection dictionary

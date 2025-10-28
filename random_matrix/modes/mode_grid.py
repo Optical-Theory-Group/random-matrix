@@ -347,7 +347,7 @@ class ModeGrid:
     @property
     def propagating_modes_list(self) -> list[Mode]:
         return [self.by_index(index) for index in self.propagating_indices]
-    
+
     @property
     def propagating_modes_vertices_dict(self) -> list[Mode]:
         propagating_modes_list = self.propagating_modes_list
@@ -357,7 +357,6 @@ class ModeGrid:
     def propagating_modes_weights_dict(self) -> list[Mode]:
         propagating_modes_list = self.propagating_modes_list
         return {mode.index: mode.weight for mode in propagating_modes_list}
-
 
     @property
     def evanescent_modes_list(self) -> list[Mode]:
@@ -378,6 +377,27 @@ class ModeGrid:
     @property
     def central_index(self) -> int:
         return 0 if self.is_reciprocal else int((self.num_propagating - 1) / 2)
+
+    @property
+    def weight_dict(self) -> dict:
+        return {
+            index: self.by_index(index).weight
+            for index in self.propagating_indices
+        }
+
+    @property
+    def vertices_dict(self) -> dict:
+        return {
+            index: self.by_index(index).vertices
+            for index in self.propagating_indices
+        }
+
+    @property
+    def centers_dict(self) -> dict:
+        return {
+            index: self.by_index(index).center
+            for index in self.propagating_indices
+        }
 
     # --------------------------------------------------------------------------
     # Public methods
