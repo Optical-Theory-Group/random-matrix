@@ -478,7 +478,7 @@ class MatrixPoolManager:
                 num_matrices, use_cupy=use_cupy
             )
 
-        for i in range(num_matrices):
+        for i in tqdm(range(num_matrices)):
             for _ in range(num_single_pool_matrices):
                 random_matrix_index = random.randrange(0, single_pool_size)
 
@@ -512,7 +512,6 @@ class MatrixPoolManager:
         """Method for doing small-scale cascades. Ideal for quick tests."""
         xp = self.single_pool_S_array_module
         use_cupy = xp == cp
-        np.random.seed(10)
 
         # Check if analysis points has ints or floats
         if isinstance(analysis_points[0], int):
