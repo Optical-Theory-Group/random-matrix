@@ -38,7 +38,7 @@ from random_matrix.utils import (
     special_functions,
 )
 from random_matrix.scattering_matrix import sampler
-from random_matrix.scattering_matrix.matrix_pool import SinglePool
+from random_matrix.scattering_matrix.matrix_pool_manager import SinglePool
 
 
 my_pool = SinglePool(

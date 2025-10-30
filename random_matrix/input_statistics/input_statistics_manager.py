@@ -22,7 +22,7 @@ from random_matrix.input_statistics.shape_classifier import ClassQuadrupleList
 from random_matrix.modes import mode_grid
 from random_matrix.utils import matrix_utils
 from random_matrix.utils.types import Numeric
-from random_matrix.scattering_matrix import matrix_pool
+from random_matrix.scattering_matrix import matrix_pool_manager
 
 
 class InputStatisticsManager:
@@ -83,11 +83,11 @@ class InputStatisticsManager:
             # Save mode grid plots
             self.mode_grid.plot(
                 show_indices=False,
-                savefig=str(self.simulation_path / f"mode_grid.svg"),
+                savefig=str(self.simulation_path / "mode_grid.svg"),
             )
             self.mode_grid.plot(
                 show_indices=True,
-                savefig=str(self.simulation_path / f"mode_grid_indices.svg"),
+                savefig=str(self.simulation_path / "mode_grid_indices.svg"),
             )
 
             # Generate metadatajson if doesn't exist
@@ -205,7 +205,7 @@ class InputStatisticsManager:
 
         return cls(**loaded_objects)
 
-    def get_matrix_pool(self) -> tuple[np.ndarray, np.ndarray]:
+    def get_matrix_pool_manager(self) -> tuple[np.ndarray, np.ndarray]:
         """Compute the mean, covariance and pseudo-covariance for the elements
         of the scattering matrix."""
         independent_elements_path = (
@@ -329,7 +329,7 @@ class InputStatisticsManager:
             scipy.sparse.save_npz(chol_path, chol.tocsr())
 
         # Construct the matrix pool
-        pool = matrix_pool.MatrixPool(
+        pool = matrix_pool_manager.MatrixPoolManager(
             self.simulation_name,
             self.medium_parameters,
             self.medium_statistics,
