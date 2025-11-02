@@ -601,29 +601,91 @@ def get_T(hull, k1, k2, n_max):
 
     return T
 
-def get_A_from_T(T,n_max):
+def scattering_amplitudes_from_T(
+    theta_inc: float,
+    phi_inc: float,
+    theta_sca: float,
+    phi_sca: float,
+    T: np.ndarray,
+    k1: float,
+    n_max: int,
+    alpha: complex = 2,
+) -> tuple:
     """
-    This function calculates the amplitude matrix A from the T matrix.
-    The T matrix is assumed to be of size (2*modes X 2*modes).
-    The amplitude matrix will have a size of (modes X modes).
+    Compute S11, S12, S21, S22 from full T matrix using the formula shown.
+    - T is the 2M x 2M matrix assembled as [[T11, T12],[T21, T22]] where
+      M = sum_{n=1..n_max} (2n+1).
+    - Ordering of modes: for n in 1..n_max, m in -n..n (same order as rest of code).
+    - Assumes alpha_{mmnn'} = alpha (scalar) for all indices (default 2).
+    Returns complex tuple (S11, S12, S21, S22).
     """
-    l = T.shape[0]/ 2
-    T_11 =T[:l, :l]  # Top-left
-    T_12 =T[:l, l:]  # Top-right
-    T_21 =T[l:, :l]  # Bottom-left
-    T_22 =T[l:, l:]  # Bottom-right
+    # build mode list in same ordering used elsewhere
+    modes = [(n, m) for n in range(1, n_max + 1) for m in range(-n, n + 1)]
+    M = len(modes)
+    if T.shape[0] != 2 * M or T.shape[1] != 2 * M:
+        raise ValueError(f"T must be shape {(2*M, 2*M)}, got {T.shape}")
 
-    theta = np.linspace(0, np.pi, 10)
-    phi = np.linspace(0, 2 * np.pi, 10)
-    pi_array = []
-    tau_array = []
+    # partition T
+    T11 = T[:M, :M]
+    T12 = T[:M, M:]
+    T21 = T[M:, :M]
+    T22 = T[M:, M:]
 
+    # build the pi/tau vectors
+    pi_sca = np.empty(M, dtype=np.complex128)
+    tau_sca = np.empty(M, dtype=np.complex128)
+    pi_inc = np.empty(M, dtype=np.complex128)   # will include exp(-i m' phi_inc)
+    tau_inc = np.empty(M, dtype=np.complex128)  # will include exp(-i m' phi_inc)
 
-    modes_nm = [(n, m) for n in range(1, n_max + 1) for m in range(-n, n + 1)]
-    # modes for the interior region (m',n')
-    modes_nmp = [(n, m) for n in range(1, n_max + 1) for m in range(-n, n + 1)]
-    for mode in modes_nm:
-        pi_row,tau_row = np.array(pi_tau_mn(mode[0],mode[1],theta))
-        pi_array.append(pi_row)
-        tau_array.append(tau_row)
-    
+    for idx, (n, m) in enumerate(modes):
+        p, t = pi_tau_mn(m, n, theta_sca)
+        pi_sca[idx] = p * np.exp(1j * m * phi_sca)
+        tau_sca[idx] = t * np.exp(1j * m * phi_sca)
+
+        p_i, t_i = pi_tau_mn(m, n, theta_inc)
+        # incident factor needs exp(- i m' phi_inc) according to formula
+        phase_inc = np.exp(-1j * m * phi_inc)
+        pi_inc[idx] = p_i * phase_inc
+        tau_inc[idx] = t_i * phase_inc
+
+    # helper for quadratic form a^T B c  (no conj on a)
+    def quad(a, B, c):
+        return float(0) + np.dot(a, B.dot(c))
+
+    # S11: prefactor 1/k1, left = [pi_sca; tau_sca], right = [pi_inc; tau_inc]
+    S11_terms = (
+        quad(pi_sca, T11, pi_inc)
+        + quad(tau_sca, T21, pi_inc)
+        + quad(pi_sca, T12, tau_inc)
+        + quad(tau_sca, T22, tau_inc)
+    )
+    S11 = (alpha / k1) * S11_terms
+
+    # S12: prefactor 1/(i k1), left same as S11, right swapped [tau_inc; pi_inc]
+    S12_terms = (
+        quad(pi_sca, T11, tau_inc)
+        + quad(tau_sca, T21, tau_inc)
+        + quad(pi_sca, T12, pi_inc)
+        + quad(tau_sca, T22, pi_inc)
+    )
+    S12 = (alpha / (1j * k1)) * S12_terms
+
+    # S21: prefactor i/k1, left swapped [tau_sca; pi_sca], right = [pi_inc; tau_inc]
+    S21_terms = (
+        quad(tau_sca, T11, pi_inc)
+        + quad(pi_sca, T21, pi_inc)
+        + quad(tau_sca, T12, tau_inc)
+        + quad(pi_sca, T22, tau_inc)
+    )
+    S21 = (alpha * 1j / k1) * S21_terms
+
+    # S22: prefactor 1/k1, left swapped [tau_sca; pi_sca], right swapped [tau_inc; pi_inc]
+    S22_terms = (
+        quad(tau_sca, T11, tau_inc)
+        + quad(pi_sca, T21, tau_inc)
+        + quad(tau_sca, T12, pi_inc)
+        + quad(pi_sca, T22, pi_inc)
+    )
+    S22 = (alpha / k1) * S22_terms
+
+    return S11, S12, S21, S22

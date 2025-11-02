@@ -194,7 +194,7 @@ class InputStatisticsManager:
             "medium_statistics",
             "mode_grid",
         ]
-        loaded_objects = {"simulation_name": simulation_name, "_loaded": True}
+        loaded_objects = {"simulation_name": simulation_name, "_loaded": True, "parent_data_dir": parent_data_dir}
 
         for name in objects_to_load:
             load_path = simulation_path / f"{name}.pkl"
