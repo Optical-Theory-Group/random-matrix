@@ -234,7 +234,6 @@ class InputStatisticsManager:
             index_variables_exists = (
                 independent_elements_path.exists() and indices_path.exists()
             )
-            index_variables_exists = False
             if index_variables_exists:
                 with open(independent_elements_path, "rb") as f:
                     independent_elements = pickle.load(f)
@@ -306,13 +305,14 @@ class InputStatisticsManager:
                     pseudo_cov_result_list, is_pseudo=True
                 )
 
+            print("Building sigma")
             sigma = 0.5 * scipy.sparse.bmat(
                 [
                     [np.real(cov), np.imag(-cov)],
                     [np.imag(cov), np.real(cov)],
                 ]
             )
-
+            print("Sigma built... finding cholesky")
             # sigma = 0.5 * scipy.sparse.bmat(
             #     [
             #         [np.real(cov + pseudo_cov), np.imag(-cov + pseudo_cov)],

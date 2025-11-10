@@ -121,6 +121,7 @@ def from_dr_dt(
     r_lim: float = 1.2,
     include_central_mode: bool = True,
     rotation_angle: float = 0.0,
+    spiderweb: bool = True,
 ) -> ModeGrid:
     """Generate polar grid from dr and dt.
 
@@ -163,6 +164,7 @@ def from_dr_dt(
         t_vals=t_vals,
         include_central_mode=include_central_mode,
         rotation_angle=rotation_angle,
+        spiderweb=spiderweb,
     )
 
 
@@ -171,6 +173,7 @@ def from_rt_vals(
     t_vals: npt.NDArray[np.float64],
     include_central_mode: bool = True,
     rotation_angle: np.float64 = np.float64(0.0),
+    spiderweb: bool = True,
 ) -> ModeGrid:
     """Generate polar grid from arrays of r and t values.
 
@@ -212,6 +215,14 @@ def from_rt_vals(
 
     # Construct mode objects from dictionary list
     mode_list = list(_get_mode_list(mode_boundary_dict_list))
+
+    # Linearlize the arc edges if the spiderweb option is true
+    # This ensures the regions are all convex
+    if spiderweb:
+        for m in mode_list:
+            for s in m.sides:
+                if not np.allclose(np.linalg.norm(s.points, axis=1), 1.0):
+                    s.type = "line"
 
     return ModeGrid(mode_list=mode_list, r_lim=r_lim)
 
@@ -635,6 +646,9 @@ def _get_polar_mode_boundary_dict_list(
                 [-r_central, 0.0],
                 [0.0, -r_central],
             ]
+        )
+        vertices = np.column_stack(
+            (r_central * np.cos(t_vals), r_central * np.sin(t_vals))
         )
 
         arc_points_list = list(array_utils.get_pairs(vertices, cyclic=True))
