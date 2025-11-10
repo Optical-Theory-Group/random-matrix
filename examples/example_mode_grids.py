@@ -1,6 +1,14 @@
 """Example grids to demonstrate the mode_grid_generator module"""
 
+from pathlib import Path
+import sys
 import os
+import warnings
+
+# warnings.filterwarnings("error")
+# Add parent directory to Python path
+project_root = Path("/home/nbyrnes/code/random-matrix/")  # <-- adjust this
+sys.path.insert(0, str(project_root))
 
 import numpy as np
 
@@ -13,12 +21,16 @@ np.random.seed(25)
 # -----------------------------------------------------------------------------
 
 # Standard polar grid rotated
-mode_grid_factory.from_dr_dt(
+g = mode_grid_factory.from_dr_dt(
     dr=0.1,
-    dt=2 * np.pi / 12,
+    dt=2 * np.pi / 20,
     r_lim=1.0,
     rotation_angle=0.0,
-).plot()
+    include_central_mode=True,
+)
+g.plot(show_indices=True, close=False)
+
+assert False
 
 # Irregular polar grid from random r and t values
 r_vals = np.random.uniform(0.0, 2.0, 10)

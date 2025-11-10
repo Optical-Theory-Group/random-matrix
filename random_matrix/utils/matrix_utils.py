@@ -1,6 +1,7 @@
 import numpy as np
 import cupy as cp
-
+import scipy
+import sksparse.cholmod
 
 # def get_sub_block_indices_vector(independent_element_indices):
 #     indices = np.empty((0, 3), dtype="object")
@@ -103,8 +104,8 @@ def get_sub_block(
     sub_block_indices = get_sub_block_indices(
         block, sub_block, is_reciprocal, num_propagating
     )
-    sub_block = matrix[sub_block_indices]
-    return sub_block
+    sb = matrix[sub_block_indices]
+    return sb
 
 
 def get_sub_block_from_indices(
@@ -242,9 +243,7 @@ def get_cov_block(
     """Get the sub-block from a cov matrix determined by the block and "
     sub_block variables"""
     num_propagating = int(np.sqrt(cov.shape[0] / 16))
-    cov_block_indices = get_cov_block_indices(
-        blocks, num_propagating
-    )
+    cov_block_indices = get_cov_block_indices(blocks, num_propagating)
     cov_block = cov[cov_block_indices]
     return cov_block
 
@@ -526,3 +525,116 @@ def S_product(
     bottom = xp.concatenate((t, r2), axis=1)
     S = xp.concatenate((top, bottom), axis=0)
     return S
+
+
+def block_cholesky(A: np.ndarray) -> np.ndarray:
+    """
+    Compute the Cholesky decomposition of a 2x2 block matrix.
+
+    A is assumed to be symmetric positive definite. Method adapted from
+    https://scicomp.stackexchange.com/questions/5050/cholesky-factorization-of-block-matrices
+    """
+    n = A.shape[0]
+    k = n // 2
+
+    A11 = A[:k, :k]
+    A21 = A[k:, :k]
+    A22 = A[k:, k:]
+
+    L11 = np.linalg.cholesky(A11)
+    L21 = np.conj(np.linalg.solve(L11, np.conj(A21).T)).T
+    S = A22 - L21 @ np.conj(L21).T
+    L22 = np.linalg.cholesky(S)
+
+    L_top = np.hstack([L11, np.zeros((k, n - k))])
+    L_bottom = np.hstack([L21, L22])
+    L = np.vstack([L_top, L_bottom])
+
+    return L
+
+
+def sparse_cholesky(A: scipy.sparse.csc_matrix) -> scipy.sparse.csc_matrix:
+    """Get the cholesky decomposition of a sparse matrix using sksparse"""
+    return sksparse.cholmod.cholesky(A, ordering_method="natural").L()
+
+
+def block_cholesky_sparse(A: scipy.sparse.csc_matrix) -> scipy.sparse.csc_matrix:
+    """
+    Compute the Cholesky decomposition of a 2x2 block sparse matrix.
+
+    A: symmetric/Hermitian positive definite sparse matrix (csc_matrix)
+    Method based on:
+    https://scicomp.stackexchange.com/questions/5050/cholesky-factorization-of-block-matrices
+
+    """
+    n = A.shape[0]
+    k = n // 2
+
+    # Split blocks
+    A11 = A[:k, :k]
+    A21 = A[k:, :k]
+    A22 = A[k:, k:]
+
+    # Sparse calculations
+    A11_factor = sksparse.cholmod.cholesky(A11)
+    L11 = A11_factor.L()
+    X = A11_factor.solve_L(A21.conj().T, use_LDLt_decomposition=False).conj().T
+    S = A22 - X @ X.conj().T
+    Ls = sksparse.cholmod.cholesky(S).L()
+
+    L = scipy.sparse.bmat(
+        [
+            [L11, None],
+            [X,   Ls]
+        ], 
+        format="csc"
+    )
+    return L
+
+def block_cholesky_sparse_recursive(A: scipy.sparse.csc_matrix, max_depth:int=1, depth:int=0) -> scipy.sparse.csc_matrix:
+    """
+    Recursively compute the Cholesky decomposition of a sparse 
+    symmetric/Hermitian matrix using block_cholesky_sparse.
+
+    Parameters:
+        A : csc_matrix
+            Symmetric/Hermitian positive definite sparse matrix
+        max_depth : int
+            Maximum recursion depth
+        depth : int
+            Current recursion depth (internal use)
+    
+    Returns:
+        L : csc_matrix
+            Lower-triangular Cholesky factor of A
+    """
+
+    if depth >= max_depth:
+        return A
+
+    n = A.shape[0]
+    k = n // 2
+
+    # Split blocks
+    A11 = A[:k, :k]
+    A21 = A[k:, :k]
+    A22 = A[k:, k:]
+
+    # Sparse calculations
+    A11_factor = sksparse.cholmod.cholesky(A11)
+    L11 = A11_factor.L()
+    X = A11_factor.solve_L(A21.conj().T, use_LDLt_decomposition=False).conj().T
+    S = A22 - X @ X.conj().T
+    Ls = sksparse.cholmod.cholesky(S).L()
+
+    L = scipy.sparse.bmat(
+        [
+            [L11, None],
+            [X,   Ls]
+        ], 
+        format="csc"
+    )
+
+    return L
+
+

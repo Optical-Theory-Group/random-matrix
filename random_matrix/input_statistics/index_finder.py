@@ -244,7 +244,6 @@ class IndexFinder:
         # just use one
         num_elements = len(elements)
         num_cores = os.cpu_count()
-        num_cores = 100
         num_processes = (
             min(num_elements, num_cores) if num_cores is not None else 1
         )
@@ -318,6 +317,7 @@ class IndexFinder:
         threshold_area = central_area / 10.0 - tol
         central_weight_tol = weight_dict[0] - tol
         memory_effect_vector_norm_threshold = central_area - tol
+        memory_effect_vector_norm_threshold = tol
 
         for index_one, i, j in progress_bar(partial_elements):
             # Second loop starts form index one. We can ignore half of

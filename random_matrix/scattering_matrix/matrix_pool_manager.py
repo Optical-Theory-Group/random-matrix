@@ -360,17 +360,15 @@ class MatrixPoolManager:
 
         # Generate random numbers for the matrices
         random_numbers = xp.random.randn(num_random_numbers, num_matrices)
-        random_numbers = chol @ random_numbers
-        reals = random_numbers[0 : int(num_random_numbers / 2)]
-        imags = random_numbers[
-            int(num_random_numbers / 2) : int(num_random_numbers)
-        ]
+        modified_random_numbers = chol @ random_numbers
+        reals = modified_random_numbers[: int(num_random_numbers / 2)]
+        imags = modified_random_numbers[int(num_random_numbers / 2) :]
 
         # Extract matrix elements from random numbers
         num_random_numbers = int(num_random_numbers / 2)
         r = (
-            reals[0 : int(num_random_numbers / 4)]
-            + 1j * imags[0 : int(num_random_numbers / 4)]
+            reals[: int(num_random_numbers / 4)]
+            + 1j * imags[: int(num_random_numbers / 4)]
         )
         t = (
             reals[int(num_random_numbers / 4) : int(num_random_numbers / 2)]
@@ -387,27 +385,31 @@ class MatrixPoolManager:
             ]
         )
         r2 = (
-            reals[int(num_random_numbers * 3 / 4) : num_random_numbers]
-            + 1j * imags[int(num_random_numbers * 3 / 4) : num_random_numbers]
+            reals[int(num_random_numbers * 3 / 4) :]
+            + 1j * imags[int(num_random_numbers * 3 / 4) :]
         )
 
+        # ----------------------------------------------
+        # debugging
+        # ------------------------------------------
+
         # Reorder the randomly generated numbers into the correct shapes
-        r = self._reorder_block(r)
-        t = self._reorder_block(t)
-        t2 = self._reorder_block(t2)
-        r2 = self._reorder_block(r2)
+        r_mat = self._reorder_block(r)
+        t_mat = self._reorder_block(t)
+        t2_mat = self._reorder_block(t2)
+        r2_mat = self._reorder_block(r2)
 
         # Add identity to transmission matrices
         identity = xp.identity(size_of_block)
-        t = t + identity[:, :, xp.newaxis]
-        t2 = t2 + identity[:, :, xp.newaxis]
+        t_mat = t_mat  # + identity[:, :, xp.newaxis]
+        t2_mat = t2_mat  # + identity[:, :, xp.newaxis]
 
-        top = xp.hstack([r, t2])
-        bottom = xp.hstack([t, r2])
+        top = xp.hstack([r_mat, t2_mat])
+        bottom = xp.hstack([t_mat, r2_mat])
         whole = xp.vstack([top, bottom])
 
         # Add the mean matrix to each instance
-        whole = whole - mean_S[:, :, xp.newaxis]
+        whole = whole  # - mean_S[:, :, xp.newaxis]
         output = xp.transpose(whole, (2, 0, 1))
 
         if symmetrize:
