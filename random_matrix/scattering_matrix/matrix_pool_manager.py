@@ -55,9 +55,7 @@ class MatrixPoolManager:
         if mode_grid is None:
             mode_grid_exists = mode_grid_path.exists()
             if not mode_grid_exists:
-                raise FileNotFoundError(
-                    f"File at {str(mode_grid_path)} was not found."
-                )
+                raise FileNotFoundError(f"File at {str(mode_grid_path)} was not found.")
             self.mode_grid = np.load(mode_grid_path)
         else:
             self.mode_grid = mode_grid
@@ -81,9 +79,7 @@ class MatrixPoolManager:
         self.single_pool_M = None
         self.multi_pool_M = None
 
-    def get_pool_data(
-        self, is_transfer_matrix: bool, is_multi_pool: bool
-    ) -> dict:
+    def get_pool_data(self, is_transfer_matrix: bool, is_multi_pool: bool) -> dict:
         """Packaged data used in various places"""
         pool_map = {
             (False, False): (
@@ -105,9 +101,7 @@ class MatrixPoolManager:
         }
         return pool_map[(is_transfer_matrix, is_multi_pool)]
 
-    def get_pool(
-        self, is_transfer_matrix: bool, is_multi_pool: bool
-    ) -> np.ndarray:
+    def get_pool(self, is_transfer_matrix: bool, is_multi_pool: bool) -> np.ndarray:
         _, pool = self.get_pool_data(is_transfer_matrix, is_multi_pool)
         return pool
 
@@ -131,9 +125,7 @@ class MatrixPoolManager:
         h5_file_path = pool_dir_path / "pools.h5"
 
         # Determine dataset name and pool based on boolean args
-        dataset_name, pool = self.get_pool_data(
-            is_transfer_matrix, is_multi_pool
-        )
+        dataset_name, pool = self.get_pool_data(is_transfer_matrix, is_multi_pool)
 
         # Check pool exists
         if pool is None:
@@ -159,15 +151,11 @@ class MatrixPoolManager:
         attr_name, _ = self.get_pool_data(is_transfer_matrix, is_multi_pool)
 
         if not h5_file_path.exists():
-            raise FileNotFoundError(
-                f"HDF5 file does not exist: {h5_file_path}"
-            )
+            raise FileNotFoundError(f"HDF5 file does not exist: {h5_file_path}")
 
         with h5py.File(h5_file_path, "r") as f:
             if attr_name not in f:
-                raise ValueError(
-                    f"Dataset '{attr_name}' not found in HDF5 file"
-                )
+                raise ValueError(f"Dataset '{attr_name}' not found in HDF5 file")
             setattr(self, f"{attr_name}", f[attr_name][:])
 
     # Convenience methods
@@ -249,9 +237,7 @@ class MatrixPoolManager:
     def single_pool_S_array_module(self):
         """Get the array module used for the matrices in single_pool_S"""
         if not self.single_pool_S_exists:
-            raise ValueError(
-                "single_pool_S does not exist. Generate it first!"
-            )
+            raise ValueError("single_pool_S does not exist. Generate it first!")
         return cp.get_array_module(self.single_pool_S[0])
 
     # -------------------------------------------------------------------------
@@ -372,17 +358,11 @@ class MatrixPoolManager:
         )
         t = (
             reals[int(num_random_numbers / 4) : int(num_random_numbers / 2)]
-            + 1j
-            * imags[int(num_random_numbers / 4) : int(num_random_numbers / 2)]
+            + 1j * imags[int(num_random_numbers / 4) : int(num_random_numbers / 2)]
         )
         t2 = (
-            reals[
-                int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)
-            ]
-            + 1j
-            * imags[
-                int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)
-            ]
+            reals[int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)]
+            + 1j * imags[int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)]
         )
         r2 = (
             reals[int(num_random_numbers * 3 / 4) :]
@@ -472,22 +452,16 @@ class MatrixPoolManager:
 
         # Initialize multi pool
         if use_transfer_matrices:
-            multi_pool = self.get_initialized_M_array(
-                num_matrices, use_cupy=use_cupy
-            )
+            multi_pool = self.get_initialized_M_array(num_matrices, use_cupy=use_cupy)
         else:
-            multi_pool = self.get_initialized_S_array(
-                num_matrices, use_cupy=use_cupy
-            )
+            multi_pool = self.get_initialized_S_array(num_matrices, use_cupy=use_cupy)
 
         for i in tqdm(range(num_matrices)):
             for _ in range(num_single_pool_matrices):
                 random_matrix_index = random.randrange(0, single_pool_size)
 
                 if use_transfer_matrices:
-                    multi_pool[i] = (
-                        single_pool[random_matrix_index] @ multi_pool[i]
-                    )
+                    multi_pool[i] = single_pool[random_matrix_index] @ multi_pool[i]
                 else:
                     multi_pool[i] = matrix_utils.S_product(
                         multi_pool[i],
@@ -526,13 +500,9 @@ class MatrixPoolManager:
 
         # Initialize working matrix array
         if use_transfer_matrices:
-            working_matrices = self.get_initialized_M_array(
-                num_samples, use_cupy
-            )
+            working_matrices = self.get_initialized_M_array(num_samples, use_cupy)
         else:
-            working_matrices = self.get_initialized_S_array(
-                num_samples, use_cupy
-            )
+            working_matrices = self.get_initialized_S_array(num_samples, use_cupy)
 
         # Initialize data collection dictionary
         data = {key: [] for key in analysis_functions}
@@ -663,25 +633,17 @@ class MatrixPoolManager:
         if is_single_batch:
             # Matrices are directly loaded in RAM
             if use_transfer_matrices:
-                working_matrices = self.get_initialized_M_array(
-                    num_samples, use_cupy
-                )
+                working_matrices = self.get_initialized_M_array(num_samples, use_cupy)
             else:
-                working_matrices = self.get_initialized_S_array(
-                    num_samples, use_cupy
-                )
+                working_matrices = self.get_initialized_S_array(num_samples, use_cupy)
         else:
             with h5py.File(h5_file_path, "r+") as f:
                 working_matrices = f["working_matrices"]
                 for s, bs in zip(slices, batch_sizes):
                     if use_transfer_matrices:
-                        working_matrices[s] = self.get_initialized_M_array(
-                            bs, use_cupy
-                        )
+                        working_matrices[s] = self.get_initialized_M_array(bs, use_cupy)
                     else:
-                        working_matrices[s] = self.get_initialized_S_array(
-                            bs, use_cupy
-                        )
+                        working_matrices[s] = self.get_initialized_S_array(bs, use_cupy)
 
         # Main cascade loop
         for i in tqdm(range(1, max_iteration + 1)):
@@ -711,13 +673,10 @@ class MatrixPoolManager:
                         # load the batch into RAM
                         batch_matrices = working_matrices[s]
                         for j in range(bs):
-                            random_matrix_index = random.randrange(
-                                0, pool_size
-                            )
+                            random_matrix_index = random.randrange(0, pool_size)
                             if use_transfer_matrices:
                                 batch_matrices[j] = (
-                                    pool[random_matrix_index]
-                                    @ batch_matrices[j]
+                                    pool[random_matrix_index] @ batch_matrices[j]
                                 )
                             else:
                                 batch_matrices[j] = matrix_utils.S_product(
@@ -746,9 +705,7 @@ class MatrixPoolManager:
                             batch_outputs = []
                             for s in slices:
                                 batch_matrices = working_matrices[s]
-                                batch_output = analysis_function(
-                                    batch_matrices
-                                )
+                                batch_output = analysis_function(batch_matrices)
                                 batch_outputs.append(batch_output)
                             new_output = np.concatenate(batch_outputs, axis=0)
                             f[key][analysis_points.index(i)] = new_output
