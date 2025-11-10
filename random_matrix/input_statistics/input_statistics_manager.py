@@ -234,7 +234,6 @@ class InputStatisticsManager:
             index_variables_exists = (
                 independent_elements_path.exists() and indices_path.exists()
             )
-            index_variables_exists = False
             if index_variables_exists:
                 with open(independent_elements_path, "rb") as f:
                     independent_elements = pickle.load(f)
