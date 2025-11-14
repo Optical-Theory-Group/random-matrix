@@ -83,21 +83,21 @@ medium_statistics_2d = MediumStatistics([particle_statistics_2d])
 
 my_grid = mode_grid_factory.from_tiling(
     tiling_type="rectangles",
-    side_length=(0.09, 0.09),
+    side_length=(0.151, 0.151),
     r_lim=1.2,
     grid_wave_type="propagating",
     rotation_angle=0.0,
     translation_vector=np.array([0.0, 0.0]),
 )
-my_grid.plot()
+my_grid.plot(show_indices=True)
 
 use_np_config = IntegrationTaskConfig(use_gpu=False, ram_limit=10)
 
 num_modes = my_grid.num_propagating
 print(f"Starting num_modes = {num_modes}")
 # 2D
-simulation_name = f"memory_effect_test_v3"
-input_statistics_manager_2d = InputStatisticsManager(
+simulation_name = f"memory_effect_test_0.151"
+input_statistics_manager = InputStatisticsManager(
     simulation_name,
     medium_parameters,
     medium_statistics_2d,
@@ -109,25 +109,27 @@ input_statistics_manager_2d = InputStatisticsManager(
     covariance_cubature_scheme=None,
     integration_task_config=use_np_config,
 )
-pm = input_statistics_manager_2d.get_matrix_pool_manager()
-assert False
+pm = input_statistics_manager.get_matrix_pool_manager()
 
 # POWER USED FOR CHOL: 10^-18
 # 0.029566023506523924
 
-chol_path = input_statistics_manager_2d.simulation_path / "chol.npz"
-cov_path = input_statistics_manager_2d.simulation_path / "cov.npz"
-pseudo_cov_path = input_statistics_manager_2d.simulation_path / "pseudo_cov.npz"
+chol_path = input_statistics_manager.simulation_path / "chol.npz"
+cov_path = input_statistics_manager.simulation_path / "cov.npz"
+pseudo_cov_path = input_statistics_manager.simulation_path / "pseudo_cov.npz"
 
-cov = scipy.sparse.load_npz(cov_path).todense()
-pseudo_cov = scipy.sparse.load_npz(pseudo_cov_path).todense()
-chol = scipy.sparse.load_npz(chol_path).todense()
+cov = scipy.sparse.load_npz(cov_path)
+# pseudo_cov = scipy.sparse.load_npz(pseudo_cov_path).todense()
+# chol = scipy.sparse.load_npz(chol_path).todense()
 
 
-cov_t = matrix_utils.get_cov_block(cov, "t,t")
-cov_r = matrix_utils.get_cov_block(cov, "r,r")
-cov_t2 = matrix_utils.get_cov_block(cov, "t2,t2")
-cov_r2 = matrix_utils.get_cov_block(cov, "r2,r2")
+# cov_t = matrix_utils.get_cov_block(cov, "t,t")
+# cov_r = matrix_utils.get_cov_block(cov, "r,r")
+# cov_t2 = matrix_utils.get_cov_block(cov, "t2,t2")
+# cov_r2 = matrix_utils.get_cov_block(cov, "r2,r2")
+
+# print(matrix_utils.get_cov_sub_block(cov, "t,t", (8,0,9,-12)))
+assert False
 
 eigs_t = np.linalg.eigvalsh(cov_t)
 print(f"t,t max value: {np.max(cov_t)}")

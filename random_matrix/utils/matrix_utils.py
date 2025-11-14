@@ -49,7 +49,9 @@ def get_block(matrix: np.ndarray | cp.ndarray, block: str):
     elif matrix.ndim == 3:
         return matrix[:, block_indices[0], block_indices[1]]
     else:
-        raise ValueError(f"matrix has ndim {matrix.ndim}, but it must be 2 or 3")
+        raise ValueError(
+            f"matrix has ndim {matrix.ndim}, but it must be 2 or 3"
+        )
 
 
 def get_sub_block_indices(
@@ -219,14 +221,24 @@ def get_cov_block_indices(
 
     block_ij, block_uv = blocks.split(",")
 
-    start_row_index = get_cov_starting_index(block_ij, (0, 0), False, num_propagating)
+    start_row_index = get_cov_starting_index(
+        block_ij, (0, 0), False, num_propagating
+    )
     end_row_index = get_cov_starting_index(
-        block_ij, (num_propagating - 1, num_propagating - 1), False, num_propagating
+        block_ij,
+        (num_propagating - 1, num_propagating - 1),
+        False,
+        num_propagating,
     )
 
-    start_col_index = get_cov_starting_index(block_uv, (0, 0), False, num_propagating)
+    start_col_index = get_cov_starting_index(
+        block_uv, (0, 0), False, num_propagating
+    )
     end_col_index = get_cov_starting_index(
-        block_uv, (num_propagating - 1, num_propagating - 1), False, num_propagating
+        block_uv,
+        (num_propagating - 1, num_propagating - 1),
+        False,
+        num_propagating,
     )
 
     row_slice = slice(start_row_index, end_row_index + 4)
@@ -322,12 +334,22 @@ def r_sym(matrix: np.ndarray | cp.ndarray) -> np.ndarray | cp.ndarray:
     """
     xp = cp.get_array_module(matrix)
 
-    x, y = xp.shape(matrix)
-    b = xp.ones((y, x), dtype=xp.complex128)
-    b[1::2, ::2] = -1.0
-    b[::2, 1::2] = -1.0
-    out = xp.multiply(matrix.T, b)
-    return out
+    if matrix.ndim == 2:
+        # Single matrix
+        M, N = matrix.shape
+        b = xp.ones((M, N), dtype=matrix.dtype)
+        b[1::2, ::2] = -1.0
+        b[::2, 1::2] = -1.0
+        return matrix.T * b
+    elif matrix.ndim == 3:
+        # Batch of matrices (M, N, N)
+        _, M, N = matrix.shape
+        b = xp.ones((M, N), dtype=matrix.dtype)
+        b[1::2, ::2] = -1.0
+        b[::2, 1::2] = -1.0
+        return matrix.transpose(0, 2, 1) * b[None, :, :]
+    else:
+        raise ValueError("matrix must be (N,N) or (M,N,N)")
 
 
 def get_reciprocal_sub_block_indices(
@@ -364,7 +386,9 @@ def get_closest_unitary_approximation(
     return u @ vh
 
 
-def get_exchange_matrix(size: int, use_cupy: bool = False) -> np.ndarray | cp.ndarray:
+def get_exchange_matrix(
+    size: int, use_cupy: bool = False
+) -> np.ndarray | cp.ndarray:
     """Return the exchange matrix with 1s on the anti diagonal and zeros
     elsewhere"""
     xp = cp if use_cupy else np
@@ -388,6 +412,17 @@ def get_pauli_y(use_cupy: bool = False) -> np.ndarray | cp.ndarray:
     return 1j * xp.array([[0.0, -1.0], [1.0, 0.0]])
 
 
+def get_S_block_reciprocity_matrix(
+    size: int, use_cupy: bool = False
+) -> np.ndarray | cp.ndarray:
+    """Return the sigma_p matrix defined in Eq. (3.153) of Niall's thesis
+
+    size should be the size of a block of S (e.g. r or t)"""
+    xp = cp if use_cupy else np
+    num_modes = int(size // 2)
+    return xp.kron(get_exchange_matrix(num_modes, use_cupy), xp.identity(2))
+
+
 def get_S_reciprocity_matrix(
     size: int, use_cupy: bool = False
 ) -> np.ndarray | cp.ndarray:
@@ -404,7 +439,9 @@ def get_S_reciprocity_matrix(
     return product
 
 
-def get_M_energy_matrix(size: int, use_cupy: bool = False) -> np.ndarray | cp.ndarray:
+def get_M_energy_matrix(
+    size: int, use_cupy: bool = False
+) -> np.ndarray | cp.ndarray:
     """Return Omega as defined in Niall's thesis such that
 
     M^dag Omega M = Omega
@@ -558,7 +595,9 @@ def sparse_cholesky(A: scipy.sparse.csc_matrix) -> scipy.sparse.csc_matrix:
     return sksparse.cholmod.cholesky(A, ordering_method="natural").L()
 
 
-def block_cholesky_sparse(A: scipy.sparse.csc_matrix) -> scipy.sparse.csc_matrix:
+def block_cholesky_sparse(
+    A: scipy.sparse.csc_matrix,
+) -> scipy.sparse.csc_matrix:
     """
     Compute the Cholesky decomposition of a 2x2 block sparse matrix.
 
@@ -582,18 +621,15 @@ def block_cholesky_sparse(A: scipy.sparse.csc_matrix) -> scipy.sparse.csc_matrix
     S = A22 - X @ X.conj().T
     Ls = sksparse.cholmod.cholesky(S).L()
 
-    L = scipy.sparse.bmat(
-        [
-            [L11, None],
-            [X,   Ls]
-        ], 
-        format="csc"
-    )
+    L = scipy.sparse.bmat([[L11, None], [X, Ls]], format="csc")
     return L
 
-def block_cholesky_sparse_recursive(A: scipy.sparse.csc_matrix, max_depth:int=1, depth:int=0) -> scipy.sparse.csc_matrix:
+
+def block_cholesky_sparse_recursive(
+    A: scipy.sparse.csc_matrix, max_depth: int = 1, depth: int = 0
+) -> scipy.sparse.csc_matrix:
     """
-    Recursively compute the Cholesky decomposition of a sparse 
+    Recursively compute the Cholesky decomposition of a sparse
     symmetric/Hermitian matrix using block_cholesky_sparse.
 
     Parameters:
@@ -603,7 +639,7 @@ def block_cholesky_sparse_recursive(A: scipy.sparse.csc_matrix, max_depth:int=1,
             Maximum recursion depth
         depth : int
             Current recursion depth (internal use)
-    
+
     Returns:
         L : csc_matrix
             Lower-triangular Cholesky factor of A
@@ -627,14 +663,58 @@ def block_cholesky_sparse_recursive(A: scipy.sparse.csc_matrix, max_depth:int=1,
     S = A22 - X @ X.conj().T
     Ls = sksparse.cholmod.cholesky(S).L()
 
-    L = scipy.sparse.bmat(
-        [
-            [L11, None],
-            [X,   Ls]
-        ], 
-        format="csc"
-    )
+    L = scipy.sparse.bmat([[L11, None], [X, Ls]], format="csc")
 
     return L
 
 
+def get_real_covariance_matrix(
+    covariance: scipy.sparse.spmatrix,
+    pseudo_covariance: scipy.sparse.spmatrix | None = None,
+) -> scipy.sparse.spmatrix:
+    """Construct a real-valued covariance matrix based on a supplied covariance
+    and pseudo-covariance matrix"""
+    if pseudo_covariance is None:
+        pseudo_covariance = scipy.sparse.csr_matrix(
+            covariance.shape, dtype=covariance.dtype
+        )
+
+    return 0.5 * scipy.sparse.bmat(
+        [
+            [
+                covariance.real + pseudo_covariance.real,
+                -covariance.imag + pseudo_covariance.imag,
+            ],
+            [
+                covariance.imag + pseudo_covariance.imag,
+                covariance.real - pseudo_covariance.imag,
+            ],
+        ]
+    )
+
+
+def get_cholesky_decomposition(
+    covariance_matrix: scipy.sparse.spmatrix,
+    first_power: int = -15,
+    final_power: int = 0,
+) -> scipy.sparse.spmatrix:
+    """Calculate the cholesky decomposition of positive semi-definite sparse
+    matrix correcting for small negative eigenvalues"""
+    size_of_covariance_matrix = np.shape(covariance_matrix)[0]
+    covariance_matrix = scipy.sparse.csc_array(covariance_matrix)
+
+    for i in range(first_power, final_power, 1):
+        try:
+            covariance_matrix_altered = (
+                covariance_matrix
+                + scipy.sparse.identity(size_of_covariance_matrix) * 10 ** (i)
+            )
+            chol = sksparse.cholmod.cholesky(
+                covariance_matrix_altered, ordering_method="natural"
+            ).L()
+            break
+        except sksparse.cholmod.CholmodNotPositiveDefiniteError:
+            pass
+
+    print(f"POWER USED FOR CHOL: 10^{i}")
+    return chol

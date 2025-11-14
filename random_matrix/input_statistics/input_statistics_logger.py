@@ -102,10 +102,10 @@ class IndexFinderLogger(InputStatisticsLogger):
     def __init__(self) -> None:
         super().__init__()
         self.messages = {
-            "independent_elements": "Find independent elements",
-            "mean": "Calculate mean indices",
-            "covariance": "Calculate covariance indices",
-            "pseudo_covariance": "Calculate pseudo_covariance indices",
+            "independent_elements": "Finding independent elements...",
+            "mean": "Finding indices for non-zero mean sub-blocks...",
+            "covariance": "Finding indices for non-zero covariance sub-blocks...",
+            "pseudo_covariance": "Finding indices for non-zero pseudo-covariance sub-blocks...",
         }
 
     # -------------------------------------------------------------------------
@@ -198,9 +198,9 @@ class IntegrationTaskPreparerLogger(InputStatisticsLogger):
     def __init__(self) -> None:
         super().__init__()
         self.messages = {
-            "mean": "Prepare mean tasks",
-            "covariance": "Prepare covariance tasks",
-            "pseudo_covariance": "Prepare pseudo covariance tasks",
+            "mean": "Calculating mean S matrix statistics...",
+            "covariance": "Calculating S matrix element covariances...",
+            "pseudo_covariance": "Calculating S matrix element pseudo-covariances...",
         }
 
     def show_report(self) -> None:
@@ -211,10 +211,17 @@ class InputStatisticsManagerLogger(InputStatisticsLogger):
     def __init__(self) -> None:
         super().__init__()
         self.messages = {
+            "load_statistics": "Loading statistics from memory...",
+            "load_partial_statistics": "The mean, covariance and pseudo-covariance have already been compiled. Loading from memory...",
+            "load_indices": "Indices have already been calculated. Loading from memory...",
+            "load_integration_results": "Integration results have already been calculated. Loading from memory...",
+            "load_real_covariance": "Real covariance matrix has already been compiled. Loading from memory...",
             "tasks": "Execute tasks",
-            "mean": "Get mean matrix",
-            "covariance": "Get covariance matrix",
-            "psuedo_covariance": "Get pseudo covariance matrix",
+            "mean": "Compiling the mean scattering matrix...",
+            "covariance": "Compiling the covariance matrix...",
+            "psuedo_covariance": "Compiling the pseudo-covariance matrix...",
+            "real_covariance": "Compiling the covariance matrix for real and imaginary parts...",
+            "cholesky": "Calculating the Cholesky decomposition...",
         }
 
     def show_report(self) -> None:
