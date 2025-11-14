@@ -461,7 +461,8 @@ class ModeGrid:
         self,
         show_indices: bool = False,
         savefig: None | str = None,
-        close: bool = True,
+        close_fig: bool = False,
+        **subplots_kwargs
     ) -> None:
         """
         Draws the grid of modes.
@@ -479,7 +480,7 @@ class ModeGrid:
         """
 
         # Set up k space plot
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(**subplots_kwargs)
         ax.set_aspect("equal")
         ax.set_xticks([-1.0, -0.5, 0.0, 0.5, 1.0])
         ax.set_yticks([-1.0, -0.5, 0.0, 0.5, 1.0])
@@ -508,5 +509,5 @@ class ModeGrid:
         plotting_utils.draw_circle(ax, r=self.r_lim)
         if savefig is not None:
             fig.savefig(savefig, format="svg")
-        if close:
+        if close_fig:
             plt.close()

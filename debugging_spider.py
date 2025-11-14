@@ -82,7 +82,7 @@ particle_statistics_2d = ParticleStatistics(
 medium_statistics_2d = MediumStatistics([particle_statistics_2d])
 
 my_grid = mode_grid_factory.from_dr_dt(
-    dr=0.1,
+    dr=0.05,
     dt=2 * np.pi / 20,
     r_lim=1.0,
     rotation_angle=0.0,
@@ -95,7 +95,7 @@ use_np_config = IntegrationTaskConfig(use_gpu=False)
 num_modes = my_grid.num_propagating
 print(f"Starting num_modes = {num_modes}")
 # 2D
-simulation_name = f"spiderweb_test"
+simulation_name = f"spiderweb_test_v2"
 input_statistics_manager_2d = InputStatisticsManager(
     simulation_name,
     medium_parameters,
