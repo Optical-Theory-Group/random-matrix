@@ -226,14 +226,14 @@ It uses uniform sampling in theta and phi (Not the best way of sampling in theta
 """
 
 
-def create_hull_uniform():
+def create_hull_uniform(size_param, k):
     row = 50
     col = 51
     num_linear = row * col
     theta = np.linspace(0, np.pi, col)
     phi = np.linspace(0, 2 * np.pi, row)
     theta_grid, phi_grid = np.meshgrid(theta, phi)
-    r = 600e-9  # particle size is 600nm
+    r = size_param / k  # particle size is 600nm
     x = np.reshape((r * np.sin(theta_grid) * np.cos(phi_grid)), (1, num_linear))
     y = np.reshape((r * np.sin(theta_grid) * np.sin(phi_grid)), (1, num_linear))
     z = np.reshape((r * np.cos(theta_grid)), (1, num_linear))
@@ -601,6 +601,97 @@ def get_T(hull, k1, k2, n_max):
 
     return T
 
+
+# def scattering_amplitudes_from_T(
+#     theta_inc: float,
+#     phi_inc: float,
+#     theta_sca: float,
+#     phi_sca: float,
+#     T: np.ndarray,
+#     k1: float,
+#     n_max: int,
+
+# ) -> tuple:
+#     """
+#     Compute S11, S12, S21, S22 from full T matrix using the formula shown.
+#     - T is the 2M x 2M matrix assembled as [[T11, T12],[T21, T22]] where
+#       M = sum_{n=1..n_max} (2n+1).
+#     - Ordering of modes: for n in 1..n_max, m in -n..n (same order as rest of code).
+#     - Assumes alpha_{mmnn'} = alpha (scalar) for all indices (default 2).
+#     Returns complex tuple (S11, S12, S21, S22).
+#     """
+#     # build mode list in same ordering used elsewhere
+#     modes = [(n, m) for n in range(1, n_max + 1) for m in range(-n, n + 1)]
+#     M = len(modes)
+#     if T.shape[0] != 2 * M or T.shape[1] != 2 * M:
+#         raise ValueError(f"T must be shape {(2*M, 2*M)}, got {T.shape}")
+
+#     # partition T
+#     T11 = T[:M, :M]
+#     T12 = T[:M, M:]
+#     T21 = T[M:, :M]
+#     T22 = T[M:, M:]
+
+#     # build the pi/tau vectors
+#     pi_sca = np.empty(M, dtype=np.complex128)
+#     tau_sca = np.empty(M, dtype=np.complex128)
+#     pi_inc = np.empty(M, dtype=np.complex128)  # will include exp(-i m' phi_inc)
+#     tau_inc = np.empty(M, dtype=np.complex128)  # will include exp(-i m' phi_inc)
+
+#     for idx, (n, m) in enumerate(modes):
+#         p, t = pi_tau_mn(m, n, theta_sca)
+#         pi_sca[idx] = p * np.exp(1j * m * phi_sca)
+#         tau_sca[idx] = t * np.exp(1j * m * phi_sca)
+
+#         p_i, t_i = pi_tau_mn(m, n, theta_inc)
+#         # incident factor needs exp(- i m' phi_inc) according to formula
+#         phase_inc = np.exp(-1j * m * phi_inc)
+#         pi_inc[idx] = p_i * phase_inc
+#         tau_inc[idx] = t_i * phase_inc
+
+#     # helper for quadratic form a^T B c  (no conj on a)
+#     def quad(a, B, c):
+#         return float(0) + np.dot(a, B.dot(c))
+
+#     # S11: prefactor 1/k1, left = [pi_sca; tau_sca], right = [pi_inc; tau_inc]
+#     S11_terms = (
+#         quad(pi_sca, T11, pi_inc)
+#         + quad(tau_sca, T21, pi_inc)
+#         + quad(pi_sca, T12, tau_inc)
+#         + quad(tau_sca, T22, tau_inc)
+#     )
+#     S11 = (alpha / k1) * S11_terms
+
+#     # S12: prefactor 1/(i k1), left same as S11, right swapped [tau_inc; pi_inc]
+#     S12_terms = (
+#         quad(pi_sca, T11, tau_inc)
+#         + quad(tau_sca, T21, tau_inc)
+#         + quad(pi_sca, T12, pi_inc)
+#         + quad(tau_sca, T22, pi_inc)
+#     )
+#     S12 = (alpha / (1j * k1)) * S12_terms
+
+#     # S21: prefactor i/k1, left swapped [tau_sca; pi_sca], right = [pi_inc; tau_inc]
+#     S21_terms = (
+#         quad(tau_sca, T11, pi_inc)
+#         + quad(pi_sca, T21, pi_inc)
+#         + quad(tau_sca, T12, tau_inc)
+#         + quad(pi_sca, T22, tau_inc)
+#     )
+#     S21 = (alpha * 1j / k1) * S21_terms
+
+#     # S22: prefactor 1/k1, left swapped [tau_sca; pi_sca], right swapped [tau_inc; pi_inc]
+#     S22_terms = (
+#         quad(tau_sca, T11, tau_inc)
+#         + quad(pi_sca, T21, tau_inc)
+#         + quad(tau_sca, T12, pi_inc)
+#         + quad(pi_sca, T22, pi_inc)
+#     )
+#     S22 = (alpha / k1) * S22_terms
+
+#     return S11, S12, S21, S22
+
+
 def scattering_amplitudes_from_T(
     theta_inc: float,
     phi_inc: float,
@@ -609,23 +700,25 @@ def scattering_amplitudes_from_T(
     T: np.ndarray,
     k1: float,
     n_max: int,
-    alpha: complex = 2,
 ) -> tuple:
     """
-    Compute S11, S12, S21, S22 from full T matrix using the formula shown.
-    - T is the 2M x 2M matrix assembled as [[T11, T12],[T21, T22]] where
-      M = sum_{n=1..n_max} (2n+1).
-    - Ordering of modes: for n in 1..n_max, m in -n..n (same order as rest of code).
-    - Assumes alpha_{mmnn'} = alpha (scalar) for all indices (default 2).
-    Returns complex tuple (S11, S12, S21, S22).
+    Compute S11, S12, S21, S22 from full T matrix.
+
+    Rows of T correspond to modes (n', m') and columns correspond to modes (n, m).
+        The per-mode alpha_{n' m', n m} is computed as:
+
+    alpha = i^{n' - n - 1} (-1)^{m + m'} sqrt[ ((2n+1)(2n'+1)) / (n(n+1) n'(n'+1)) ].
+
+    The scalar 'alpha' argument is kept for compatibility but not used for the
+        per-mode scaling.
     """
-    # build mode list in same ordering used elsewhere
+    # build mode list (same ordering used elsewhere): (n, m) for n=1..n_max, m=-n..n
     modes = [(n, m) for n in range(1, n_max + 1) for m in range(-n, n + 1)]
     M = len(modes)
     if T.shape[0] != 2 * M or T.shape[1] != 2 * M:
         raise ValueError(f"T must be shape {(2*M, 2*M)}, got {T.shape}")
 
-    # partition T
+    # partition T into MxM blocks; rows are (n',m') and cols are (n,m)
     T11 = T[:M, :M]
     T12 = T[:M, M:]
     T21 = T[M:, :M]
@@ -634,8 +727,8 @@ def scattering_amplitudes_from_T(
     # build the pi/tau vectors
     pi_sca = np.empty(M, dtype=np.complex128)
     tau_sca = np.empty(M, dtype=np.complex128)
-    pi_inc = np.empty(M, dtype=np.complex128)   # will include exp(-i m' phi_inc)
-    tau_inc = np.empty(M, dtype=np.complex128)  # will include exp(-i m' phi_inc)
+    pi_inc = np.empty(M, dtype=np.complex128)  # includes exp(-i m phi_inc)
+    tau_inc = np.empty(M, dtype=np.complex128)  # includes exp(-i m phi_inc)
 
     for idx, (n, m) in enumerate(modes):
         p, t = pi_tau_mn(m, n, theta_sca)
@@ -643,49 +736,206 @@ def scattering_amplitudes_from_T(
         tau_sca[idx] = t * np.exp(1j * m * phi_sca)
 
         p_i, t_i = pi_tau_mn(m, n, theta_inc)
-        # incident factor needs exp(- i m' phi_inc) according to formula
         phase_inc = np.exp(-1j * m * phi_inc)
         pi_inc[idx] = p_i * phase_inc
         tau_inc[idx] = t_i * phase_inc
 
-    # helper for quadratic form a^T B c  (no conj on a)
+    # helper for quadratic form a^T B c
     def quad(a, B, c):
-        return float(0) + np.dot(a, B.dot(c))
+        return np.dot(a, B.dot(c))
 
-    # S11: prefactor 1/k1, left = [pi_sca; tau_sca], right = [pi_inc; tau_inc]
+    # ---------------------------------------------------------------------
+    # Build per-mode alpha matrix with rows = (n',m') and cols = (n,m)
+    # formula:
+    #   alpha_{n' m', n m} = i^{n' - n - 1} (-1)^{m + m'} sqrt(((2n+1)(2n'+1)) / (n(n+1)n'(n'+1)))
+    # ---------------------------------------------------------------------
+    n_row = np.array([mode[0] for mode in modes], dtype=int)[
+        :, None
+    ]  # shape (M,1) -> n'
+    n_col = np.array([mode[0] for mode in modes], dtype=int)[
+        None, :
+    ]  # shape (1,M) -> n
+    m_row = np.array([mode[1] for mode in modes], dtype=int)[:, None]  # m'
+    m_col = np.array([mode[1] for mode in modes], dtype=int)[None, :]  # m
+
+    # complex phase i^{n' - n - 1}
+    phase_factor = (1j) ** (n_row - n_col - 1)
+    # sign factor (-1)^{m + m'}
+    sign_factor = (-1.0) ** (m_row + m_col)
+
+    coeff = ((2 * n_col + 1) * (2 * n_row + 1)) / (
+        (n_col * (n_col + 1) * n_row * (n_row + 1))
+    )
+    # ensure complex dtype for sqrt of negative/complex phases
+    alpha_mat = phase_factor * sign_factor * np.sqrt(coeff.astype(np.complex128))
+
+    T11_a = alpha_mat * T11
+    T12_a = alpha_mat * T12
+    T21_a = alpha_mat * T21
+    T22_a = alpha_mat * T22
+
+    # Build scattering amplitudes via quadratic forms (alpha already applied)
     S11_terms = (
-        quad(pi_sca, T11, pi_inc)
-        + quad(tau_sca, T21, pi_inc)
-        + quad(pi_sca, T12, tau_inc)
-        + quad(tau_sca, T22, tau_inc)
+        quad(pi_sca, T11_a, pi_inc)
+        + quad(tau_sca, T21_a, pi_inc)
+        + quad(pi_sca, T12_a, tau_inc)
+        + quad(tau_sca, T22_a, tau_inc)
     )
-    S11 = (alpha / k1) * S11_terms
+    S11 = (1.0 / k1) * S11_terms * (-1j * k1)
 
-    # S12: prefactor 1/(i k1), left same as S11, right swapped [tau_inc; pi_inc]
     S12_terms = (
-        quad(pi_sca, T11, tau_inc)
-        + quad(tau_sca, T21, tau_inc)
-        + quad(pi_sca, T12, pi_inc)
-        + quad(tau_sca, T22, pi_inc)
+        quad(pi_sca, T11_a, tau_inc)
+        + quad(tau_sca, T21_a, tau_inc)
+        + quad(pi_sca, T12_a, pi_inc)
+        + quad(tau_sca, T22_a, pi_inc)
     )
-    S12 = (alpha / (1j * k1)) * S12_terms
+    S12 = (1.0 / (1j * k1)) * S12_terms * (-1j * k1)
 
-    # S21: prefactor i/k1, left swapped [tau_sca; pi_sca], right = [pi_inc; tau_inc]
     S21_terms = (
-        quad(tau_sca, T11, pi_inc)
-        + quad(pi_sca, T21, pi_inc)
-        + quad(tau_sca, T12, tau_inc)
-        + quad(pi_sca, T22, tau_inc)
+        quad(tau_sca, T11_a, pi_inc)
+        + quad(pi_sca, T21_a, pi_inc)
+        + quad(tau_sca, T12_a, tau_inc)
+        + quad(pi_sca, T22_a, tau_inc)
     )
-    S21 = (alpha * 1j / k1) * S21_terms
+    S21 = (1j / k1) * S21_terms * (-1j * k1)
 
-    # S22: prefactor 1/k1, left swapped [tau_sca; pi_sca], right swapped [tau_inc; pi_inc]
     S22_terms = (
-        quad(tau_sca, T11, tau_inc)
-        + quad(pi_sca, T21, tau_inc)
-        + quad(tau_sca, T12, pi_inc)
-        + quad(pi_sca, T22, pi_inc)
+        quad(tau_sca, T11_a, tau_inc)
+        + quad(pi_sca, T21_a, tau_inc)
+        + quad(tau_sca, T12_a, pi_inc)
+        + quad(pi_sca, T22_a, pi_inc)
     )
-    S22 = (alpha / k1) * S22_terms
+    S22 = (1.0 / k1) * S22_terms * (-1j * k1)
+    return np.array([S11, S12, S21, S22])
 
-    return S11, S12, S21, S22
+
+def scattering_amplitudes_from_T_v2(
+    theta_inc: float | np.ndarray,
+    phi_inc: float | np.ndarray,
+    theta_sca: float | np.ndarray,
+    phi_sca: float | np.ndarray,
+    T: np.ndarray,
+    k1: float,
+    n_max: int,
+) -> np.ndarray:
+    """
+    Compute S11, S12, S21, S22 from full T matrix.
+
+    Accepts either scalar angles (floats) or meshgrids/arrays of identical shape
+    for the incident and scattered directions. If arrays are passed they must
+    have the same shape; the output will be an array of shape (N, 4) where
+    N = product(shape) and rows correspond to corresponding pairs of
+    (theta_inc[i],phi_inc[i]) and (theta_sca[i],phi_sca[i]) flattened row-major.
+    """
+    # build mode list (same ordering used elsewhere): (n, m) for n=1..n_max, m=-n..n
+    modes = [(n, m) for n in range(1, n_max + 1) for m in range(-n, n + 1)]
+    M = len(modes)
+    if T.shape[0] != 2 * M or T.shape[1] != 2 * M:
+        raise ValueError(f"T must be shape {(2*M, 2*M)}, got {T.shape}")
+
+    # partition T into MxM blocks; rows are (n',m') and cols are (n,m)
+    T11 = T[:M, :M]
+    T12 = T[:M, M:]
+    T21 = T[M:, :M]
+    T22 = T[M:, M:]
+
+    # Normalize inputs to 1D arrays of matching length N
+    def to_1d_arr(x):
+        if np.isscalar(x):
+            return np.atleast_1d(np.array([x], dtype=float))
+        a = np.asarray(x)
+        return a.ravel()
+
+    theta_inc_1 = to_1d_arr(theta_inc)
+    phi_inc_1 = to_1d_arr(phi_inc)
+    theta_sca_1 = to_1d_arr(theta_sca)
+    phi_sca_1 = to_1d_arr(phi_sca)
+
+    N = theta_inc_1.size  # number of angle pairs
+
+    # build the pi/tau arrays: shape (M, N)
+    pi_sca = np.empty((M, N), dtype=np.complex128)
+    tau_sca = np.empty((M, N), dtype=np.complex128)
+    pi_inc = np.empty((M, N), dtype=np.complex128)  # includes exp(-i m phi_inc)
+    tau_inc = np.empty((M, N), dtype=np.complex128)  # includes exp(-i m phi_inc)
+
+    for idx, (n, m) in enumerate(modes):
+        p_s, t_s = pi_tau_mn(m, n, theta_sca_1)
+        pi_sca[idx, :] = p_s * np.exp(1j * m * phi_sca_1)
+        tau_sca[idx, :] = t_s * np.exp(1j * m * phi_sca_1)
+
+        p_i, t_i = pi_tau_mn(m, n, theta_inc_1)
+        phase_inc = np.exp(-1j * m * phi_inc_1)
+        pi_inc[idx, :] = p_i * phase_inc
+        tau_inc[idx, :] = t_i * phase_inc
+
+    # helper to compute per-pair quadratic forms producing vectors length N
+    def quad_vec(a_mat, B_mat, c_mat):
+        # a_mat, c_mat shape (M,N); B_mat shape (M,M)
+        # compute B_mat @ c_mat -> (M,N) then dot with a_mat over axis=0
+        return np.sum(a_mat * (B_mat @ c_mat), axis=0)
+
+    # ---------------------------------------------------------------------
+    # Build per-mode alpha matrix with rows = (n',m') and cols = (n,m)
+    # formula:
+    #   alpha_{n' m', n m} = i^{n' - n - 1} (-1)^{m + m'} sqrt(((2n+1)(2n'+1)) / (n(n+1)n'(n'+1)))
+    # ---------------------------------------------------------------------
+    n_row = np.array([mode[0] for mode in modes], dtype=int)[
+        :, None
+    ]  # shape (M,1) -> n'
+    n_col = np.array([mode[0] for mode in modes], dtype=int)[
+        None, :
+    ]  # shape (1,M) -> n
+    m_row = np.array([mode[1] for mode in modes], dtype=int)[:, None]  # m'
+    m_col = np.array([mode[1] for mode in modes], dtype=int)[None, :]  # m
+
+    phase_factor = (1j) ** (n_row - n_col - 1)
+    sign_factor = (-1.0) ** (m_row + m_col)
+    coeff = ((2 * n_col + 1) * (2 * n_row + 1)) / (
+        (n_col * (n_col + 1) * n_row * (n_row + 1))
+    )
+    alpha_mat = phase_factor * sign_factor * np.sqrt(coeff.astype(np.complex128))
+
+    # Apply alpha elementwise to each T sub-block (rows = n',m' ; cols = n,m)
+    T11_a = alpha_mat * T11
+    T12_a = alpha_mat * T12
+    T21_a = alpha_mat * T21
+    T22_a = alpha_mat * T22
+
+    # Build scattering amplitudes via quadratic forms (alpha already applied)
+    S11_terms = (
+        quad_vec(pi_sca, T11_a, pi_inc)
+        + quad_vec(tau_sca, T21_a, pi_inc)
+        + quad_vec(pi_sca, T12_a, tau_inc)
+        + quad_vec(tau_sca, T22_a, tau_inc)
+    )
+    # algebra reduces prefactors: S11 = -1j * S11_terms
+    S11_vec = -1j * S11_terms
+
+    S12_terms = (
+        quad_vec(pi_sca, T11_a, tau_inc)
+        + quad_vec(tau_sca, T21_a, tau_inc)
+        + quad_vec(pi_sca, T12_a, pi_inc)
+        + quad_vec(tau_sca, T22_a, pi_inc)
+    )
+    S12_vec = S12_terms  # prefactors cancel
+
+    S21_terms = (
+        quad_vec(tau_sca, T11_a, pi_inc)
+        + quad_vec(pi_sca, T21_a, pi_inc)
+        + quad_vec(tau_sca, T12_a, tau_inc)
+        + quad_vec(pi_sca, T22_a, tau_inc)
+    )
+    S21_vec = S21_terms  # prefactors cancel
+
+    S22_terms = (
+        quad_vec(tau_sca, T11_a, tau_inc)
+        + quad_vec(pi_sca, T21_a, tau_inc)
+        + quad_vec(tau_sca, T12_a, pi_inc)
+        + quad_vec(pi_sca, T22_a, pi_inc)
+    )
+    S22_vec = -1j * S22_terms
+
+    # Stack into (N,4) array: columns [S11, S12, S21, S22]
+    S_all = np.vstack((S11_vec, S12_vec, S21_vec, S22_vec)).T.astype(np.complex128)
+    return S_all
