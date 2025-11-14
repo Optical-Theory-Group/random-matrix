@@ -341,7 +341,7 @@ class IndexFinder:
                         independent_elements_two,
                     )
                     continue
-
+                
                 # Skip correlations for small edge modes
                 min_weight = min(
                     weight_dict[i],

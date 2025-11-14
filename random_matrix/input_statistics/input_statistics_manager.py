@@ -1,28 +1,37 @@
-import os
 import pickle
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
 from pathlib import Path
-import warnings
 import json
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse
 import sksparse.cholmod
-from typing import Any
-import time
 from random_matrix.input_statistics import (
     index_finder,
     input_statistics_logger,
     integration_task,
     medium_parameters,
     medium_statistics,
-    shape_classifier,
 )
-from random_matrix.input_statistics.shape_classifier import ClassQuadrupleList
 from random_matrix.modes import mode_grid
 from random_matrix.utils import matrix_utils
 from random_matrix.utils.types import Numeric
 from random_matrix.scattering_matrix import matrix_pool_manager
+from tqdm import tqdm
+
+DEFAULT_DATA_DIR = "data"
+DEFAULT_METADATA_PATH = "metadata.json"
+MODE_GRID_PATH = "mode_grid.svg"
+MODE_GRID_WITH_INDICES_PATH = "mode_grid_with_indices.svg"
+INDEPENDENT_ELEMENTS_PATH = "independent_elements.pkl"
+INDICES_PATH = "indices.pkl"
+INTEGRATION_RESULTS_PATH = "integration_result_list.pkl"
+MEAN_S_PATH = "mean_S.npy"
+CHOL_PATH = "chol.pkl"
+COV_PATH = "cov.npz"
+PSEUDO_COV_PATH = "pseudo_cov.npz"
+REAL_COVARIANCE_PATH = "real_cov.pkl"
+TRUNCATED_BLOCK_KEYS = ["r,r", "t,t", "r2,r2"]
 
 
 class InputStatisticsManager:
@@ -32,101 +41,112 @@ class InputStatisticsManager:
         medium_parameters: medium_parameters.MediumParameters,
         medium_statistics: medium_statistics.MediumStatistics,
         mode_grid: mode_grid.ModeGrid,
+        integration_task_config: integration_task.IntegrationTaskConfig,
         parent_data_dir: str | Path | None = None,
-        supplied_indices: dict | None = None,
-        covariance_cubature_scheme: Any | None = None,
-        use_dirac_density: bool = False,
-        integration_method: str = "midpoint",
-        integration_task_config: integration_task.IntegrationTaskConfig = integration_task.IntegrationTaskConfig(),
         _loaded: bool = False,
     ) -> None:
         """Input statistics manager class"""
 
-        # Default to the current working directory if none is given
-        self.parent_data_path = (
-            Path(parent_data_dir) if parent_data_dir else Path.cwd() / "data"
-        )
-        if not self.parent_data_path.exists():
-            self.parent_data_path.mkdir(parents=True, exist_ok=True)
-
-        # Set up folder for simulation output and metadata
         self.simulation_name = simulation_name
-        self.simulation_path = self.parent_data_path / Path(simulation_name)
-        if not self.simulation_path.exists():
-            self.simulation_path.mkdir(parents=True, exist_ok=True)
-
-        # Save input variables
         self.medium_parameters = medium_parameters
         self.medium_statistics = medium_statistics
         self.mode_grid = mode_grid
-
-        self.supplied_indices = supplied_indices
-        self.covariance_cubature_scheme = covariance_cubature_scheme
-        self.use_dirac_density = use_dirac_density
-        self.integration_method = integration_method
         self.integration_task_config = integration_task_config
+        self.parent_data_dir = parent_data_dir
+        self._loaded = _loaded
+
+        self._setup_paths(parent_data_dir)
+        self._setup_loggers()
+        self._setup_classes()
 
         # Save data if this is a new creation
         if not _loaded:
-            objects_to_save = {
-                "medium_parameters": medium_parameters,
-                "medium_statistics": medium_statistics,
-                "mode_grid": mode_grid,
-            }
-
-            for name, obj in objects_to_save.items():
-                save_path = self.simulation_path / f"{name}.pkl"
-                if not save_path.exists():
-                    with save_path.open("wb") as f:
-                        pickle.dump(obj, f)
-
-            # Save mode grid plots
-            self.mode_grid.plot(
-                show_indices=False,
-                savefig=str(self.simulation_path / "mode_grid.svg"),
-            )
-            self.mode_grid.plot(
-                show_indices=True,
-                savefig=str(self.simulation_path / "mode_grid_indices.svg"),
-            )
-
-            # Generate metadatajson if doesn't exist
-            self.metadata_path = self.simulation_path / "metadata.json"
+            self._save_initial_objects()
+            self._plot_mode_grid()
             self._create_metadata_json()
 
-        # Set up loggers based on boolean
-        self.logger = input_statistics_logger.InputStatisticsManagerLogger()
-        index_finder_logger = input_statistics_logger.IndexFinderLogger()
-        shape_classifier_logger = (
-            input_statistics_logger.ShapeClassifierLogger()
+    def _setup_paths(self, parent_data_dir: str | Path | None) -> None:
+        """Initialize parent and simulation paths and create directories."""
+        self.parent_data_path = (
+            Path(parent_data_dir)
+            if parent_data_dir
+            else Path.cwd() / DEFAULT_DATA_DIR
         )
-        integration_task_preparer_logger = (
-            input_statistics_logger.IntegrationTaskPreparerLogger()
+        self.parent_data_path.mkdir(parents=True, exist_ok=True)
+        self.simulation_path = self.parent_data_path / self.simulation_name
+        self.simulation_path.mkdir(parents=True, exist_ok=True)
+        self.metadata_path = self.simulation_path / DEFAULT_METADATA_PATH
+        self.independent_elements_path = (
+            self.simulation_path / INDEPENDENT_ELEMENTS_PATH
         )
+        self.indices_path = self.simulation_path / INDICES_PATH
+        self.integration_result_list_path = (
+            self.simulation_path / INTEGRATION_RESULTS_PATH
+        )
+        self.mean_S_path = self.simulation_path / MEAN_S_PATH
+        self.cov_path = self.simulation_path / COV_PATH
+        self.pseudo_cov_path = self.simulation_path / PSEUDO_COV_PATH
+        self.real_cov_path = self.simulation_path / REAL_COVARIANCE_PATH
+        self.chol_path = self.simulation_path / CHOL_PATH
 
-        # Set up class attributes
+    def _setup_loggers(self) -> None:
+        """Initialize loggers for the manager and helper classes."""
+        self.loggers = {
+            "input_statistics_manager": input_statistics_logger.InputStatisticsManagerLogger(),
+            "index_finder": input_statistics_logger.IndexFinderLogger(),
+            "integration_task_preparer": input_statistics_logger.IntegrationTaskPreparerLogger(),
+        }
+
+    def _setup_classes(self) -> None:
+        """Initialize index finder, shape classifier, and integration preparer."""
         self.index_finder = index_finder.IndexFinder(
-            mode_grid, index_finder_logger
+            self.mode_grid, self.loggers["index_finder"]
         )
-
-        self.shape_classifier = shape_classifier.ShapeClassifier(
-            mode_grid,
-            shape_classifier_logger,
-        )
-
         self.integration_task_preparer = (
             integration_task.IntegrationTaskPreparer(
-                mode_grid,
-                medium_parameters,
-                medium_statistics,
-                integration_task_preparer_logger,
-                integration_task_config=integration_task_config,
+                self.mode_grid,
+                self.medium_parameters,
+                self.medium_statistics,
+                self.loggers["integration_task_preparer"],
+                integration_task_config=self.integration_task_config,
             )
         )
 
+    def _save_initial_objects(self) -> None:
+        """Save medium parameters, medium statistics, and mode grid to disk."""
+        objects_to_save = {
+            "medium_parameters": self.medium_parameters,
+            "medium_statistics": self.medium_statistics,
+            "mode_grid": self.mode_grid,
+        }
+
+        for name, obj in objects_to_save.items():
+            save_path = self.simulation_path / f"{name}.pkl"
+            with save_path.open("wb") as f:
+                pickle.dump(obj, f)
+
+    def _plot_mode_grid(self):
+        """Save mode grid plots with and without indices."""
+        plot_kwargs = [
+            {
+                "savefig": self.simulation_path / MODE_GRID_PATH,
+                "show_indices": False,
+                "close_fig": True,
+            },
+            {
+                "savefig": self.simulation_path / MODE_GRID_WITH_INDICES_PATH,
+                "show_indices": True,
+                "close_fig": True,
+            },
+        ]
+        for kwargs in plot_kwargs:
+            self.mode_grid.plot(**kwargs)
+
     def _create_metadata_json(self) -> None:
+        """Create a JSON file containing metadata for the simulation."""
         if self.metadata_path.exists():
             return
+
         # Initialize empty json
         wrapped_medium_parameters_json = {
             "medium_parameters": asdict(self.medium_parameters)
@@ -148,7 +168,7 @@ class InputStatisticsManager:
             "particle_statistics"
         ):
             for t in p.get("terms"):
-                t["variables"] = list(t.get("variables"))
+                t["variables"] = list(t.get("variables", []))
 
         wrapped_mode_grid_statistics = {
             "mode_grid": {
@@ -169,14 +189,18 @@ class InputStatisticsManager:
 
     @classmethod
     def from_name(
-        cls, simulation_name: int, parent_data_dir: str | Path | None = None
+        cls,
+        simulation_name: str | Path,
+        parent_data_dir: str | Path | None = None,
     ):
         """Quick load of statistics manager when the data directory already
         exists"""
 
         # Default to the current working directory if none is given
         parent_data_path = (
-            Path(parent_data_dir) if parent_data_dir else Path.cwd() / "data"
+            Path(parent_data_dir)
+            if parent_data_dir
+            else Path.cwd() / DEFAULT_DATA_DIR
         )
         if not parent_data_path.exists():
             raise FileNotFoundError(
@@ -194,7 +218,11 @@ class InputStatisticsManager:
             "medium_statistics",
             "mode_grid",
         ]
-        loaded_objects = {"simulation_name": simulation_name, "_loaded": True, "parent_data_dir": parent_data_dir}
+        loaded_objects = {
+            "simulation_name": simulation_name,
+            "_loaded": True,
+            "parent_data_dir": parent_data_dir,
+        }
 
         for name in objects_to_load:
             load_path = simulation_path / f"{name}.pkl"
@@ -205,45 +233,36 @@ class InputStatisticsManager:
 
         return cls(**loaded_objects)
 
+    @property
+    def logger(self):
+        return self.loggers["input_statistics_manager"]
+
     def get_matrix_pool_manager(self) -> tuple[np.ndarray, np.ndarray]:
         """Compute the mean, covariance and pseudo-covariance for the elements
         of the scattering matrix."""
-        independent_elements_path = (
-            self.simulation_path / "independent_elements.pkl"
-        )
-        indices_path = self.simulation_path / "indices.pkl"
-        class_quadruple_list_path = (
-            self.simulation_path / "class_quadruple_list.pkl"
-        )
-        integration_result_list_path = (
-            self.simulation_path / "integration_result_list.pkl"
-        )
-        integration_time_path = self.simulation_path / "integration_time.pkl"
-        mean_S_path = self.simulation_path / "mean_S.npy"
-        chol_path = self.simulation_path / "chol.npz"
-        cov_path = self.simulation_path / "cov.npz"
-        pseudo_cov_path = self.simulation_path / "pseudo_cov.npz"
 
         # If the statistics are already in memory, just load them
-        if mean_S_path.exists() and chol_path.exists():
-            print("Loading statistics from memory...")
-            mean_S = np.load(mean_S_path)
-            chol = scipy.sparse.load_npz(chol_path)
+        if self.mean_S_path.exists() and self.chol_path.exists():
+            with self.logger.log("load_statistics"):
+                mean_S = np.load(self.mean_S_path)
+                with open(self.chol_path, "rb") as f:
+                    chol = pickle.load(f)
         else:
-            # Find indices
             index_variables_exists = (
-                independent_elements_path.exists() and indices_path.exists()
+                self.independent_elements_path.exists()
+                and self.indices_path.exists()
             )
             if index_variables_exists:
-                with open(independent_elements_path, "rb") as f:
-                    independent_elements = pickle.load(f)
-                with open(indices_path, "rb") as f:
-                    indices = pickle.load(f)
+                with self.logger.log("load_indices"):
+                    with open(self.independent_elements_path, "rb") as f:
+                        independent_elements = pickle.load(f)
+                    with open(self.indices_path, "rb") as f:
+                        indices = pickle.load(f)
             else:
                 independent_elements, indices = self._get_indices()
-                with open(independent_elements_path, "wb") as f:
+                with open(self.independent_elements_path, "wb") as f:
                     pickle.dump(independent_elements, f)
-                with open(indices_path, "wb") as f:
+                with open(self.indices_path, "wb") as f:
                     pickle.dump(indices, f)
 
             # # Classify shapes. We use the "t,t" indices because these
@@ -261,72 +280,102 @@ class InputStatisticsManager:
             #     # Show class histrogram (to get an idea of run time)
             #     self._save_class_quadruple_list_bar_chart(class_quadruple_list)
 
-            # Prepare and execute integration tasks
-            integration_result_list_exists = (
-                integration_result_list_path.exists()
-                and integration_time_path.exists()
-            )
-            if integration_result_list_exists:
-                with open(integration_result_list_path, "rb") as f:
-                    integration_result_list = pickle.load(f)
-                with open(integration_time_path, "rb") as f:
-                    integration_time = pickle.load(f)
+            # Calculate statistics and compile the covariance matrix
+            real_cov_exists = self.real_cov_path.exists()
+            if real_cov_exists:
+                with self.logger.log("load_real_covariance"):
+                    with open(self.real_cov_path, "rb") as f:
+                        real_cov = pickle.load(f)
             else:
-                start = time.perf_counter()
-                integration_result_list = self._get_integration_results(
-                    indices
+                statistics_exist = (
+                    self.cov_path.exists()
+                    and self.pseudo_cov_path.exists()
+                    and self.mean_S_path.exists()
                 )
-                end = time.perf_counter()
-                integration_time = end - start
-                with open(integration_result_list_path, "wb") as f:
-                    pickle.dump(integration_result_list, f)
-                with open(integration_time_path, "wb") as f:
-                    pickle.dump(integration_time, f)
+                if statistics_exist:
+                    with self.logger.log("load_partial_statistics"):
+                        cov = scipy.sparse.load_npz(self.cov_path)
+                        pseudo_cov = scipy.sparse.load_npz(
+                            self.pseudo_cov_path
+                        )
+                        mean_S = np.load(self.mean_S_path)
+                else:
+                    integration_result_list_exists = (
+                        self.integration_result_list_path.exists()
+                    )
+                    if integration_result_list_exists:
+                        with self.logger.log("load_integration_results"):
+                            with open(
+                                self.integration_result_list_path, "rb"
+                            ) as f:
+                                integration_result_list = pickle.load(f)
+                    else:
+                        integration_result_list = (
+                            self._get_integration_results(indices)
+                        )
+                        with open(
+                            self.integration_result_list_path, "wb"
+                        ) as f:
+                            pickle.dump(integration_result_list, f)
 
-            # Extract results from the list and build up statistical matrices
-            mean_result_list = integration_result_list.by_statistic_type(
-                "mean"
-            )
-            cov_result_list = integration_result_list.by_statistic_type(
-                "covariance"
-            )
-            pseudo_cov_result_list = integration_result_list.by_statistic_type(
-                "pseudo_covariance"
-            )
+                    # Extract results from the list and build up statistical matrices
+                    with self.logger.log("mean"):
+                        mean_result_list = (
+                            integration_result_list.by_statistic_type("mean")
+                        )
+                        mean_S = self._get_mean_S(mean_result_list)
+                        np.save(self.mean_S_path, mean_S)
+                        del mean_result_list
 
-            with self.logger.log("mean"):
-                mean_S = self._get_mean_S(mean_result_list)
+                    with self.logger.log("covariance"):
+                        cov_result_list = (
+                            integration_result_list.by_statistic_type(
+                                "covariance"
+                            )
+                        )
+                        cov = self._get_covariance_matrix(cov_result_list)
+                        scipy.sparse.save_npz(self.cov_path, cov.tocsr())
+                        del cov_result_list
 
-            with self.logger.log("covariance"):
-                cov = self._get_covariance_matrix(cov_result_list)
+                    with self.logger.log("pseudo_covariance"):
+                        pseudo_cov_result_list = (
+                            integration_result_list.by_statistic_type(
+                                "pseudo_covariance"
+                            )
+                        )
+                        pseudo_cov = self._get_covariance_matrix(
+                            pseudo_cov_result_list, is_pseudo=True
+                        )
+                        scipy.sparse.save_npz(
+                            self.pseudo_cov_path, pseudo_cov.tocsr()
+                        )
+                        del pseudo_cov_result_list
 
-            with self.logger.log("pseudo_covariance"):
-                pseudo_cov = self._get_covariance_matrix(
-                    pseudo_cov_result_list, is_pseudo=True
-                )
+                    del integration_result_list
 
-            print("Building sigma")
-            sigma = 0.5 * scipy.sparse.bmat(
-                [
-                    [np.real(cov), np.imag(-cov)],
-                    [np.imag(cov), np.real(cov)],
-                ]
-            )
-            print("Sigma built... finding cholesky")
-            # sigma = 0.5 * scipy.sparse.bmat(
-            #     [
-            #         [np.real(cov + pseudo_cov), np.imag(-cov + pseudo_cov)],
-            #         [np.imag(cov + pseudo_cov), np.real(cov + -pseudo_cov)],
-            #     ]
-            # )
+                with self.logger.log("real_covariance"):
+                    real_cov = {}
+                    for key in TRUNCATED_BLOCK_KEYS:
+                        real_cov[key] = (
+                            matrix_utils.get_real_covariance_matrix(
+                                matrix_utils.get_cov_block(cov, key)
+                            ).tocsc()
+                        )
+                    with open(self.real_cov_path, "wb") as f:
+                        pickle.dump(real_cov, f)
 
-            chol = self._get_chol(sigma)
+                del cov
+                del pseudo_cov
 
-            # Save final statistics to disk
-            np.save(mean_S_path, mean_S)
-            scipy.sparse.save_npz(cov_path, cov.tocsr())
-            scipy.sparse.save_npz(pseudo_cov_path, pseudo_cov.tocsr())
-            scipy.sparse.save_npz(chol_path, chol.tocsr())
+            with self.logger.log("cholesky"):
+                chol = {}
+                for key, block in real_cov.items():
+                    chol[key] = matrix_utils.get_cholesky_decomposition(block)
+
+                with open(self.chol_path, "wb") as f:
+                    pickle.dump(chol, f)
+
+            del real_cov
 
         # Construct the matrix pool
         pool = matrix_pool_manager.MatrixPoolManager(
@@ -341,13 +390,7 @@ class InputStatisticsManager:
         return pool
 
     def _get_indices(self) -> dict[str, dict[str, set[tuple[int, int]]]]:
-        if self.supplied_indices is None:
-            return self.index_finder.get_indices()
-        else:
-            return {}, self.supplied_indices
-
-    def _classify_shapes(self, quadruple_indices):
-        return self.shape_classifier.classify_shapes(quadruple_indices)
+        return self.index_finder.get_indices()
 
     def _get_integration_results(
         self,
@@ -355,9 +398,6 @@ class InputStatisticsManager:
     ) -> integration_task.IntegrationResultList:
         return self.integration_task_preparer.get_integration_results(
             indices,
-            covariance_cubature_scheme=self.covariance_cubature_scheme,
-            use_dirac_density=self.use_dirac_density,
-            integration_method=self.integration_method,
         )
 
     def show_report(self):
@@ -526,7 +566,7 @@ class InputStatisticsManager:
             (size_of_cov, size_of_cov), dtype=np.complex128
         )
 
-        for result in cov_result_list.results:
+        for result in tqdm(cov_result_list.results):
             # Skip if no new results
             if len(result.sub_block_locations) == 0:
                 continue
@@ -603,28 +643,6 @@ class InputStatisticsManager:
     # -------------------------------------------------------------------------
     # Cholesky
     # -------------------------------------------------------------------------
-
-    @staticmethod
-    def _get_chol(sigma):
-        size_of_sigma = np.shape(sigma)[0]
-        sigma = scipy.sparse.csc_array(sigma)
-
-        for i in range(-30, 1, 1):
-            try:
-                sigma_altered = sigma + scipy.sparse.identity(
-                    size_of_sigma
-                ) * 10 ** (i)
-
-                chol = sksparse.cholmod.cholesky(
-                    sigma_altered, ordering_method="natural"
-                ).L()
-
-                break
-            except sksparse.cholmod.CholmodNotPositiveDefiniteError:
-                pass
-
-        print(f"POWER USED FOR CHOL: 10^{i}")
-        return chol
 
     # -------------------------------------------------------------------------
     # Weight matrices
