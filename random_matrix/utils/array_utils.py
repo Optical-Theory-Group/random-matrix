@@ -5,9 +5,11 @@ import cupy as cp
 import numpy as np
 import numpy.typing as npt
 import scipy.spatial
+from fractions import Fraction
 
 def get_module(array: np.ndarray | cp.ndarray) -> Any:
     return np if cp.get_array_module(array) == np else cp
+
 
 def split_list(old_list: list[Any], num_parts: int) -> list[Any]:
     new_list = [[] for _ in range(num_parts)]
@@ -277,3 +279,15 @@ def inverse_bitwise_hash(
     x = z >> 32  # Extract upper 32 bits
     y = z & 0xFFFFFFFF  # Extract lower 32 bits
     return xp.column_stack((x, y))
+
+
+def clean_zeros(array: np.ndarray, tol_power: float = 10) -> np.ndarray:
+    """Set elements that are very small in magnitude to zero.
+
+    Tol power should be such that values are maintained up to 10^-tol_power"""
+    return np.round(array, decimals=tol_power)
+
+def to_fraction_array(array: np.ndarray, max_den: int=1000000) -> np.ndarray:
+    """Transform a numpy array of floats to an array of Fraction objects"""
+    f = np.vectorize(lambda x: Fraction(x).limit_denominator(max_den))
+    return f(array)

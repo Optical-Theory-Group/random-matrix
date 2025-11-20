@@ -378,16 +378,16 @@ class MatrixPoolManager:
 
         size_of_S = len(self.mean_S)
         size_of_t = int(size_of_S // 2)
-        num_random_numbers, _ = chol["t,t"].shape
+        num_random_numbers, _ = chol["t"].shape
 
         # Generate random numbers for the matrices
         if seed is not None:
             xp.random.seed(seed)
 
         random_numbers = xp.random.randn(3, num_random_numbers, num_matrices)
-        modified_random_numbers_t = chol["t,t"] @ random_numbers[0]
-        modified_random_numbers_r = chol["r,r"] @ random_numbers[1]
-        modified_random_numbers_r2 = chol["r2,r2"] @ random_numbers[2]
+        modified_random_numbers_t = chol["t"] @ random_numbers[0]
+        modified_random_numbers_r = chol["r"] @ random_numbers[1]
+        modified_random_numbers_r2 = chol["r2"] @ random_numbers[2]
 
         # Pick out the correct values
         reals_t = modified_random_numbers_t[: int(num_random_numbers / 2)]
