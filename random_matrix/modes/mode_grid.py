@@ -91,7 +91,9 @@ class ModeGrid:
             raise ValueError("Your mode_list is an empty list.")
 
     @staticmethod
-    def _get_reciprocal_partner_index(mode: Mode, mode_list: list[Mode]) -> int:
+    def _get_reciprocal_partner_index(
+        mode: Mode, mode_list: list[Mode]
+    ) -> int:
         """Find the index of a mode's reciprocal partner in mode_list
 
         Parameters
@@ -307,14 +309,18 @@ class ModeGrid:
     @property
     def num_propagating(self) -> int:
         propagating_modes = [
-            mode for mode in self.modes.values() if mode.wave_type == "propagating"
+            mode
+            for mode in self.modes.values()
+            if mode.wave_type == "propagating"
         ]
         return len(propagating_modes)
 
     @property
     def num_evanescent(self) -> int:
         evanescent_modes = [
-            mode for mode in self.modes.values() if mode.wave_type == "evanescent"
+            mode
+            for mode in self.modes.values()
+            if mode.wave_type == "evanescent"
         ]
         return len(evanescent_modes)
 
@@ -356,7 +362,8 @@ class ModeGrid:
     def propagating_modes_mean_vertices_dict(self) -> dict:
         vertices_dict = self.propagating_modes_vertices_dict
         return {
-            key: np.mean(vertices, axis=0) for key, vertices in vertices_dict.items()
+            key: np.mean(vertices, axis=0)
+            for key, vertices in vertices_dict.items()
         }
 
     @property
@@ -382,19 +389,28 @@ class ModeGrid:
     @property
     def weight_dict(self) -> dict:
         return {
-            index: self.by_index(index).weight for index in self.propagating_indices
+            index: self.by_index(index).weight
+            for index in self.propagating_indices
         }
 
     @property
     def vertices_dict(self) -> dict:
         return {
-            index: self.by_index(index).vertices for index in self.propagating_indices
+            index: self.by_index(index).vertices
+            for index in self.propagating_indices
         }
 
     @property
     def centers_dict(self) -> dict:
         return {
-            index: self.by_index(index).center for index in self.propagating_indices
+            index: self.by_index(index).center
+            for index in self.propagating_indices
+        }
+
+    @property
+    def propagating_modes_is_edge_dict(self) -> dict:
+        return {
+            mode.index: mode.is_edge for mode in self.propagating_modes_list
         }
 
     # --------------------------------------------------------------------------
@@ -462,7 +478,7 @@ class ModeGrid:
         show_indices: bool = False,
         savefig: None | str = None,
         close_fig: bool = False,
-        **subplots_kwargs
+        **subplots_kwargs,
     ) -> None:
         """
         Draws the grid of modes.

@@ -5,6 +5,7 @@ from random_matrix.amplitude_matrix import (
 from random_matrix.input_statistics.density_function import (
     DensityFunctionTerm,
 )
+import multiprocess as mp
 from random_matrix.input_statistics.input_statistics_manager import (
     InputStatisticsManager,
 )
@@ -19,6 +20,7 @@ from random_matrix.input_statistics.medium_statistics import (
 from random_matrix.modes import mode_grid_factory
 import traceback
 import os
+import matplotlib.pyplot as plt
 
 # -----------------------------------------------------------------------------
 # Simulation parameters
@@ -43,10 +45,8 @@ particle_statistics = ParticleStatistics(
 medium_statistics = MediumStatistics([particle_statistics])
 integration_task_config = IntegrationTaskConfig(integration_method="lattice")
 
-side_lengths = [0.2, 0.19, 0.18, 0.17, 0.16, 0.15, 0.14, 0.13, 0.12, 0.10]
-side_lengths = [0.12]
-for sl in side_lengths:
-    print(f"Starting sl = {sl}")
+
+def run_one(sl):
     try:
         my_grid = mode_grid_factory.from_tiling(
             tiling_type="rectangles",
@@ -65,13 +65,38 @@ for sl in side_lengths:
             medium_statistics,
             my_grid,
             integration_task_config,
-            parent_data_dir="/mnt/raid/rmt/data/"
+            parent_data_dir="/mnt/raid/rmt/data/",
         )
         pm = ism.get_matrix_pool_manager()
-
+        print("Finishing...")
     except Exception as e:
         print(f"⚠️ Error for side length {sl}: {e}")
         traceback.print_exc()
-        continue
+    return
 
 
+side_lengths = [
+    0.090,
+    0.085,
+    0.080,
+    0.075,
+    0.070,
+    0.065,
+    0.060,
+    0.055,
+    0.050,
+    0.045,
+    0.040,
+    0.035,
+    0.030,
+    0.025,
+    0.020,
+    0.015,
+    0.010,
+    0.050,
+]
+for sl in side_lengths:
+    print(f"Starting sl = {sl:.3f}")
+    p = mp.Process(target=run_one, args=(sl,))
+    p.start()
+    p.join()
