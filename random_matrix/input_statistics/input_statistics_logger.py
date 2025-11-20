@@ -216,12 +216,17 @@ class InputStatisticsManagerLogger(InputStatisticsLogger):
             "load_indices": "Indices have already been calculated. Loading from memory...",
             "load_integration_results": "Integration results have already been calculated. Loading from memory...",
             "load_real_covariance": "Real covariance matrix has already been compiled. Loading from memory...",
+            "calculate_a_matrix": "Pre-computing A matrix values for later use...",
+            "calculate_volumes": "Pre-computing volumes for later use...",
             "tasks": "Execute tasks",
             "mean": "Compiling the mean scattering matrix...",
             "covariance": "Compiling the covariance matrix...",
-            "psuedo_covariance": "Compiling the pseudo-covariance matrix...",
+            "pseudo_covariance": "Compiling the pseudo-covariance matrix...",
             "real_covariance": "Compiling the covariance matrix for real and imaginary parts...",
-            "cholesky": "Calculating the Cholesky decomposition...",
+            "cholesky": "Computing the Cholesky decomposition...",
+            "covariance_t": "Calculating covariance statistics for block t...",
+            "covariance_r": "Calculating covariance statistics for block r...",
+            "covariance_r2": "Calculating covariance statistics for block r2...",
         }
 
     def show_report(self) -> None:

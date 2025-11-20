@@ -82,6 +82,7 @@ class Mode:
     is_central: bool = field(init=False)
     wave_type: str = field(init=False)
     weight: float = field(init=False)
+    is_edge: bool = field(init=False)
 
     # --------------------------------------------------------------------------
     # Constructor method
@@ -102,6 +103,7 @@ class Mode:
         self.weight = self._get_weight(
             self.vertices, self.sides, self.wave_type
         )
+        self.is_edge = self._get_is_edge(self.sides)
 
     # --------------------------------------------------------------------------
     # Input validation and processing
@@ -260,6 +262,10 @@ class Mode:
         weight = base_polygon_area + extra_area
         return float(weight)
 
+    @staticmethod
+    def _get_is_edge(sides: list) -> bool: 
+        return any([side.type == "arc" for side in sides])
+    
     # --------------------------------------------------------------------------
     # Object representations
     # --------------------------------------------------------------------------
