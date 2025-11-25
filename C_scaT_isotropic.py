@@ -21,7 +21,7 @@ ki_y = np.ravel(np.sin(theta_grid_i) * np.sin(phi_grid_i))
 # sampling scattered field
 theta = np.linspace(0, np.pi, n)
 phi = np.linspace(0, 2 * np.pi, n + 1)
-# theta = 0 * np.ones((100))
+# theta = np.pi * np.ones((100))
 # phi = 0* np.ones((101))
 theta_grid, phi_grid = np.meshgrid(theta, phi)
 # Scattered field
