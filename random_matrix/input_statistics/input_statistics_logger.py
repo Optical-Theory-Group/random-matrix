@@ -38,14 +38,13 @@ class InputStatisticsLogger:
     # -------------------------------------------------------------------------
 
     @contextmanager
-    def log(self, operation: str) -> Generator[None, None, None]:
+    def log(self, operation: str, **kwargs) -> Generator[None, None, None]:
         """Main logging method that handles printing and method timing."""
 
-        # Print start message
-        print(
-            f"{self._get_date_time()} {self.messages.get(operation, '')}",
-            flush=True,
-        )
+        message_template = self.messages.get(operation, "")
+        message = message_template.format(**kwargs)
+        
+        print(f"{self._get_date_time()} {message}", flush=True)
 
         # Time code for performance
         start = time.perf_counter()
@@ -224,9 +223,8 @@ class InputStatisticsManagerLogger(InputStatisticsLogger):
             "pseudo_covariance": "Compiling the pseudo-covariance matrix...",
             "real_covariance": "Compiling the covariance matrix for real and imaginary parts...",
             "cholesky": "Computing the Cholesky decomposition...",
-            "covariance_t": "Calculating covariance statistics for block t...",
-            "covariance_r": "Calculating covariance statistics for block r...",
-            "covariance_r2": "Calculating covariance statistics for block r2...",
+            "covariance_block": "Calculating covariance statistics for block {block}...",
+            "covariance_partial": "Starting batch {count}/{total}..."
         }
 
     def show_report(self) -> None:
