@@ -293,6 +293,40 @@ def create_hull_GC():
     return hull
 
 
+def ellipse_hull(lx, ly, lz):
+    """
+    Generate a rotated ellipsoid, compute its convex hull,
+    and plot both the 3D shape and its 2D XY projection.
+
+    Parameters
+    ----------
+    a, b, c : float
+        Semi-axes of the ellipsoid along x, y, z.
+    R : np.ndarray
+        3x3 rotation matrix defining the ellipsoid orientation.
+    n_points : int
+        Number of samples .
+    """
+    n_samples = 100
+    # ---- 1. Generate ellipsoid surface points
+    u = np.linspace(0, 2 * np.pi, n_samples)
+    v = np.linspace(0, np.pi, n_samples)
+    u, v = np.meshgrid(u, v)
+
+    x = lx * np.cos(u) * np.sin(v)
+    y = ly * np.sin(u) * np.sin(v)
+    z = lz * np.cos(v)
+
+    # Stack and rotate
+    points = np.vstack((x.flatten(), y.flatten(), z.flatten()))
+    rotated_points = points  # shape (3, N)
+
+    # ---- 2. 3D Convex hull
+    hull_3d = ConvexHull(rotated_points.T)
+
+    return hull_3d
+
+
 def hull_surface_integral_vector(
     function: Callable,
     hull: scipy.spatial.ConvexHull,
