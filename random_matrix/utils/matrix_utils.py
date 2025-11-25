@@ -110,6 +110,29 @@ def get_sub_block(
     return sb
 
 
+# def keep_block_antidiagonal(matrix: np.ndarray) -> np.ndarray:
+#     A = matrix.copy()
+#     N = A.shape[0] // 2
+#     for i in range(N):
+#         for j in range(N):
+#             if j != N - 1 - i:
+#                 A[2 * i : 2 * i + 2, 2 * j : 2 * j + 2] = 0
+#     return A
+
+
+def get_sub_block_antidiagonal(A):
+    M, H, W = A.shape
+    N = H // 2
+
+    out = np.zeros_like(A)
+
+    for m in range(M):
+        for i in range(N):
+            j = N - 1 - i
+            out[m, 2*i:2*i+2, 2*j:2*j+2] = A[m, 2*i:2*i+2, 2*j:2*j+2]
+
+    return out
+
 def get_sub_block_from_indices(
     row_index: int,
     col_index: int,

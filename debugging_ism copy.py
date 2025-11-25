@@ -47,7 +47,26 @@ medium_statistics = MediumStatistics([particle_statistics])
 integration_task_config = IntegrationTaskConfig(integration_method="lattice")
 
 
-def run_one(sl):
+side_lengths = [
+    0.075,
+    0.070,
+    0.065,
+    0.060,
+    0.055,
+    0.050,
+    0.045,
+    0.040,
+    0.035,
+    0.030,
+    0.025,
+    0.020,
+    0.015,
+    0.010,
+    0.050,
+]
+side_lengths = [0.40]
+for sl in side_lengths:
+    print(f"Starting sl = {sl:.3f}")
     try:
         my_grid = mode_grid_factory.from_tiling(
             tiling_type="rectangles",
@@ -73,27 +92,3 @@ def run_one(sl):
     except Exception as e:
         print(f"⚠️ Error for side length {sl}: {e}")
         traceback.print_exc()
-    return
-
-
-side_lengths = [
-    0.070,
-    0.065,
-    0.060,
-    0.055,
-    0.050,
-    0.045,
-    0.040,
-    0.035,
-    0.030,
-    0.025,
-    0.020,
-    0.015,
-    0.010,
-]
-side_lengths = [0.065]
-for sl in side_lengths:
-    print(f"Starting sl = {sl:.3f}")
-    p = mp.Process(target=run_one, args=(sl,))
-    p.start()
-    p.join()

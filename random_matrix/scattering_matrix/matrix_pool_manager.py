@@ -407,13 +407,26 @@ class MatrixPoolManager:
         r2_mat = self._reorder_block(r2).transpose(2, 0, 1)
 
         sigma_p = matrix_utils.get_S_block_reciprocity_matrix(
-            size_of_t, use_cupy
-        )
-        t2_mat = (
-            sigma_p[None, :, :]
-            @ matrix_utils.r_sym(t_mat)
-            @ sigma_p[None, :, :]
-        )
+            size_of_t, False
+        )[None, :, :]
+
+        # Enforce reciprocity symmetry
+        r_mat_antidiagonal = matrix_utils.get_sub_block_antidiagonal(r_mat)
+        r_mat = r_mat + sigma_p @ matrix_utils.r_sym(r_mat) @ sigma_p
+        r_mat_antidiagonal = (
+            r_mat_antidiagonal
+            + sigma_p @ matrix_utils.r_sym(r_mat_antidiagonal) @ sigma_p
+        ) / 2
+
+        r2_mat_antidiagonal = matrix_utils.get_sub_block_antidiagonal(r2_mat)
+        r2_mat = r2_mat + sigma_p @ matrix_utils.r_sym(r2_mat) @ sigma_p
+        r2_mat_antidiagonal = (
+            r2_mat_antidiagonal
+            + sigma_p @ matrix_utils.r_sym(r2_mat_antidiagonal) @ sigma_p
+        ) / 2
+
+        t2_mat = sigma_p @ matrix_utils.r_sym(t_mat) @ sigma_p
+
         output = xp.block([[r_mat, t2_mat], [t_mat, r2_mat]])
         if symmetrize:
             output = matrix_utils.get_closest_unitary_approximation(output)
