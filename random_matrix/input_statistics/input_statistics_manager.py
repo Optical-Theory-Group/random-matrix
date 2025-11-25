@@ -3,6 +3,7 @@ from dataclasses import asdict
 from pathlib import Path
 import json
 import gc
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse
@@ -16,7 +17,7 @@ from random_matrix.input_statistics import (
 )
 from typing import Any
 from random_matrix.modes import mode_grid
-from random_matrix.utils import matrix_utils
+from random_matrix.utils import matrix_utils, array_utils
 from random_matrix.utils.types import Numeric
 from random_matrix.scattering_matrix import matrix_pool_manager
 from tqdm import tqdm
@@ -35,6 +36,11 @@ COV_BLOCK_PATHS = {
     "t": "cov_t.npz",
     "r": "cov_r.npz",
     "r2": "cov_r2.npz",
+}
+COV_BLOCK_PARTIAL_PATHS = {
+    "t": "cov_t",
+    "r": "cov_r",
+    "r2": "cov_r2",
 }
 CHOL_BLOCK_PATHS = {
     "t": "chol_t.npz",
@@ -108,6 +114,11 @@ class InputStatisticsManager:
             key: self.simulation_path / COV_BLOCK_PATHS[key]
             for key in BLOCK_KEYS
         }
+        self.cov_block_partial_paths = {
+            key: self.simulation_path / COV_BLOCK_PARTIAL_PATHS[key]
+            for key in BLOCK_KEYS
+        }
+
         self.chol_block_paths = {
             key: self.simulation_path / CHOL_BLOCK_PATHS[key]
             for key in BLOCK_KEYS
@@ -319,14 +330,15 @@ class InputStatisticsManager:
 
             # 3.2) Get the Cholesky matrices for each scattering matrix block
             for block_key in BLOCK_KEYS:
-                partial_indices = (
-                    indices.get("covariance")
-                    .get("pp,pp")
-                    .get(f"{block_key},{block_key}")
-                )
-                self.calculate_cholesky_matrix_block(
-                    partial_indices, block_key
-                )
+                if not self.chol_block_paths[block_key].exists():
+                    partial_indices = (
+                        indices.get("covariance")
+                        .get("pp,pp")
+                        .get(f"{block_key},{block_key}")
+                    )
+                    self.calculate_cholesky_matrix_block(
+                        partial_indices, block_key
+                    )
 
             # 3.3) Load all Cholesky decompositions into memory and form a dict
             mean_S = np.load(self.mean_S_path)
@@ -350,111 +362,6 @@ class InputStatisticsManager:
         )
         return pool
 
-        #     real_cov_exists = self.real_cov_path.exists()
-        #     if real_cov_exists:
-        #         with self.logger.log("load_real_covariance"):
-        #             with open(self.real_cov_path, "rb") as f:
-        #                 real_cov = pickle.load(f)
-        #     else:
-        #         statistics_exist = (
-        #             self.cov_path.exists()
-        #             and self.pseudo_cov_path.exists()
-        #             and self.mean_S_path.exists()
-        #         )
-        #         if statistics_exist:
-        #             with self.logger.log("load_partial_statistics"):
-        #                 cov = scipy.sparse.load_npz(self.cov_path)
-        #                 pseudo_cov = scipy.sparse.load_npz(
-        #                     self.pseudo_cov_path
-        #                 )
-        #                 mean_S = np.load(self.mean_S_path)
-        #         else:
-        #             integration_result_list_exists = (
-        #                 self.integration_result_list_path.exists()
-        #             )
-        #             if integration_result_list_exists:
-        #                 with self.logger.log("load_integration_results"):
-        #                     with open(
-        #                         self.integration_result_list_path, "rb"
-        #                     ) as f:
-        #                         integration_result_list = pickle.load(f)
-        #             else:
-        #                 integration_result_list = (
-        #                     self._get_integration_results(indices)
-        #                 )
-        #                 with open(
-        #                     self.integration_result_list_path, "wb"
-        #                 ) as f:
-        #                     pickle.dump(integration_result_list, f)
-
-        #             # Extract results from the list and build up statistical matrices
-        #             with self.logger.log("mean"):
-        #                 mean_result_list = (
-        #                     integration_result_list.by_statistic_type("mean")
-        #                 )
-        #                 mean_S = self._get_mean_S(mean_result_list)
-        #                 np.save(self.mean_S_path, mean_S)
-        #                 del mean_result_list
-
-        #             with self.logger.log("covariance"):
-        #                 # cov_result_list = (
-        #                 #     integration_result_list.by_statistic_type(
-        #                 #         "covariance"
-        #                 #     )
-        #                 # )
-
-        #                 # GENERATOR METHOD
-        #                 cov_result_list = (
-        #                     self._get_integration_results_generator(
-        #                         indices["covariance"]
-        #                     )
-        #                 )
-        #                 cov = self._get_covariance_matrix_generator(
-        #                     cov_result_list
-        #                 )
-        #                 scipy.sparse.save_npz(self.cov_path, cov.tocsr())
-        #                 # del cov_result_list
-
-        #             # with self.logger.log("pseudo_covariance"):
-        #             #     pseudo_cov_result_list = (
-        #             #         integration_result_list.by_statistic_type(
-        #             #             "pseudo_covariance"
-        #             #         )
-        #             #     )
-        #             #     pseudo_cov = self._get_covariance_matrix(
-        #             #         pseudo_cov_result_list, is_pseudo=True
-        #             #     )
-        #             #     scipy.sparse.save_npz(
-        #             #         self.pseudo_cov_path, pseudo_cov.tocsr()
-        #             #     )
-        #             #     del pseudo_cov_result_list
-
-        #             del integration_result_list
-
-        #         with self.logger.log("real_covariance"):
-        #             real_cov = {}
-        #             for key in BLOCK_KEYS:
-        #                 real_cov[key] = (
-        #                     matrix_utils.get_real_covariance_matrix(
-        #                         matrix_utils.get_cov_block(cov, key)
-        #                     ).tocsc()
-        #                 )
-        #             with open(self.real_cov_path, "wb") as f:
-        #                 pickle.dump(real_cov, f)
-
-        #         del cov
-        #         # del pseudo_cov
-
-        #     with self.logger.log("cholesky"):
-        #         chol = {}
-        #         for key, block in real_cov.items():
-        #             chol[key] = matrix_utils.get_cholesky_decomposition(block)
-
-        #         with open(self.chol_path, "wb") as f:
-        #             pickle.dump(chol, f)
-
-        #     del real_cov
-
     def calculate_mean_S(self, indices) -> None:
         """Calculate the mean scattering matrix and save the result to memory"""
         integration_result_list = self.get_integration_results(indices)
@@ -468,19 +375,19 @@ class InputStatisticsManager:
     def calculate_cholesky_matrix_block(
         self, indices: Any, block_key: str
     ) -> None:
-        integration_result_generator = self.integration_task_preparer.get_covariance_results_lattice_generator(
-            indices, block_key, self.a_matrix_values_path, self.volumes_path
-        )
-
         # Build the real covariance matrix
-        with self.logger.log(f"covariance_{block_key}"):
+        with self.logger.log("covariance_block", block=block_key):
             with self.logger.log("real_covariance"):
-                real_covariance_matrix = self.get_real_covariance_matrix(
-                    integration_result_generator
-                )
-            scipy.sparse.save_npz(
-                self.cov_block_paths[block_key], real_covariance_matrix.tocsr()
-            )
+                if not self.cov_block_paths[block_key].exists():
+                    real_covariance_matrix = (
+                        self.calculate_real_covariance_matrix(
+                            indices, block_key
+                        )
+                    )
+                else:
+                    real_covariance_matrix = scipy.sparse.load_npz(
+                        self.cov_block_paths[block_key]
+                    )
 
             # Get the cholesky decomposition of the real covariance matrix
             with self.logger.log("cholesky"):
@@ -618,6 +525,223 @@ class InputStatisticsManager:
     # Covariance matrices
     # -------------------------------------------------------------------------
 
+    def calculate_real_covariance_matrix(
+        self, indices: list, block_key: str, num_batches: int = 100
+    ):
+        split_indices = array_utils.split_list(indices, num_batches)
+        integration_result_generators = [
+            self.integration_task_preparer.get_covariance_results_lattice_generator(
+                index_list,
+                block_key,
+                self.a_matrix_values_path,
+                self.volumes_path,
+            )
+            for index_list in split_indices
+        ]
+
+        paths = [
+            Path(f"{self.cov_block_partial_paths[block_key]}_{count}.npz")
+            for count in range(num_batches)
+        ]
+
+        # Get partial covariance matrices
+        for count, (path, integration_result_generator) in enumerate(
+            zip(paths, integration_result_generators)
+        ):
+            if path.exists():
+                continue
+            with self.logger.log(
+                "covariance_partial", count=count + 1, total=num_batches
+            ):
+                self.calculate_real_covariance_matrix_partial(
+                    integration_result_generator, block_key, path
+                )
+
+        # Combine all the partial sparse matrices together
+        cov = None
+        for path in paths:
+            C = scipy.sparse.load_npz(path)
+            if cov is None:
+                cov = C
+            else:
+                cov = cov + C
+        scipy.sparse.save_npz(self.cov_block_paths[block_key], cov)
+        
+        # Remove all the partial covs after the final one has been built
+        for path in paths:
+            os.remove(path)
+
+        
+        return cov
+
+    def calculate_real_covariance_matrix_partial(
+        self,
+        result_list: list[integration_task.IntegrationResult],
+        block_key: str,
+        path: Path,
+    ) -> None:
+        """Construct the real covariance matrix from a covariance results
+        generator"""
+
+        R = np.array(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, -1.0, 0.0],
+                [0.0, -1.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        )
+
+        # Size is due to...
+        # For each element of S we need 1 element
+        # That's num_modes **2 * 4 (because each element is a 2x2 sub-block
+        # with 4 elements
+        # Then * 2 because we want the real covariance matrix that separates
+        # out real and imaginary parts
+        size_of_cov = (self.mode_grid.num_propagating) ** 2 * 4 * 2
+        half_size = int(size_of_cov // 2)
+
+        # Prepare data storage lists
+        master_row_inds = []
+        master_col_inds = []
+        master_values = []
+
+        # Main loop
+        for result in tqdm(result_list):
+            _, block_location = result.block_location
+            integral = result.integral[0]
+            C = integral.reshape(4, 4)
+            sub_block_location = result.sub_block_locations[0]
+            i, j, u, v = sub_block_location
+
+            extended_sub_block_locations = [sub_block_location]
+            extended_correlation_matrices = [C]
+
+            if block_location in ["t,t"]:
+                # There are two sub-cases, depending on whether we have a
+                # sub-block autocorrelation or a inter-block cross correlation
+                if (i, j) == (u, v):
+                    # Auto-correlations. No additional cases here.
+                    pass
+                else:
+                    # Cross correlations. Swapping indices is an additional
+                    # case (correlation in opposite order)
+                    extended_sub_block_locations.append((u, v, i, j))
+                    extended_correlation_matrices.append(C.T.conj())
+
+            elif block_location in ["r,r", "r2,r2"]:
+                # There are more cases here than with t because of reciprocity
+                if (i, j) == (u, v):
+                    pass
+                    # # Auto-correlations
+                    # if i + j == 0:
+                    #     # On the anti-diagonal. (i,j) has reciprocal partner
+                    #     # equal to itself. No additional correlations
+                    #     pass
+                    # else:
+                    #     # Off the anti-diagonal. (i,j) has reciprocal partner
+                    #     # (-j, -i), which is correlated with (i,j)
+                    #     extended_sub_block_locations.append((i, j, -j, -i))
+                    #     extended_correlation_matrices.append(C @ R)
+                    #     extended_sub_block_locations.append((-j, -i, i, j))
+                    #     extended_correlation_matrices.append((C @ R).T.conj())
+
+                    #     # (-j, -i) is also correlated with itself
+                    #     extended_sub_block_locations.append((-j, -i, -j, -i))
+                    #     extended_correlation_matrices.append(R @ C @ R)
+                else:
+                    # Cross-correlations
+                    # Swapping indices (correlation in opposite order)
+                    extended_sub_block_locations.append((u, v, i, j))
+                    extended_correlation_matrices.append(C.T.conj())
+
+                    # if i + j != 0:
+                    #     # (i,j) has the reciprocal partner (-j,-i), which is
+                    #     # also correlated with (u,v)
+                    #     extended_sub_block_locations.append((-j, -i, u, v))
+                    #     extended_correlation_matrices.append(R @ C)
+                    #     extended_sub_block_locations.append((u, v, -j, -i))
+                    #     extended_correlation_matrices.append((R @ C).T.conj())
+
+                    # if u + v != 0:
+                    #     # (u,v) has reciprocal partner (-v,-u), which is also
+                    #     # correlated with (i,j)
+                    #     extended_sub_block_locations.append((i, j, -v, -u))
+                    #     extended_correlation_matrices.append(C @ R)
+                    #     extended_sub_block_locations.append((-v, -u, i, j))
+                    #     extended_correlation_matrices.append((C @ R).T.conj())
+
+                    # if i + j != 0 and u + v != 0:
+                    #     # The reciprocal partners of (i,j) and (u,v) are also
+                    #     # correlated with each other
+                    #     extended_sub_block_locations.append((-j, -i, -v, -u))
+                    #     extended_correlation_matrices.append(R @ C @ R)
+                    #     extended_sub_block_locations.append((-v, -u, -j, -i))
+                    #     extended_correlation_matrices.append(
+                    #         (R @ C @ R).T.conj()
+                    #     )
+
+            for sub_block_location, correlation_matrix in zip(
+                extended_sub_block_locations, extended_correlation_matrices
+            ):
+                # Work out the indices where the matrix must go within the cov
+                # matrix
+                row_slice, col_slice = matrix_utils.get_cov_sub_block_indices(
+                    "r,r",
+                    sub_block_location,
+                    self.mode_grid.is_reciprocal,
+                    self.mode_grid.num_propagating,
+                )
+                rows = np.arange(row_slice.start, row_slice.stop)
+                cols = np.arange(col_slice.start, col_slice.stop)
+                rr, cc = np.meshgrid(rows, cols, indexing="ij")
+                new_row_inds = rr.ravel()
+                new_col_inds = cc.ravel()
+                new_values_real = correlation_matrix.ravel().real
+                new_values_imag = correlation_matrix.ravel().imag
+
+                # Find non-zero values of new_values_real and populate the cov
+                # matrix at the appropriate places
+                non_zero_indices = new_values_real.nonzero()
+
+                # Top left block
+                master_row_inds.extend(new_row_inds[non_zero_indices])
+                master_col_inds.extend(new_col_inds[non_zero_indices])
+                master_values.extend(new_values_real[non_zero_indices])
+
+                # Bottom right block
+                master_row_inds.extend(
+                    new_row_inds[non_zero_indices] + half_size
+                )
+                master_col_inds.extend(
+                    new_col_inds[non_zero_indices] + half_size
+                )
+                master_values.extend(new_values_real[non_zero_indices])
+
+                # --------------------------------------------------------------
+                # Same but for imaginary values.
+                non_zero_indices = new_values_imag.nonzero()
+
+                # Top right block
+                master_row_inds.extend(new_row_inds[non_zero_indices])
+                master_col_inds.extend(
+                    new_col_inds[non_zero_indices] + half_size
+                )
+                master_values.extend(-new_values_imag[non_zero_indices])
+
+                # Bottom left block
+                master_row_inds.extend(
+                    new_row_inds[non_zero_indices] + half_size
+                )
+                master_col_inds.extend(new_col_inds[non_zero_indices])
+                master_values.extend(new_values_imag[non_zero_indices])
+
+        cov = 0.5 * scipy.sparse.coo_matrix(
+            (master_values, (master_row_inds, master_col_inds)),
+            shape=(size_of_cov, size_of_cov),
+        )
+        scipy.sparse.save_npz(path, cov)
+
     def get_real_covariance_matrix(
         self, result_list: list[integration_task.IntegrationResult]
     ) -> Numeric:
@@ -707,9 +831,9 @@ class InputStatisticsManager:
                 w_j = WEIGHTS.get(j)
                 w_u = WEIGHTS.get(u)
                 w_v = WEIGHTS.get(v)
-                correlation_matrix = (
-                    correlation_matrix * 1 / np.sqrt(w_i * w_j * w_u * w_v)
-                )
+                # correlation_matrix = (
+                #     correlation_matrix * 1 / np.sqrt(w_i * w_j * w_u * w_v)
+                # )
 
                 # Work out the indices
                 row_slice, col_slice = matrix_utils.get_cov_sub_block_indices(

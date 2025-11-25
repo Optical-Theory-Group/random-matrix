@@ -762,6 +762,7 @@ class IntegrationTaskPreparer:
         L = self.medium_parameters.L
         const_factor = self.medium_parameters.cov_const_factor
         num_modes = self.mode_grid.num_propagating
+        weights_dict = self.mode_grid.propagating_modes_weights_dict
 
         # Load appropriate pre-computed A matrix values
         a_matrix_values_key_map = {"t": "A_pp", "r": "A_pm", "r2": "A_mp"}
@@ -778,7 +779,6 @@ class IntegrationTaskPreparer:
         reciprocity_correction = int((num_modes - 1) // 2)
         for indices in self.logger.progress_bar(indices):
             i, j, u, v = indices
-
             # Determine domain volume. If it's an auto-correlation, it might
             # be an edge mode, which will have smaller area.
             if i == u and j == v:
@@ -801,8 +801,13 @@ class IntegrationTaskPreparer:
             kj_z = kj_z_array[ij_val]
             ku_z = ki_z_array[uv_val]
             kv_z = kj_z_array[uv_val]
-            sec_factor = 1.0 / np.sqrt(np.abs(ki_z * kj_z * ku_z * kv_z))
+            wi = weights_dict[i]
+            wj = weights_dict[j]
+            wu = weights_dict[u]
+            wv = weights_dict[v]
 
+            sec_factor = 1.0 / np.sqrt(np.abs(ki_z * kj_z * ku_z * kv_z))
+            weight_factor = 1.0 / np.sqrt(wi * wj * wu * wv)
             A_ij = A_matrix_values[ij_val]
             A_uv = A_matrix_values[uv_val]
             sinc_factor = special_functions.sinc(
@@ -813,6 +818,7 @@ class IntegrationTaskPreparer:
                 * const_factor
                 * sec_factor
                 * sinc_factor
+                * weight_factor
                 * np.outer(A_ij, A_uv.conj()).ravel()
             )[np.newaxis, :]
             new_result = IntegrationResult(
