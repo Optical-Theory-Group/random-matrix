@@ -18,3 +18,5 @@ pseudo_cov.pkl
 sigma.pkl
 indices.pkl
 nohup.out
+*.pkl
+*.png

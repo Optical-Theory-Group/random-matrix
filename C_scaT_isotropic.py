@@ -10,10 +10,10 @@ k = (2 * np.pi) / wavelength
 
 # sampling incident field
 theta_i = 0 * np.ones((100))
-phi_i = 0* np.ones((101))
+phi_i = 0 * np.ones((101))
 theta_grid_i, phi_grid_i = np.meshgrid(theta_i, phi_i)
 
-# Scattered field
+# Incident field
 ki_z = np.ravel(np.cos(theta_grid_i))
 ki_x = np.ravel(np.sin(theta_grid_i) * np.cos(phi_grid_i))
 ki_y = np.ravel(np.sin(theta_grid_i) * np.sin(phi_grid_i))
@@ -33,18 +33,18 @@ ks_y = np.ravel(np.sin(theta_grid) * np.sin(phi_grid))
 size_param = np.linspace(0.01, 50, 1000)
 C_scaT = np.zeros((1000))
 radius1 = size_param / k
-radius = 2/k
+radius = 2 / k
 A = rm.get_A(ki_x, ki_y, ki_z, ks_x, ks_y, ks_z, 2, rri)
 d_theta = np.pi / (n - 1)
 d_phi = np.pi / (n)
-S2 = np.reshape(A[:,0], (n + 1, n))
-S3 = np.reshape(A[:,1], (n + 1, n))
-S4 = np.reshape(A[:,2], (n + 1, n))
-S1 = np.reshape(A[:,3], (n + 1, n))
+S2 = np.reshape(A[:, 0], (n + 1, n))
+S3 = np.reshape(A[:, 1], (n + 1, n))
+S4 = np.reshape(A[:, 2], (n + 1, n))
+S1 = np.reshape(A[:, 3], (n + 1, n))
 # T = (np.abs(S2-1j*S3) ** 2 + np.abs(S4-1j*S1) ** 2) * np.sin(theta_grid) / k**2
 T = (np.abs(S2) ** 2 + np.abs(S4) ** 2) * np.sin(theta_grid) / k**2
 inner_integral = np.trapezoid(T, phi, d_phi, axis=0)
-result = np.trapezoid(inner_integral, theta, d_theta) / (np.pi * radius ** 2)
+result = np.trapezoid(inner_integral, theta, d_theta)  # / (np.pi * radius ** 2)
 
 # for i in range(0,1000):
 #     x = np.reshape((size_param[i] * np.ones((n * (n + 1)))), (n + 1, n))
