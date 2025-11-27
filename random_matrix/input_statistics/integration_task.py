@@ -58,36 +58,6 @@ BLOCKS = [
 
 
 @dataclass(slots=True)
-class IntegrationTaskConfig:
-    """Configuration metadata for controlling the degree of parallelisation of the
-    integration tasks
-
-    Attributes
-    ----------
-    integrals_per_task:
-        A limit for how many integration domains should be allowed in each
-        task. If None, there will be no limit.
-    cpu_ram_limit:
-        Maximum percentage that the CPU's RAM is allowed to reach before
-        integration tasks will automatically be executed to free up space
-    """
-
-    integrals_per_task: int | None = 1
-    ram_limit: float = 0
-    use_gpu: bool = False
-    covariance_cubature_scheme: Any | None = (None,)
-    integration_method: str = "lattice"
-    include_inter_block_correlations: bool = False
-
-    def __post_init__(self):
-        if self.integration_method not in ALLOWED_INTEGRATION_METHODS:
-            raise ValueError(
-                f"Invalid method: {self.integration_method}. Pick from "
-                f"{ALLOWED_INTEGRATION_METHODS}"
-            )
-
-
-@dataclass(slots=True)
 class IntegrationResult:
     """General integration result container.
 
@@ -336,6 +306,36 @@ class CubatureIntegrationTask(IntegrationTask):
 
     def num_integrals(self) -> int:
         return len(self.simplex_array)
+
+
+@dataclass(slots=True)
+class IntegrationTaskConfig:
+    """Configuration metadata for controlling the degree of parallelisation of the
+    integration tasks
+
+    Attributes
+    ----------
+    integrals_per_task:
+        A limit for how many integration domains should be allowed in each
+        task. If None, there will be no limit.
+    cpu_ram_limit:
+        Maximum percentage that the CPU's RAM is allowed to reach before
+        integration tasks will automatically be executed to free up space
+    """
+
+    integrals_per_task: int | None = 1
+    ram_limit: float = 0
+    use_gpu: bool = False
+    covariance_cubature_scheme: Any | None = (None,)
+    integration_method: str = "lattice"
+    include_inter_block_correlations: bool = False
+
+    def __post_init__(self):
+        if self.integration_method not in ALLOWED_INTEGRATION_METHODS:
+            raise ValueError(
+                f"Invalid method: {self.integration_method}. Pick from "
+                f"{ALLOWED_INTEGRATION_METHODS}"
+            )
 
 
 @dataclass(slots=True)
