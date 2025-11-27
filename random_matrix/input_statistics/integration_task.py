@@ -648,7 +648,7 @@ class IntegrationTaskPreparer:
         mean_mode_vertices_dict = (
             self.mode_grid.propagating_modes_mean_vertices_dict
         )
-        mean_mode_vertices_array = np.stack(mean_mode_vertices_dict.values())
+        mean_mode_vertices_array = np.stack(list(mean_mode_vertices_dict.values()))
         ki_array = np.repeat(mean_mode_vertices_array, num_modes, axis=0)
         ki_x_array, ki_y_array = ki_array[:, 0], ki_array[:, 1]
         ki_z_array = np.sqrt(1.0 - ki_x_array**2 - ki_y_array**2)
