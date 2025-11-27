@@ -20,3 +20,4 @@ indices.pkl
 nohup.out
 *.pkl
 *.png
+*.txt

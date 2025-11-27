@@ -1,9 +1,9 @@
 import os
 
-# Change to a new directory
-new_path = r"/home/sdutta/code/random-matrix"
-os.chdir(new_path)
-# print(os.getcwd())
+# # Change to a new directory
+# new_path = r"/home/sdutta/code/random-matrix"
+# os.chdir(new_path)
+# # print(os.getcwd())
 import matplotlib.pyplot as plt
 from math import factorial
 import scipy
@@ -840,7 +840,7 @@ def scattering_amplitudes_from_T(
         + quad(pi_sca, T22_a, pi_inc)
     )
     S22 = (1.0 / k1) * S22_terms * (-1j * k1)
-    return np.array([S11, S12, S21, S22])
+    return np.vstack((S11, S12, S21, S22)).T.astype(np.complex128)
 
 
 def scattering_amplitudes_from_T_v2(
@@ -952,7 +952,7 @@ def scattering_amplitudes_from_T_v2(
         + quad_vec(pi_sca, T12_a, pi_inc)
         + quad_vec(tau_sca, T22_a, pi_inc)
     )
-    S12_vec = S12_terms  # prefactors cancel
+    S12_vec = -S12_terms  # prefactors cancel
 
     S21_terms = (
         quad_vec(tau_sca, T11_a, pi_inc)
@@ -960,7 +960,7 @@ def scattering_amplitudes_from_T_v2(
         + quad_vec(tau_sca, T12_a, tau_inc)
         + quad_vec(pi_sca, T22_a, tau_inc)
     )
-    S21_vec = S21_terms  # prefactors cancel
+    S21_vec = -S21_terms  # prefactors cancel
 
     S22_terms = (
         quad_vec(tau_sca, T11_a, tau_inc)
