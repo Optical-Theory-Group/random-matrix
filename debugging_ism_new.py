@@ -46,49 +46,28 @@ particle_statistics = ParticleStatistics(
 medium_statistics = MediumStatistics([particle_statistics])
 integration_task_config = IntegrationTaskConfig(integration_method="lattice")
 
-
-side_lengths = [
-    0.075,
-    0.070,
-    0.065,
-    0.060,
-    0.055,
-    0.050,
-    0.045,
-    0.040,
-    0.035,
-    0.030,
-    0.025,
-    0.020,
-    0.015,
-    0.010,
-    0.050,
-]
-side_lengths = [0.40]
-for sl in side_lengths:
+side_lengths = [0.08, 0.0435]
+names = [f"memory_effect_hexagonal_{side_lengths[0]}", f"memory_effect_hexagonal"]
+for sl, name in zip(side_lengths, names):
     print(f"Starting sl = {sl:.3f}")
-    try:
-        my_grid = mode_grid_factory.from_tiling(
-            tiling_type="rectangles",
-            side_length=(sl, sl),
-            r_lim=1.2,
-            grid_wave_type="propagating",
-            rotation_angle=0.0,
-            translation_vector=np.array([0.0, 0.0]),
-        )
-        print(f"Number of modes: {my_grid.num_propagating}")
-
-        simulation_name = f"memory_effect_test_{sl}"
-        ism = InputStatisticsManager(
-            simulation_name,
-            medium_parameters,
-            medium_statistics,
-            my_grid,
-            integration_task_config,
-            parent_data_dir="/mnt/raid/rmt/data/",
-        )
-        pm = ism.get_matrix_pool_manager()
-        print("Finishing...")
-    except Exception as e:
-        print(f"⚠️ Error for side length {sl}: {e}")
-        traceback.print_exc()
+    my_grid = mode_grid_factory.from_tiling(
+        tiling_type="hexagons",
+        side_length=sl,
+        r_lim=1.2,
+        grid_wave_type="propagating",
+        rotation_angle=0.0,
+        translation_vector=np.array([0.0, 0.0]),
+    )
+    print(f"Number of modes: {my_grid.num_propagating}")
+    my_grid.plot()
+    simulation_name = name
+    ism = InputStatisticsManager(
+        simulation_name,
+        medium_parameters,
+        medium_statistics,
+        my_grid,
+        integration_task_config,
+        base_path="/mnt/raid/rmt/data"
+    )
+    mpm = ism.get_matrix_pool_manager()
+    print("Finishing...")

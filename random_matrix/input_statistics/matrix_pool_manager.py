@@ -1,6 +1,11 @@
 import numpy as np
 from random_matrix.scattering_matrix import sampler
-from random_matrix.input_statistics import medium_parameters, medium_statistics
+from random_matrix.input_statistics import (
+    medium_parameters,
+    medium_statistics,
+    paths,
+)
+
 from pathlib import Path
 import warnings
 import scipy
@@ -19,75 +24,36 @@ class MatrixPoolManager:
     def __init__(
         self,
         simulation_name: str,
-        medium_parameters: medium_parameters.MediumParameters,
-        medium_statistics: medium_statistics.MediumStatistics,
-        mode_grid: mode_grid.ModeGrid | None = None,
-        mean_S: np.ndarray | None = None,
-        chol: dict | None = None,
-        parent_data_dir: str | Path | None = None,
+        base_path: Path,
     ) -> None:
         self.simulation_name = simulation_name
-        self.medium_parameters = medium_parameters
-        self.medium_statistics = medium_statistics
+        self.base_path = base_path
 
-        # Determine the appropriate S matrix sampling method
-        is_full_chol = "full" in list(chol.keys())
-        self._S_sampler_impl = (
-            self._S_sampler_full if is_full_chol else self._S_sampler_separate
+        self.input_statistics_paths = paths.InputStatisticsPaths(
+            simulation_name, base_path
         )
-
-        # Default to the current working directory if none is given
-        self.parent_data_path = (
-            Path(parent_data_dir) if parent_data_dir else Path.cwd() / "data"
-        )
-        if not parent_data_dir:
-            warnings.warn(
-                f"No parent_data_dir provided. Defaulting to current working"
-                f" directory: {Path.cwd() / 'data'}.",
-                stacklevel=2,  # Makes the warning point to the caller, not here
-            )
-        if not self.parent_data_path.exists():
+        # Ensure the input statistics exist
+        if not (
+            self.input_statistics_paths.cholesky.exists()
+            and self.input_statistics_paths.mean_S.exists()
+        ):
             raise FileNotFoundError(
-                f"Directory {str(self.parent_data_path)} does not exist. "
-                f"Please update the `parent_data_dir` variable passed to the "
-                f"pool constructor."
+                "Input statistics mean_S.npz and cholesky.pkl not found at "
+                f"{self.input_statistics_paths.simulation}. MatrixPoolManager "
+                "cannot be created without input statistics."
             )
 
-        self.simulation_path = self.parent_data_path / Path(simulation_name)
-        mode_grid_path = self.simulation_path / "mode_grid.pkl"
-        mean_S_path = self.simulation_path / "mean_S.npy"
-        chol_path = self.simulation_path / "chol.pkl"
+        self.matrix_pools_paths = paths.MatrixPoolsPaths(
+            simulation_name, base_path
+        )
 
-        # Load from disk
-        if mode_grid is None:
-            mode_grid_exists = mode_grid_path.exists()
-            if not mode_grid_exists:
-                raise FileNotFoundError(
-                    f"File at {str(mode_grid_path)} was not found."
-                )
-            self.mode_grid = np.load(mode_grid_path)
-        else:
-            self.mode_grid = mode_grid
-
-        # Load from disk
-        if mean_S is None or chol is None:
-            statistics_exist = mean_S_path.exists() and chol_path.exists()
-            if not statistics_exist:
-                raise FileNotFoundError(
-                    f"Files at {str(mean_S_path)} and "
-                    f"{str(chol_path)} were not found."
-                )
-            self.mean_S = np.load(mean_S_path)
-            with open(chol_path, "rb") as f:
-                chol = pickle.load(f)
-        else:
-            self.mean_S = mean_S
-            self.chol = chol
-
+        self._S_sampler_impl = self._S_sampler_separate
         self.single_pool_S = None
         self.multi_pool_S = None
         self.single_pool_M = None
         self.multi_pool_M = None
+
+        self._matrix_shape = None
 
     def get_pool_data(
         self, is_transfer_matrix: bool, is_multi_pool: bool
@@ -130,14 +96,6 @@ class MatrixPoolManager:
         self, is_transfer_matrix: bool = False, is_multi_pool: bool = False
     ) -> None:
         """Save a given pool to memory for reuse in the future"""
-        pool_dir_path = self.simulation_path / "pools"
-        if not pool_dir_path.exists():
-            pool_dir_path.mkdir(parents=True, exist_ok=True)
-            print(f"Created new directory: {pool_dir_path}")
-
-        # HDF5 file path
-        h5_file_path = pool_dir_path / "pools.h5"
-
         # Determine dataset name and pool based on boolean args
         dataset_name, pool = self.get_pool_data(
             is_transfer_matrix, is_multi_pool
@@ -150,7 +108,7 @@ class MatrixPoolManager:
                 "Populate it first!"
             )
 
-        with h5py.File(h5_file_path, "a") as f:
+        with h5py.File(self.matrix_pools_paths.pools, "a") as f:
             if dataset_name in f:
                 del f[dataset_name]
 
@@ -160,18 +118,15 @@ class MatrixPoolManager:
         self, is_transfer_matrix: bool = False, is_multi_pool: bool = False
     ) -> None:
         """Load the given pool from memory"""
-        pool_dir_path = self.simulation_path / "pools"
-        h5_file_path = pool_dir_path / "pools.h5"
-
         # Determine dataset name and target attribute based on boolean args
         attr_name, _ = self.get_pool_data(is_transfer_matrix, is_multi_pool)
 
-        if not h5_file_path.exists():
+        if not self.matrix_pools_paths.pools.exists():
             raise FileNotFoundError(
-                f"HDF5 file does not exist: {h5_file_path}"
+                f"HDF5 file does not exist: {self.matrix_pools_paths.pools}"
             )
 
-        with h5py.File(h5_file_path, "r") as f:
+        with h5py.File(self.matrix_pools_paths.pools, "r") as f:
             if attr_name not in f:
                 raise ValueError(
                     f"Dataset '{attr_name}' not found in HDF5 file"
@@ -210,6 +165,16 @@ class MatrixPoolManager:
     # -------------------------------------------------------------------------
     # Pool propreties
     # -------------------------------------------------------------------------
+
+    @property
+    def mean_S(self) -> np.ndarray:
+        return np.load(self.input_statistics_paths.mean_S)
+
+    @property
+    def cholesky(self) -> dict:
+        with open(self.input_statistics_paths.cholesky, "rb") as f:
+            cholesky = pickle.load(f)
+        return cholesky
 
     @property
     def S(self) -> np.ndarray | cp.ndarray:
@@ -267,18 +232,28 @@ class MatrixPoolManager:
     # -------------------------------------------------------------------------
 
     @property
-    def matrix_size(self) -> int:
-        """Get the size of the M or S matrices involved"""
-        return len(self.mean_S)
+    def matrix_shape(self) -> int:
+        # Only load mean_S once to cut down on disk usage
+        if self._matrix_shape is None:
+            shape = self.mean_S.shape
+            self._matrix_shape = shape
+            return shape
+        else:
+            return self._matrix_shape
 
     @property
-    def matrix_shape(self) -> int:
-        return self.mean_S.shape
+    def matrix_size(self) -> int:
+        return self.matrix_shape[0]
 
     @property
     def half_matrix_size(self) -> int:
         """Get the size of the t,r etc. matrices involved"""
-        return int(len(self.mean_S) // 2)
+        return int(self.matrix_size // 2)
+
+    @property
+    def block_size(self) -> int:
+        """Alias for half_matrix_size"""
+        return self.half_matrix_size
 
     def get_initialized_S_array(
         self, num_matrices: int, use_cupy: bool = False
@@ -352,12 +327,15 @@ class MatrixPoolManager:
         symmetrize: bool = True,
         use_cupy: bool = False,
         seed: int | bool = None,
+        random_only: bool = False,
     ):
         """Return an array of S matrices of shape
 
         num_matrices x N x N where N is the size of a single S matrix
         """
-        return self._S_sampler_impl(num_matrices, symmetrize, use_cupy, seed)
+        return self._S_sampler_impl(
+            num_matrices, symmetrize, use_cupy, seed, random_only
+        )
 
     def _S_sampler_separate(
         self,
@@ -365,29 +343,33 @@ class MatrixPoolManager:
         symmetrize: bool = True,
         use_cupy: bool = False,
         seed: int | bool = None,
+        random_only: bool = False,
     ) -> np.ndarray:
         """Sample S matrices under the assumption that cholesky decompositions
         for each S matrix block were taken separately"""
-        xp = cp if use_cupy else np
+        if random_only and symmetrize:
+            raise ValueError(
+                "symmetrize and random_only cannot both be True. "
+                "Turn off symmetrize in order to use random_only."
+            )
+
+        xp = np
         mean_S = self.mean_S
-        chol = self.chol
+        cholesky = self.cholesky
 
-        if use_cupy:
-            mean_S = cp.asarray(self.mean_S)
-            chol = {key: cpsparse.csr_matrix(chol[key]) for key in chol.keys()}
-
-        size_of_S = len(self.mean_S)
+        size_of_S = len(mean_S)
         size_of_t = int(size_of_S // 2)
-        num_random_numbers, _ = chol["t"].shape
+
+        num_random_numbers, _ = cholesky["t"].shape
 
         # Generate random numbers for the matrices
         if seed is not None:
             xp.random.seed(seed)
 
         random_numbers = xp.random.randn(3, num_random_numbers, num_matrices)
-        modified_random_numbers_t = chol["t"] @ random_numbers[0]
-        modified_random_numbers_r = chol["r"] @ random_numbers[1]
-        modified_random_numbers_r2 = chol["r2"] @ random_numbers[2]
+        modified_random_numbers_t = cholesky["t"] @ random_numbers[0]
+        modified_random_numbers_r = cholesky["r"] @ random_numbers[1]
+        modified_random_numbers_r2 = cholesky["r2"] @ random_numbers[2]
 
         # Pick out the correct values
         reals_t = modified_random_numbers_t[: int(num_random_numbers / 2)]
@@ -427,7 +409,14 @@ class MatrixPoolManager:
 
         t2_mat = sigma_p @ matrix_utils.r_sym(t_mat) @ sigma_p
 
+        if not random_only:
+            identity = np.identity(size_of_t, dtype=t_mat.dtype)
+            t_mat = t_mat + identity
+            t2_mat = t2_mat + identity
         output = xp.block([[r_mat, t2_mat], [t_mat, r2_mat]])
+        if not random_only:
+            output = output + mean_S
+
         if symmetrize:
             output = matrix_utils.get_closest_unitary_approximation(output)
         return output
@@ -516,8 +505,10 @@ class MatrixPoolManager:
         num_matrices: int = 1,
         symmetrize: bool = True,
         matrix_type: str = "both",
-        save_matrices: bool = True,
         use_cupy: bool = False,
+        seed: int | None = None,
+        random_only: bool = False,
+        save_matrices: bool = True,
     ) -> None:
         """Populate the single pools with matrices
 
@@ -525,7 +516,9 @@ class MatrixPoolManager:
 
         matrix_type takes three options: "S", "M" or "both"
         """
-        S_matrices = self.S_sampler(num_matrices, symmetrize, use_cupy)
+        S_matrices = self.S_sampler(
+            num_matrices, symmetrize, use_cupy, seed, random_only
+        )
 
         # Save the pool
         if matrix_type in ("S", "both"):
