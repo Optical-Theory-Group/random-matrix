@@ -38,22 +38,21 @@ class InputStatisticsLogger:
     # -------------------------------------------------------------------------
 
     @contextmanager
-    def log(self, operation: str, **kwargs) -> Generator[None, None, None]:
+    def log(
+        self, operation: str, time_only: bool = False, **kwargs
+    ) -> Generator[None, None, None]:
         """Main logging method that handles printing and method timing."""
+        if not time_only:
+            message_template = self.messages.get(operation, "")
+            message = message_template.format(**kwargs)
 
-        message_template = self.messages.get(operation, "")
-        message = message_template.format(**kwargs)
-        
-        print(f"{self._get_date_time()} {message}", flush=True)
+            print(f"{self._get_date_time()} {message}", flush=True)
 
         # Time code for performance
         start = time.perf_counter()
         yield
         end = time.perf_counter()
         self.times[operation] = end - start
-
-        # Print end message
-        print(f"{self._get_date_time()} Done", flush=True)
 
     @staticmethod
     def _get_date_time() -> str:
@@ -103,8 +102,7 @@ class IndexFinderLogger(InputStatisticsLogger):
         self.messages = {
             "independent_elements": "Finding independent elements...",
             "mean": "Finding indices for non-zero mean sub-blocks...",
-            "covariance": "Finding indices for non-zero covariance sub-blocks...",
-            "pseudo_covariance": "Finding indices for non-zero pseudo-covariance sub-blocks...",
+            "covariance": "Finding indices for correlated sub-blocks...",
         }
 
     # -------------------------------------------------------------------------
@@ -210,21 +208,21 @@ class InputStatisticsManagerLogger(InputStatisticsLogger):
     def __init__(self) -> None:
         super().__init__()
         self.messages = {
-            "load_statistics": "Loading statistics from memory...",
-            "load_partial_statistics": "The mean, covariance and pseudo-covariance have already been compiled. Loading from memory...",
-            "load_indices": "Indices have already been calculated. Loading from memory...",
-            "load_integration_results": "Integration results have already been calculated. Loading from memory...",
-            "load_real_covariance": "Real covariance matrix has already been compiled. Loading from memory...",
-            "calculate_a_matrix": "Pre-computing A matrix values for later use...",
-            "calculate_volumes": "Pre-computing volumes for later use...",
-            "tasks": "Execute tasks",
-            "mean": "Compiling the mean scattering matrix...",
-            "covariance": "Compiling the covariance matrix...",
-            "pseudo_covariance": "Compiling the pseudo-covariance matrix...",
-            "real_covariance": "Compiling the covariance matrix for real and imaginary parts...",
-            "cholesky": "Computing the Cholesky decomposition...",
-            "covariance_block": "Calculating covariance statistics for block {block}...",
-            "covariance_partial": "Starting batch {count}/{total}..."
+            "indices_exists": "Independent elements and indices have already been computed.",
+            "indices": "Computing independent elements and indices.",
+            "mean_S_exists": "mean_S has already been computed.",
+            "mean_S": "Calculating the mean scattering matrix...",
+            "volumes_exists": "Volumes have already been computed.",
+            "volumes": "Calculating volumes...",
+            "a_matrix_values_exists": "Amplitude matrix values have already been computed.",
+            "a_matrix": "Calculating amplitude matrix values...",
+            "cholesky_blocks_exists": "Cholesky blocks have already been computed.",
+            "cholesky_blocks": "Calculating choesky matrix blocks...",
+            "real_covariance_exists": "Covariance matrix for block {block} exists. Loading...",
+            "real_covariance": "Computing the covariance matrix for block {block}...",
+            "cholesky_block": "Computing the cholesky decomposition for the covariance matrix associated with block {block}...",
+            "cholesky_dict": "Compiling the cholesky dictionary...",
+            "complete": "All statistics calculated. Creating matrix pool manager...",
         }
 
     def show_report(self) -> None:

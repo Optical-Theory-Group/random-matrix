@@ -5,6 +5,7 @@ ModeGrid serves as a container for Mode objects.
 
 from dataclasses import InitVar, dataclass, field
 from typing import Any
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -476,7 +477,7 @@ class ModeGrid:
     def plot(
         self,
         show_indices: bool = False,
-        savefig: None | str = None,
+        save_path: None | str | Path = None,
         close_fig: bool = False,
         **subplots_kwargs,
     ) -> None:
@@ -523,7 +524,7 @@ class ModeGrid:
 
         plotting_utils.draw_circle(ax)
         plotting_utils.draw_circle(ax, r=self.r_lim)
-        if savefig is not None:
-            fig.savefig(savefig, format="svg")
+        if save_path is not None:
+            fig.savefig(save_path, format="svg")
         if close_fig:
             plt.close()
