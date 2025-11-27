@@ -84,50 +84,50 @@ def b_n_from_T(n, T_11):
     )
 
 
-wavelength1 = 400e-9
-k1 = (2 * np.pi) / wavelength1
-m = 1.2  # Relative refractive Index
-k2 = m * k1
-n_max = 5
-size_param = 3
-hull_uniform = isotropic_tmatrix.create_hull_uniform(size_param, k1)
-T_matrix = isotropic_tmatrix.get_T(hull_uniform, k1, k2, n_max)
+# wavelength1 = 400e-9
+# k1 = (2 * np.pi) / wavelength1
+# m = 1.2  # Relative refractive Index
+# k2 = m * k1
+# n_max = 5
+# size_param = 3
+# hull_uniform = isotropic_tmatrix.create_hull_uniform(size_param, k1)
+# T_matrix = isotropic_tmatrix.get_T(hull_uniform, k1, k2, n_max)
 
-# sampling incident field
-n = 100
-theta_i = 0 * np.ones((100))
-phi_i = 0 * np.ones((101))
-theta_grid_i, phi_grid_i = np.meshgrid(theta_i, phi_i)
+# # sampling incident field
+# n = 100
+# theta_i = 0 * np.ones((100))
+# phi_i = 0 * np.ones((101))
+# theta_grid_i, phi_grid_i = np.meshgrid(theta_i, phi_i)
 # Incident field
-ki_z = np.ravel(np.cos(theta_grid_i))
-ki_x = np.ravel(np.sin(theta_grid_i) * np.cos(phi_grid_i))
-ki_y = np.ravel(np.sin(theta_grid_i) * np.sin(phi_grid_i))
-# sampling scattered field
-theta_s = np.linspace(0, np.pi, n)
-phi_s = np.linspace(0, 2 * np.pi, n + 1)
-# theta = 0 * np.ones((100))
-# phi = 0* np.ones((101))
-theta_grid_s, phi_grid_s = np.meshgrid(theta_s, phi_s)
-# Scattered field
-ks_z = np.ravel(np.cos(theta_grid_s))
-ks_x = np.ravel(np.sin(theta_grid_s) * np.cos(phi_grid_s))
-ks_y = np.ravel(np.sin(theta_grid_s) * np.sin(phi_grid_s))
-d_theta = np.pi / (n - 1)
-d_phi = 2 * np.pi / (n)
+# ki_z = np.ravel(np.cos(theta_grid_i))
+# ki_x = np.ravel(np.sin(theta_grid_i) * np.cos(phi_grid_i))
+# ki_y = np.ravel(np.sin(theta_grid_i) * np.sin(phi_grid_i))
+# # sampling scattered field
+# theta_s = np.linspace(0, np.pi, n)
+# phi_s = np.linspace(0, 2 * np.pi, n + 1)
+# # theta = 0 * np.ones((100))
+# # phi = 0* np.ones((101))
+# theta_grid_s, phi_grid_s = np.meshgrid(theta_s, phi_s)
+# # Scattered field
+# ks_z = np.ravel(np.cos(theta_grid_s))
+# ks_x = np.ravel(np.sin(theta_grid_s) * np.cos(phi_grid_s))
+# ks_y = np.ravel(np.sin(theta_grid_s) * np.sin(phi_grid_s))
+# d_theta = np.pi / (n - 1)
+# d_phi = 2 * np.pi / (n)
 
 
-A = isotropic_tmatrix.scattering_amplitudes_from_T_v2(
-    theta_grid_i, phi_grid_i, theta_grid_s, phi_grid_s, T_matrix, k1, n_max
-)
+# A = isotropic_tmatrix.scattering_amplitudes_from_T_v2(
+#     theta_grid_i, phi_grid_i, theta_grid_s, phi_grid_s, T_matrix, k1, n_max
+# )
 
-output_file = "T_debug_datav2.pkl"
-results = {
-    "T": T_matrix,
-    "A": A,
-}
+# output_file = "T_debug_datav2.pkl"
+# results = {
+#     "T": T_matrix,
+#     "A": A,
+# }
 
-with open(output_file, "wb") as f:
-    pickle.dump(results, f)
+# with open(output_file, "wb") as f:
+#     pickle.dump(results, f)
 
 
 def get_T_element(T, m_row, n_row, m_col, n_col):
