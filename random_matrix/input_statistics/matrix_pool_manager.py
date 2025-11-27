@@ -699,11 +699,7 @@ class MatrixPoolManager:
         pool_size = len(pool)
 
         # Prepare data directory
-        cascade_dir_path = self.simulation_path / "cascades"
-        if not cascade_dir_path.exists():
-            cascade_dir_path.mkdir(parents=True, exist_ok=True)
-            print(f"Created new directory: {cascade_dir_path}")
-        h5_file_path = cascade_dir_path / cascade_name
+        h5_file_path = self.matrix_pools_paths.get_cascade_h5_path(cascade_name)
 
         # Validate batch size
         batch_size = min(batch_size, num_samples)
@@ -742,7 +738,7 @@ class MatrixPoolManager:
                     *self.matrix_shape,
                 )
                 f.create_dataset(
-                    "working_matrices",
+                    paths.DEFAULT_WORKING_MATRICES_PATH_ENDING,
                     shape=data_shape,
                     dtype=np.complex128,
                 )
@@ -760,7 +756,7 @@ class MatrixPoolManager:
                 )
         else:
             with h5py.File(h5_file_path, "r+") as f:
-                working_matrices = f["working_matrices"]
+                working_matrices = f[paths.DEFAULT_WORKING_MATRICES_PATH_ENDING]
                 for s, bs in zip(slices, batch_sizes):
                     if use_transfer_matrices:
                         working_matrices[s] = self.get_initialized_M_array(
@@ -794,7 +790,7 @@ class MatrixPoolManager:
 
             else:
                 with h5py.File(h5_file_path, "r+") as f:
-                    working_matrices = f["working_matrices"]
+                    working_matrices = f[paths.DEFAULT_WORKING_MATRICES_PATH_ENDING]
                     for s, bs in zip(slices, batch_sizes):
                         # load the batch into RAM
                         batch_matrices = working_matrices[s]
@@ -826,7 +822,7 @@ class MatrixPoolManager:
                             f[key][analysis_points.index(i)] = new_output
                 else:
                     with h5py.File(h5_file_path, "r+") as f:
-                        working_matrices = f["working_matrices"]
+                        working_matrices = f[paths.DEFAULT_WORKING_MATRICES_PATH_ENDING]
                         for (
                             key,
                             analysis_function,
@@ -844,4 +840,4 @@ class MatrixPoolManager:
         # Remove working matrices from h5 memory to clear up memory
         if not is_single_batch:
             with h5py.File(h5_file_path, "r+") as f:
-                del f["working_matrices"]
+                del f[paths.DEFAULT_WORKING_MATRICES_PATH_ENDING]
