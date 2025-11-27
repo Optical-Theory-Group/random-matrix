@@ -6,6 +6,7 @@ BLOCK_KEYS = ["t", "r", "r2"]
 DEFAULT_DATA_PATH_ENDING = "data"
 DEFAULT_POOLS_PATH_ENDING = "pools"
 DEFAULT_CASCADES_PATH_ENDING = "cascades"
+DEFAULT_WORKING_MATRICES_PATH_ENDING = "working_matrices"
 
 INPUT_STATISTICS_PATH_ENDINGS = {
     "metadata": "metadata.json",
@@ -116,6 +117,7 @@ class MatrixPoolsPaths:
         object.__setattr__(self, "simulation", sim)
         object.__setattr__(self, DEFAULT_POOLS_PATH_ENDING, pools)
         object.__setattr__(self, DEFAULT_CASCADES_PATH_ENDING, cascades)
+
 
         for key, ending in MATRIX_POOLS_PATH_ENDINGS.items():
             if isinstance(ending, str):
