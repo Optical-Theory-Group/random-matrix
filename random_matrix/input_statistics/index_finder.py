@@ -37,7 +37,10 @@ class IndexFinder:
         self.logger = logger
 
     def calculate_indices(
-        self, independent_elements_path: Path, indices_path: Path
+        self,
+        is_lattice: bool,
+        independent_elements_path: Path,
+        indices_path: Path,
     ) -> None:
         """Main method for getting independent elements and indices of
         non-zero statistics"""
@@ -56,7 +59,7 @@ class IndexFinder:
 
         with self.logger.log("covariance"):
             indices["covariance"] = self._get_covariance_indices(
-                independent_elements
+                independent_elements, is_lattice
             )
 
         with self.logger.log("pseudo_covariance"):
@@ -147,7 +150,8 @@ class IndexFinder:
         return mean_indices
 
     def _get_mean_indices_pp(
-        self, independent_elements: dict[str, set[tuple[int, int]]]
+        self,
+        independent_elements: dict[str, set[tuple[int, int]]],
     ) -> dict[str, list[tuple[int, int]]]:
         """Get indices of 2x2 blocks in the pp section of the scattering
         matrix for which the mean needs to be calculated.
@@ -182,7 +186,9 @@ class IndexFinder:
     # -------------------------------------------------------------------------
 
     def _get_covariance_indices(
-        self, independent_elements: dict[str, dict[str, set[tuple[int, int]]]]
+        self,
+        independent_elements: dict[str, dict[str, set[tuple[int, int]]]],
+        is_lattice: bool,
     ) -> dict[str, dict[str, list[tuple[int, int, int, int]]]]:
         """Get quadruples of indices of the scattering matrix for which the
         covariance needs to be calculated.
@@ -194,7 +200,9 @@ class IndexFinder:
             str, dict[str, set[tuple[int, int, int, int]]]
         ] = {
             "pp,pp": self._get_covariance_indices_pppp(
-                independent_elements["pp"], independent_elements["pp"]
+                independent_elements["pp"],
+                independent_elements["pp"],
+                is_lattice,
             ),
             "pp,pe": {},
             "pp,ep": {},
@@ -212,6 +220,7 @@ class IndexFinder:
         self,
         independent_elements_one: dict[str, set[tuple[int, int]]],
         independent_elements_two: dict[str, set[tuple[int, int]]],
+        is_lattice: bool,
     ) -> dict[str, list[tuple[int, int, int, int]]]:
         """Get indices of 2x2 blocks in the pp section of the scattering
         matrix for which the mean needs to be calculated.
@@ -257,6 +266,7 @@ class IndexFinder:
             independent_elements_two=independent_elements_two,
             elements=elements,
             progress_bar=self.logger.progress_bar,
+            is_lattice=is_lattice,
         )
         partial_elements = array_utils.split_list(elements, num_processes)
 
@@ -279,6 +289,7 @@ class IndexFinder:
         independent_elements_two: dict[str, set[tuple[int, int]]],
         elements: list[tuple[int, int, int]],
         progress_bar: Any,
+        is_lattice: bool,
     ) -> dict[str, list[tuple[int, int, int, int]]]:
         """Get indices of 2x2 blocks in the pp section of the scattering
         matrix for which the mean needs to be calculated.
@@ -307,18 +318,19 @@ class IndexFinder:
 
         # Area used to determine whether memory effect type correlations are
         # kept or not
-        central_mode_vertices = vertices_dict[0]
-        central_area = geometry_utils.get_minkowski_filter_area(
-            central_mode_vertices,
-            central_mode_vertices,
-            central_mode_vertices,
-            central_mode_vertices,
-        )
-        tol = 1e-8
-        threshold_area = central_area / 10.0 - tol
-        central_weight_tol = weight_dict[0] - tol
-        memory_effect_vector_norm_threshold = central_area - tol
-        memory_effect_vector_norm_threshold = tol
+        if is_lattice:
+            central_mode_vertices = vertices_dict[0]
+            central_area = geometry_utils.get_minkowski_filter_area(
+                central_mode_vertices,
+                central_mode_vertices,
+                central_mode_vertices,
+                central_mode_vertices,
+            )
+            tol = 1e-8
+            threshold_area = central_area / 10.0 - tol
+            central_weight_tol = weight_dict[0] - tol
+            memory_effect_vector_norm_threshold = central_area - tol
+            memory_effect_vector_norm_threshold = tol
 
         for index_one, i, j in progress_bar(partial_elements):
             # Second loop starts form index one. We can ignore half of
@@ -341,6 +353,10 @@ class IndexFinder:
                         independent_elements_one,
                         independent_elements_two,
                     )
+                    continue
+
+                # Don't do non-auto-correlations if it's not a lattice.
+                if not is_lattice:
                     continue
 
                 # Skip correlations for small edge modes

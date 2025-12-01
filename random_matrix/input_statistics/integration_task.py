@@ -648,7 +648,9 @@ class IntegrationTaskPreparer:
         mean_mode_vertices_dict = (
             self.mode_grid.propagating_modes_mean_vertices_dict
         )
-        mean_mode_vertices_array = np.stack(list(mean_mode_vertices_dict.values()))
+        mean_mode_vertices_array = np.stack(
+            list(mean_mode_vertices_dict.values())
+        )
         ki_array = np.repeat(mean_mode_vertices_array, num_modes, axis=0)
         ki_x_array, ki_y_array = ki_array[:, 0], ki_array[:, 1]
         ki_z_array = np.sqrt(1.0 - ki_x_array**2 - ki_y_array**2)
@@ -703,7 +705,7 @@ class IntegrationTaskPreparer:
             f.create_dataset("kj_y", data=kj_y_array)
             f.create_dataset("kj_z", data=kj_z_array)
 
-    def calculate_volumes(self, path: Path) -> None:
+    def calculate_volumes_lattice(self, path: Path) -> None:
         """Pre-compute volumes for faster computation of statistics
         later on"""
         is_edge_dict = self.mode_grid.propagating_modes_is_edge_dict
@@ -746,6 +748,34 @@ class IntegrationTaskPreparer:
 
         with open(path, "wb") as f:
             pickle.dump(volumes, f)
+
+    def calculate_volumes(self, path: Path) -> None:
+        """Pre-compute volumes for faster computation of statistics
+        later on"""
+        mode_vertices_dict = self.mode_grid.propagating_modes_vertices_dict
+
+        volumes = {}
+
+        for count, first in enumerate(
+            self.logger.progress_bar(self.mode_grid.propagating_indices)
+        ):
+            for second in self.mode_grid.propagating_indices[count:]:
+                mode_i_vertices = mode_vertices_dict[first]
+                mode_j_vertices = mode_vertices_dict[second]
+                volume = (
+                    geometry_utils.get_six_dimensional_intersection_volume(
+                        mode_i_vertices,
+                        mode_j_vertices,
+                        mode_i_vertices,
+                        mode_j_vertices,
+                    )
+                )
+                volumes[(first, second)] = volume
+
+        with open(path, "wb") as f:
+            pickle.dump(volumes, f)
+
+
 
     def get_covariance_results_lattice_generator(
         self,
@@ -828,6 +858,479 @@ class IntegrationTaskPreparer:
                 covariance,
             )
             yield new_result
+
+    # def _get_covariance_integrand(
+    #     self,
+    #     wave_block_one: str,
+    #     wave_block_two: str,
+    #     block_one: str,
+    #     block_two: str,
+    #     is_eight_dimensions: bool = False,
+    #     is_pseudo_covariance: bool = False,
+    # ) -> MathematicalFunction:
+    #     """Get the integrand for covariance calculations. Note that this does
+    #     not include mode weights. We choose to add those in at the end."""
+
+    #     covariance_a_matrix = (
+    #         self.medium_statistics.get_covariance_a_matrix()
+    #         if not is_pseudo_covariance
+    #         else self.medium_statistics.get_pseudo_covariance_a_matrix()
+    #     )
+    #     k = self.medium_parameters.k
+    #     L = self.medium_parameters.L
+
+    #     ki_z_factor = -1.0 if block_one in {"r2", "t2"} else 1.0
+    #     kj_z_factor = -1.0 if block_one in {"r", "t2"} else 1.0
+    #     ku_z_factor = -1.0 if block_two in {"r2", "t2"} else 1.0
+    #     kv_z_factor = -1.0 if block_two in {"r", "t2"} else 1.0
+    #     pseudo_sign = -1.0 if is_pseudo_covariance else 1.0
+
+    #     def covariance_integrand(
+    #         integration_domain: np.ndarray | cp.ndarray,
+    #     ) -> np.ndarray | cp.ndarray:
+    #         """The integrand should be of shape N x 6, where N is the number
+    #         of points that need to be evaluated. The final dimension is
+    #         ki_x, ki_y, kj_x, kj_y, ku_x, ku_y"""
+    #         xp = cp.get_array_module(integration_domain)
+
+    #         # Work out wavevectors
+    #         if is_eight_dimensions:
+    #             ki_x, ki_y, kj_x, kj_y, ku_x, ku_y, kv_x, kv_y = (
+    #                 integration_domain.T
+    #             )
+    #         else:
+    #             ki_x, ki_y, kj_x, kj_y, ku_x, ku_y = integration_domain.T
+    #             kv_x = pseudo_sign * (-ki_x + kj_x) + ku_x
+    #             kv_y = pseudo_sign * (-ki_y + kj_y) + ku_y
+    #         ki_z = ki_z_factor * xp.sqrt(1.0 - ki_x**2 - ki_y**2)
+    #         kj_z = kj_z_factor * xp.sqrt(1.0 - kj_x**2 - kj_y**2)
+    #         ku_z = ku_z_factor * xp.sqrt(1.0 - ku_x**2 - ku_y**2)
+    #         kv_z = kv_z_factor * xp.sqrt(1.0 - kv_x**2 - kv_y**2)
+
+    #         sinc_factor = special_functions.sinc(
+    #             k * L * (ki_z - kj_z - pseudo_sign * (ku_z - kv_z))
+    #         )
+    #         sec_factor = 1.0 / xp.sqrt(xp.abs(ki_z * kj_z * ku_z * kv_z))
+
+    #         output = (
+    #             covariance_a_matrix(
+    #                 ki_x,
+    #                 ki_y,
+    #                 ki_z,
+    #                 kj_x,
+    #                 kj_y,
+    #                 kj_z,
+    #                 ku_x,
+    #                 ku_y,
+    #                 ku_z,
+    #                 kv_x,
+    #                 kv_y,
+    #                 kv_z,
+    #             )
+    #             * sinc_factor[:, xp.newaxis]
+    #             * sec_factor[:, xp.newaxis]
+    #         )
+
+    #         return output
+
+    #     return covariance_integrand
+
+    # def get_covariance_results_generator(
+    #     self,
+    #     indices: list[tuple[int, int, int, int]],
+    #     block_key: str,
+    #     volumes_path: Path,
+    #     integration_task_config,
+    #     integration_method: str = "midpoint",
+    #     covariance_cubature_scheme: Any | None = None,
+    #     is_eight_dimensions: bool = True,
+    # ) -> Generator:
+    #     xp = cp if integration_task_config.use_gpu else np
+
+    #     # Factor common to all covariance integrals
+    #     const_factor = self.medium_parameters.cov_const_factor
+        
+    #     # Load the weights
+    #     with open(volumes_path, "rb") as f:
+    #         volumes = pickle.load(f)
+
+    #     # Prepare task dictionaries
+    #     covariance_task_dict = {}
+    #     pseudo_covariance_task_dict = {}
+
+    #     for wave_block in WAVE_BLOCKS:
+    #         wave_block_one, wave_block_two = wave_block.split(",")
+
+    #         covariance_task_dict[wave_block] = {}
+    #         pseudo_covariance_task_dict[wave_block] = {}
+
+    #         for block in BLOCKS:
+    #             block_one, block_two = block.split(",")
+    #             block_location = (wave_block, block)
+
+    #             # Set up covariance and pseudo_covariance tasks separately
+    #             covariance_integrand = get_covariance_integrand(
+    #                 medium_statistics,
+    #                 medium_parameters,
+    #                 wave_block_one,
+    #                 wave_block_two,
+    #                 block_one,
+    #                 block_two,
+    #                 is_eight_dimensions,
+    #                 is_pseudo_covariance=False,
+    #             )
+    #             covariance_task = build_integration_task(
+    #                 integration_method=integration_method,
+    #                 integrand=covariance_integrand,
+    #                 statistic_type="covariance",
+    #                 block_location=block_location,
+    #                 sub_block_locations=[],
+    #                 const_factor=const_factor,
+    #                 use_cupy=integration_task_config.use_gpu,
+    #                 cubature_scheme=covariance_cubature_scheme,
+    #                 use_dirac_density=False,
+    #                 is_eight_dimensions=is_eight_dimensions,
+    #             )
+    #             covariance_task_dict[wave_block][block] = covariance_task
+
+    #             # Pseudo_covariance
+    #             pseudo_covariance_integrand = get_covariance_integrand(
+    #                 medium_statistics,
+    #                 medium_parameters,
+    #                 wave_block_one,
+    #                 wave_block_two,
+    #                 block_one,
+    #                 block_two,
+    #                 is_eight_dimensions,
+    #                 is_pseudo_covariance=True,
+    #             )
+    #             pseudo_covariance_task = build_integration_task(
+    #                 integration_method=integration_method,
+    #                 integrand=pseudo_covariance_integrand,
+    #                 statistic_type="pseudo_covariance",
+    #                 block_location=block_location,
+    #                 sub_block_locations=[],
+    #                 const_factor=const_factor,
+    #                 use_cupy=integration_task_config.use_gpu,
+    #                 cubature_scheme=covariance_cubature_scheme,
+    #                 use_dirac_density=False,
+    #                 is_eight_dimensions=is_eight_dimensions,
+    #             )
+    #             pseudo_covariance_task_dict[wave_block][
+    #                 block
+    #             ] = pseudo_covariance_task
+
+    #     # Main loop
+    #     mode_vertices_dict = mode_grid.propagating_modes_vertices_dict
+    #     mean_mode_vertices_dict = (
+    #         mode_grid.propagating_modes_mean_vertices_dict
+    #     )
+
+    #     # Work out the volume common to the majority of the memory effect
+    #     # type correlations
+    #     repeating_mode_vertices = mode_vertices_dict.get(0)
+    #     cartesian_product = geometry_utils.iterated_cartesian_product(
+    #         [
+    #             repeating_mode_vertices,
+    #             repeating_mode_vertices,
+    #             repeating_mode_vertices,
+    #             repeating_mode_vertices,
+    #         ]
+    #     )
+    #     reduced_intersection = geometry_utils.get_intersection_vertices(
+    #         cartesian_product
+    #     )[:, columns_to_keep]
+    #     reduced_hull = scipy.spatial.ConvexHull(
+    #         reduced_intersection, qhull_options="QJ"
+    #     )
+    #     repeating_volume = reduced_hull.volume
+    #     my_counter = 0
+    #     for indices in logger.progress_bar(master_indices):
+    #         my_counter += 1
+    #         # Work out the template's integration domain
+    #         # This involves the higher dimensional geometry
+    #         i, j, u, v = indices
+
+    #         centroid = np.concatenate(
+    #             [
+    #                 mean_mode_vertices_dict.get(i),
+    #                 mean_mode_vertices_dict.get(j),
+    #                 mean_mode_vertices_dict.get(u),
+    #                 mean_mode_vertices_dict.get(v),
+    #             ]
+    #         )
+
+    #         if i == u and j == v:
+    #             # Do it manually for autocorrelations
+    #             # Most of the time it's the repeating thing, but sometimes it's not
+    #             # e.g. when there are edge modes involved
+
+    #             mode_i_vertices = mode_vertices_dict.get(i)
+    #             mode_j_vertices = mode_vertices_dict.get(j)
+    #             mode_u_vertices = mode_vertices_dict.get(u)
+    #             mode_v_vertices = mode_vertices_dict.get(v)
+
+    #             # Get the integration domain
+    #             # This part does the geometry with the 8D region being intersected
+    #             # by hyperplanes
+    #             cartesian_product = geometry_utils.iterated_cartesian_product(
+    #                 [
+    #                     mode_i_vertices,
+    #                     mode_j_vertices,
+    #                     mode_u_vertices,
+    #                     mode_v_vertices,
+    #                 ]
+    #             )
+    #             reduced_intersection = (
+    #                 geometry_utils.get_intersection_vertices(
+    #                     cartesian_product
+    #                 )[:, columns_to_keep]
+    #             )
+    #             reduced_hull = scipy.spatial.ConvexHull(
+    #                 reduced_intersection, qhull_options="QJ"
+    #             )
+    #             # centroid = (
+    #             #     xp.mean(cartesian_product, axis=0)
+    #             #     if is_eight_dimensions
+    #             #     else xp.mean(reduced_intersection, axis=0)
+    #             # )
+    #             volume = reduced_hull.volume
+    #         else:
+    #             volume = repeating_volume
+
+    #         # Set up arrays with derived integration domains
+    #         if integration_method == "cubature":
+    #             centroid_expanded = xp.tile(
+    #                 centroid, (reduced_hull.simplices.shape[0], 1, 1)
+    #             )
+    #             new_simplex_array = xp.concatenate(
+    #                 [
+    #                     xp.asarray(
+    #                         reduced_hull.points[reduced_hull.simplices]
+    #                     ),
+    #                     centroid_expanded,
+    #                 ],
+    #                 axis=1,
+    #             )
+    #         elif integration_method == "midpoint":
+    #             new_midpoint_array = xp.array([centroid])
+    #             new_volume_array = xp.array([volume])
+
+    #         # Add computed geometric quantities to task dictionaries
+    #         for wave_block in WAVE_BLOCKS:
+    #             wave_block_one, wave_block_two = wave_block.split(",")
+    #             for block in BLOCKS:
+    #                 block_one, block_two = block.split(",")
+
+    #                 # Check if the mean needs to be calculated for this
+    #                 # particular wave_block, block pair
+    #                 if indices not in covariance_indices.get(
+    #                     wave_block, {}
+    #                 ).get(block, set()):
+    #                     continue
+
+    #                 # Add domain to integral task
+    #                 if integration_method == "cubature":
+    #                     old_stack_length = len(
+    #                         covariance_task_dict[wave_block][
+    #                             block
+    #                         ].simplex_array
+    #                     )
+    #                     new_stack_length = old_stack_length + len(
+    #                         new_simplex_array
+    #                     )
+
+    #                     covariance_task_dict[wave_block][
+    #                         block
+    #                     ].simplex_array = xp.vstack(
+    #                         (
+    #                             covariance_task_dict[wave_block][
+    #                                 block
+    #                             ].simplex_array,
+    #                             new_simplex_array,
+    #                         )
+    #                     )
+    #                     pseudo_covariance_task_dict[wave_block][
+    #                         block
+    #                     ].simplex_array = xp.vstack(
+    #                         (
+    #                             pseudo_covariance_task_dict[wave_block][
+    #                                 block
+    #                             ].simplex_array,
+    #                             new_simplex_array,
+    #                         )
+    #                     )
+
+    #                 elif integration_method == "midpoint":
+    #                     old_stack_length = len(
+    #                         covariance_task_dict[wave_block][
+    #                             block
+    #                         ].midpoint_array
+    #                     )
+    #                     new_stack_length = old_stack_length + len(
+    #                         new_midpoint_array
+    #                     )
+
+    #                     covariance_task_dict[wave_block][
+    #                         block
+    #                     ].midpoint_array = xp.vstack(
+    #                         (
+    #                             covariance_task_dict[wave_block][
+    #                                 block
+    #                             ].midpoint_array,
+    #                             new_midpoint_array,
+    #                         )
+    #                     )
+    #                     covariance_task_dict[wave_block][
+    #                         block
+    #                     ].volume_array = xp.vstack(
+    #                         (
+    #                             covariance_task_dict[wave_block][
+    #                                 block
+    #                             ].volume_array,
+    #                             new_volume_array,
+    #                         )
+    #                     )
+
+    #                     pseudo_covariance_task_dict[wave_block][
+    #                         block
+    #                     ].midpoint_array = xp.vstack(
+    #                         (
+    #                             covariance_task_dict[wave_block][
+    #                                 block
+    #                             ].midpoint_array,
+    #                             new_midpoint_array,
+    #                         )
+    #                     )
+    #                     pseudo_covariance_task_dict[wave_block][
+    #                         block
+    #                     ].volume_array = xp.vstack(
+    #                         (
+    #                             covariance_task_dict[wave_block][
+    #                                 block
+    #                             ].volume_array,
+    #                             new_volume_array,
+    #                         )
+    #                     )
+
+    #                 # Add sub block locations.
+    #                 # Remember that u and v are negated for pseudo_covariance
+    #                 # for reciprocal mode grids
+    #                 new_slice = slice(old_stack_length, new_stack_length)
+
+    #                 new_covariance_indices = indices
+    #                 new_covariance_sub_block_location = (
+    #                     new_slice,
+    #                     new_covariance_indices,
+    #                 )
+    #                 covariance_task_dict[wave_block][
+    #                     block
+    #                 ].sub_block_locations.append(
+    #                     new_covariance_sub_block_location
+    #                 )
+
+    #                 new_pseudo_covariance_indices = (i, j, -u, -v)
+    #                 new_pseudo_covariance_sub_block_location = (
+    #                     new_slice,
+    #                     new_pseudo_covariance_indices,
+    #                 )
+    #                 pseudo_covariance_task_dict[wave_block][
+    #                     block
+    #                 ].sub_block_locations.append(
+    #                     new_pseudo_covariance_sub_block_location
+    #                 )
+
+    #                 # Execute tasks if RAM usage is getting too high.
+    #                 # Re-initialize relevant integration task
+    #                 current_ram_usage = system_utils.get_current_ram_usage()
+    #                 # if current_ram_usage > integration_task_config.ram_limit:
+    #                 if True:
+    #                     new_covariance_result = covariance_task_dict[
+    #                         wave_block
+    #                     ][block].execute_task()
+    #                     main_result_list.append_result(new_covariance_result)
+
+    #                     block_location = (wave_block, block)
+
+    #                     covariance_integrand = get_covariance_integrand(
+    #                         medium_statistics,
+    #                         medium_parameters,
+    #                         wave_block_one,
+    #                         wave_block_two,
+    #                         block_one,
+    #                         block_two,
+    #                         is_eight_dimensions,
+    #                         is_pseudo_covariance=False,
+    #                     )
+
+    #                     covariance_task = build_integration_task(
+    #                         integration_method=integration_method,
+    #                         integrand=covariance_integrand,
+    #                         statistic_type="covariance",
+    #                         block_location=block_location,
+    #                         sub_block_locations=[],
+    #                         const_factor=const_factor,
+    #                         use_cupy=integration_task_config.use_gpu,
+    #                         cubature_scheme=covariance_cubature_scheme,
+    #                         use_dirac_density=False,
+    #                         is_eight_dimensions=is_eight_dimensions,
+    #                     )
+    #                     covariance_task_dict[wave_block][
+    #                         block
+    #                     ] = covariance_task
+
+    #                     new_pseudo_covariance_result = (
+    #                         pseudo_covariance_task_dict[wave_block][
+    #                             block
+    #                         ].execute_task()
+    #                     )
+    #                     main_result_list.append_result(
+    #                         new_pseudo_covariance_result
+    #                     )
+
+    #                     block_location = (wave_block, block)
+
+    #                     pseudo_covariance_integrand = get_covariance_integrand(
+    #                         medium_statistics,
+    #                         medium_parameters,
+    #                         wave_block_one,
+    #                         wave_block_two,
+    #                         block_one,
+    #                         block_two,
+    #                         is_eight_dimensions,
+    #                         is_pseudo_covariance=True,
+    #                     )
+
+    #                     pseudo_covariance_task = build_integration_task(
+    #                         integration_method=integration_method,
+    #                         integrand=pseudo_covariance_integrand,
+    #                         statistic_type="pseudo_covariance",
+    #                         block_location=block_location,
+    #                         sub_block_locations=[],
+    #                         const_factor=const_factor,
+    #                         use_cupy=integration_task_config.use_gpu,
+    #                         cubature_scheme=covariance_cubature_scheme,
+    #                         use_dirac_density=False,
+    #                         is_eight_dimensions=is_eight_dimensions,
+    #                     )
+    #                     pseudo_covariance_task_dict[wave_block][
+    #                         block
+    #                     ] = pseudo_covariance_task
+
+    #     # Execute remaining tasks
+    #     for wave_block in WAVE_BLOCKS:
+    #         for block in BLOCKS:
+    #             new_covariance_result = covariance_task_dict[wave_block][
+    #                 block
+    #             ].execute_task()
+    #             main_result_list.append_result(new_covariance_result)
+
+    #             new_pseudo_covariance_result = pseudo_covariance_task_dict[
+    #                 wave_block
+    #             ][block].execute_task()
+    #             main_result_list.append_result(new_pseudo_covariance_result)
+
+    #     return main_result_list
 
 
 def build_integration_task(

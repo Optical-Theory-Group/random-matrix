@@ -6,6 +6,7 @@ ModeGrid serves as a container for Mode objects.
 from dataclasses import InitVar, dataclass, field
 from typing import Any
 from pathlib import Path
+import shapely
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -59,6 +60,7 @@ class ModeGrid:
     r_lim: float
 
     mode_list: InitVar[list[Mode]] = None
+    is_lattice: bool = False
 
     is_reciprocal: bool = field(init=False)
     modes: dict[tuple[str, str], Mode] = field(init=False)
@@ -92,9 +94,7 @@ class ModeGrid:
             raise ValueError("Your mode_list is an empty list.")
 
     @staticmethod
-    def _get_reciprocal_partner_index(
-        mode: Mode, mode_list: list[Mode]
-    ) -> int:
+    def _get_reciprocal_partner_index(mode: Mode, mode_list: list[Mode]) -> int:
         """Find the index of a mode's reciprocal partner in mode_list
 
         Parameters
@@ -310,18 +310,14 @@ class ModeGrid:
     @property
     def num_propagating(self) -> int:
         propagating_modes = [
-            mode
-            for mode in self.modes.values()
-            if mode.wave_type == "propagating"
+            mode for mode in self.modes.values() if mode.wave_type == "propagating"
         ]
         return len(propagating_modes)
 
     @property
     def num_evanescent(self) -> int:
         evanescent_modes = [
-            mode
-            for mode in self.modes.values()
-            if mode.wave_type == "evanescent"
+            mode for mode in self.modes.values() if mode.wave_type == "evanescent"
         ]
         return len(evanescent_modes)
 
@@ -355,6 +351,10 @@ class ModeGrid:
         return {mode.index: mode.vertices for mode in propagating_modes_list}
 
     @property
+    def propagating_modes_vertices(self) -> list[np.ndarray]:
+        return [mode.vertices for mode in self.propagating_modes_list]
+
+    @property
     def propagating_modes_weights_dict(self) -> list[Mode]:
         propagating_modes_list = self.propagating_modes_list
         return {mode.index: mode.weight for mode in propagating_modes_list}
@@ -363,8 +363,7 @@ class ModeGrid:
     def propagating_modes_mean_vertices_dict(self) -> dict:
         vertices_dict = self.propagating_modes_vertices_dict
         return {
-            key: np.mean(vertices, axis=0)
-            for key, vertices in vertices_dict.items()
+            key: np.mean(vertices, axis=0) for key, vertices in vertices_dict.items()
         }
 
     @property
@@ -390,29 +389,28 @@ class ModeGrid:
     @property
     def weight_dict(self) -> dict:
         return {
-            index: self.by_index(index).weight
-            for index in self.propagating_indices
+            index: self.by_index(index).weight for index in self.propagating_indices
         }
 
     @property
     def vertices_dict(self) -> dict:
         return {
-            index: self.by_index(index).vertices
-            for index in self.propagating_indices
+            index: self.by_index(index).vertices for index in self.propagating_indices
         }
 
     @property
     def centers_dict(self) -> dict:
         return {
-            index: self.by_index(index).center
-            for index in self.propagating_indices
+            index: self.by_index(index).center for index in self.propagating_indices
         }
 
     @property
     def propagating_modes_is_edge_dict(self) -> dict:
-        return {
-            mode.index: mode.is_edge for mode in self.propagating_modes_list
-        }
+        return {mode.index: mode.is_edge for mode in self.propagating_modes_list}
+
+    @property
+    def has_zero_mode(self) -> bool:
+        return 0 in self.propagating_indices
 
     # --------------------------------------------------------------------------
     # Public methods
@@ -460,6 +458,36 @@ class ModeGrid:
             )
 
         return mode
+
+    def by_point(
+        self, point: tuple[float, float], wave_type: str = "propagating"
+    ) -> int | None:
+        """
+        Returns the index of the mode whose polygon contains or touches
+        the given (kx, ky).
+
+        Parameters
+        ----------
+        kx : float
+            kx coordinate
+        ky : float
+            ky coordinate
+        wave_type : str
+            "propagating" or "evanescent"
+
+        Returns
+        -------
+        index : str or None
+            Index of the containing/touching mode, or None if not found
+        """
+        point = shapely.geometry.Point(*point)
+        for mode in self.propagating_modes_list:
+            vertices = np.array(mode.vertices)
+            polygon = shapely.geometry.Polygon(vertices)
+            if polygon.contains(point) or polygon.touches(point):
+                return mode
+        return None
+
 
     # --------------------------------------------------------------------------
     # Object representations

@@ -81,34 +81,23 @@ particle_statistics_2d = ParticleStatistics(
 )
 medium_statistics_2d = MediumStatistics([particle_statistics_2d])
 
+# my_grid = mode_grid_factory.from_tiling("rectangles", (0.07, 0.07))
+# print(my_grid.is_lattice)
+# my_grid.plot()
+
 my_grid = mode_grid_factory.from_dr_dt(
-    dr=0.05,
-    dt=2 * np.pi / 20,
-    r_lim=1.0,
-    rotation_angle=0.0,
-    include_central_mode=True,
+    dr=0.1, dt=2 * np.pi /8, r_lim=1.0, is_spiderweb=True
 )
-my_grid.plot()
+print(my_grid.is_lattice)
+my_grid.plot(show_indices=True)
+m = my_grid.by_index(7)
+print(m._get_weight(m.vertices, m.sides, m.wave_type))
+print(m.weight)
 
-use_np_config = IntegrationTaskConfig(use_gpu=False)
-
-num_modes = my_grid.num_propagating
-print(f"Starting num_modes = {num_modes}")
-# 2D
-simulation_name = f"spiderweb_test_v2"
-input_statistics_manager_2d = InputStatisticsManager(
-    simulation_name,
-    medium_parameters,
-    medium_statistics_2d,
-    my_grid,
-    parent_data_dir="/mnt/raid/rmt/data/",
-    supplied_indices=None,
-    use_dirac_density=False,
-    integration_method="midpoint",
-    covariance_cubature_scheme=None,
-    integration_task_config=use_np_config,
-)
-pool = input_statistics_manager_2d.get_matrix_pool_manager()
+s = 0
+for m in my_grid.propagating_modes_list:
+    s += m.weight
+print(s)
 assert False
 
 chol_path = input_statistics_manager_2d.simulation_path / "chol.npz"

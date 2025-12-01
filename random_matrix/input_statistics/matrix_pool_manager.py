@@ -177,6 +177,12 @@ class MatrixPoolManager:
         return cholesky
 
     @property
+    def mode_grid(self):
+        with open(self.input_statistics_paths.mode_grid, "rb") as f:
+            mg = pickle.load(f)
+        return mg
+
+    @property
     def S(self) -> np.ndarray | cp.ndarray:
         """Alias for the single pool S matrices"""
         return self.single_pool_S

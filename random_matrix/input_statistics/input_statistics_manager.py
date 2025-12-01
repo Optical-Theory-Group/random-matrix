@@ -36,6 +36,7 @@ class InputStatisticsManager:
         self.medium_parameters = medium_parameters
         self.medium_statistics = medium_statistics
         self.mode_grid = mode_grid
+        self.is_lattice = self.mode_grid.is_lattice
         self.integration_task_config = integration_task_config
         self.base_path = base_path
         self._loaded = _loaded
@@ -53,9 +54,7 @@ class InputStatisticsManager:
     def _setup_paths(self) -> None:
         """Initialize paths for saving simulation data and create directories
         if they don't exist."""
-        self.paths = paths.InputStatisticsPaths(
-            self.simulation_name, self.base_path
-        )
+        self.paths = paths.InputStatisticsPaths(self.simulation_name, self.base_path)
 
     def _setup_loggers(self) -> None:
         """Initialize loggers for this and helper classes."""
@@ -70,14 +69,12 @@ class InputStatisticsManager:
         self.index_finder = index_finder.IndexFinder(
             self.mode_grid, self.loggers["index_finder"]
         )
-        self.integration_task_preparer = (
-            integration_task.IntegrationTaskPreparer(
-                self.mode_grid,
-                self.medium_parameters,
-                self.medium_statistics,
-                self.loggers["integration_task_preparer"],
-                integration_task_config=self.integration_task_config,
-            )
+        self.integration_task_preparer = integration_task.IntegrationTaskPreparer(
+            self.mode_grid,
+            self.medium_parameters,
+            self.medium_statistics,
+            self.loggers["integration_task_preparer"],
+            integration_task_config=self.integration_task_config,
         )
 
     def _save_initial_objects(self) -> None:
@@ -209,14 +206,13 @@ class InputStatisticsManager:
             # Step 1) Get the indices. These will tell the integration methods
             # which integrals need to be calculated.
             self.calculate_volumes()
-
             self.calculate_indices()
 
             # Step 2) Calculate the mean scattering matrix
             self.calculate_mean_S()
 
             # Step 3) Calculate the integrals and form the Cholesky matrices
-            # 3.1) Pre-compute required volumes and A matrix values
+            # 3.1) If the grid type is lattice, pre-compute the A matrix values
             self.calculate_a_matrix_values()
 
             # 3.2) Get the Cholesky matrices for each scattering matrix block
@@ -227,11 +223,11 @@ class InputStatisticsManager:
 
         # Construct the matrix pool
         with self.logger.log("complete"):
-            pool = matrix_pool_manager.MatrixPoolManager(
+            pm = matrix_pool_manager.MatrixPoolManager(
                 self.simulation_name,
                 self.paths.base,
             )
-        return pool
+        return pm
 
     # -------------------------------------------------------------------------
     # Methods for calculating statistics
@@ -240,16 +236,15 @@ class InputStatisticsManager:
     def calculate_indices(self) -> None:
         """Calculate scattering matrix indices for which statistics exist and
         save the result to memory"""
-        if (
-            self.paths.indices.exists()
-            and self.paths.independent_elements.exists()
-        ):
+        if self.paths.indices.exists() and self.paths.independent_elements.exists():
             with self.logger.log("indices_exists"):
                 return
 
         with self.logger.log("indices"):
             self.index_finder.calculate_indices(
-                self.paths.independent_elements, self.paths.indices
+                self.is_lattice,
+                self.paths.independent_elements,
+                self.paths.indices,
             )
 
     def calculate_mean_S(self) -> None:
@@ -264,9 +259,7 @@ class InputStatisticsManager:
                     indices = pickle.load(f)
 
                 integration_result_list = self.get_integration_results(indices)
-                mean_result_list = integration_result_list.by_statistic_type(
-                    "mean"
-                )
+                mean_result_list = integration_result_list.by_statistic_type("mean")
                 mean_S = self._get_mean_S(mean_result_list)
                 np.save(self.paths.mean_S, mean_S)
 
@@ -277,9 +270,12 @@ class InputStatisticsManager:
                 return
 
         with self.logger.log("volumes"):
-            self.integration_task_preparer.calculate_volumes(
-                self.paths.volumes
-            )
+            if self.is_lattice:
+                self.integration_task_preparer.calculate_volumes_lattice(
+                    self.paths.volumes
+                )
+            else:
+                self.integration_task_preparer.calculate_volumes(self.paths.volumes)
 
     def calculate_a_matrix_values(self) -> None:
         """Pre-compute A matrix values"""
@@ -295,9 +291,7 @@ class InputStatisticsManager:
     def calculate_cholesky_blocks(self):
         """Wrapper function for calculating the cholesky matrices for each
         S matrix block individually"""
-        if all(
-            [path.exists() for path in self.paths.cholesky_blocks.values()]
-        ):
+        if all([path.exists() for path in self.paths.cholesky_blocks.values()]):
             with self.logger.log("cholesky_blocks_exists"):
                 return
 
@@ -334,9 +328,7 @@ class InputStatisticsManager:
             cholesky_block = matrix_utils.get_cholesky_decomposition(
                 real_covariance_matrix
             )
-            scipy.sparse.save_npz(
-                self.paths.cholesky_blocks[block_key], cholesky_block
-            )
+            scipy.sparse.save_npz(self.paths.cholesky_blocks[block_key], cholesky_block)
 
     def calculate_cholesky_dict(self) -> None:
         """From saved cholesky matrices, form a dictionary of sub-chols, one
@@ -411,9 +403,9 @@ class InputStatisticsManager:
                 indices = matrix_utils.get_sub_block_indices(
                     block,
                     sub_block_location,
-                    self.mode_grid.is_reciprocal,
-                    self.mode_grid.num_propagating,
+                    self.mode_grid.propagating_indices,
                 )
+                print(indices)
                 mean_S[indices] = sub_block
 
                 # If reciprocal, fill out other elements of S that weren't
@@ -424,14 +416,14 @@ class InputStatisticsManager:
 
                     # Where does the new sub block go within S?
                     indices = matrix_utils.get_reciprocal_sub_block_indices(
-                        block,
-                        sub_block_location,
-                        self.mode_grid.num_propagating,
+                        block, sub_block_location, self.mode_grid.propagating_indices
                     )
                     mean_S[indices] = reciprocal_sub_block
 
         # Multiply by weights
-        mean_weight_matrix = self._get_mean_weight_matrix()
+        mean_weight_matrix = self._get_mean_weight_matrix(
+            has_zero_mode=self.mode_grid.has_zero_mode
+        )
         mean_S = mean_weight_matrix @ mean_S @ mean_weight_matrix
 
         return mean_S
@@ -444,6 +436,7 @@ class InputStatisticsManager:
         self, indices: list, block_key: str, num_batches: int = 100
     ):
         split_indices = array_utils.split_list(indices, num_batches)
+
         integration_result_generators = [
             self.integration_task_preparer.get_covariance_results_lattice_generator(
                 index_list,
@@ -603,8 +596,7 @@ class InputStatisticsManager:
                 row_slice, col_slice = matrix_utils.get_cov_sub_block_indices(
                     "r,r",
                     sub_block_location,
-                    self.mode_grid.is_reciprocal,
-                    self.mode_grid.num_propagating,
+                    self.mode_grid.propagating_indices
                 )
                 rows = np.arange(row_slice.start, row_slice.stop)
                 cols = np.arange(col_slice.start, col_slice.stop)
@@ -624,12 +616,8 @@ class InputStatisticsManager:
                 master_values.extend(new_values_real[non_zero_indices])
 
                 # Bottom right block
-                master_row_inds.extend(
-                    new_row_inds[non_zero_indices] + half_size
-                )
-                master_col_inds.extend(
-                    new_col_inds[non_zero_indices] + half_size
-                )
+                master_row_inds.extend(new_row_inds[non_zero_indices] + half_size)
+                master_col_inds.extend(new_col_inds[non_zero_indices] + half_size)
                 master_values.extend(new_values_real[non_zero_indices])
 
                 # --------------------------------------------------------------
@@ -638,15 +626,11 @@ class InputStatisticsManager:
 
                 # Top right block
                 master_row_inds.extend(new_row_inds[non_zero_indices])
-                master_col_inds.extend(
-                    new_col_inds[non_zero_indices] + half_size
-                )
+                master_col_inds.extend(new_col_inds[non_zero_indices] + half_size)
                 master_values.extend(-new_values_imag[non_zero_indices])
 
                 # Bottom left block
-                master_row_inds.extend(
-                    new_row_inds[non_zero_indices] + half_size
-                )
+                master_row_inds.extend(new_row_inds[non_zero_indices] + half_size)
                 master_col_inds.extend(new_col_inds[non_zero_indices])
                 master_values.extend(new_values_imag[non_zero_indices])
 
@@ -695,9 +679,7 @@ class InputStatisticsManager:
             sub_block_location = result.sub_block_locations[0]
             i, j, u, v = sub_block_location
 
-            if block_location in ["r,r", "r2,r2"] and not (
-                i == -v and j == -u
-            ):
+            if block_location in ["r,r", "r2,r2"] and not (i == -v and j == -u):
                 # Prepare all reciprocal cases
                 extended_sub_block_locations = [
                     (i, j, u, v),
@@ -753,8 +735,7 @@ class InputStatisticsManager:
                 row_slice, col_slice = matrix_utils.get_cov_sub_block_indices(
                     "r,r",
                     sub_block_location,
-                    self.mode_grid.is_reciprocal,
-                    self.mode_grid.num_propagating,
+                    self.mode_grid.propagating_indices
                 )
                 rows = np.arange(row_slice.start, row_slice.stop)
                 cols = np.arange(col_slice.start, col_slice.stop)
@@ -811,9 +792,7 @@ class InputStatisticsManager:
         )
         return cov
 
-    def _get_covariance_matrix(
-        self, cov_result_list, is_pseudo=False
-    ) -> Numeric:
+    def _get_covariance_matrix(self, cov_result_list, is_pseudo=False) -> Numeric:
         """Construct the regular covariance matrix from the covariance results
         list"""
 
@@ -833,9 +812,7 @@ class InputStatisticsManager:
 
         size_of_cov = (self.mode_grid.num_propagating) ** 2 * 4 * 4
 
-        cov = scipy.sparse.dok_array(
-            (size_of_cov, size_of_cov), dtype=np.complex128
-        )
+        cov = scipy.sparse.dok_array((size_of_cov, size_of_cov), dtype=np.complex128)
 
         for result in tqdm(cov_result_list):
             # Skip if no new results
@@ -886,8 +863,7 @@ class InputStatisticsManager:
                     indices = matrix_utils.get_cov_sub_block_indices(
                         block_location,
                         sub_block_location,
-                        self.mode_grid.is_reciprocal,
-                        self.mode_grid.num_propagating,
+                        self.mode_grid.propagating_indices
                     )
                     # Get weights
                     i, j, u, v = sub_block_location
@@ -933,9 +909,7 @@ class InputStatisticsManager:
 
         size_of_cov = (self.mode_grid.num_propagating) ** 2 * 4 * 4
 
-        cov = scipy.sparse.dok_array(
-            (size_of_cov, size_of_cov), dtype=np.complex128
-        )
+        cov = scipy.sparse.dok_array((size_of_cov, size_of_cov), dtype=np.complex128)
 
         for result in cov_result_list:
             # Skip if no new results
@@ -986,8 +960,7 @@ class InputStatisticsManager:
                     indices = matrix_utils.get_cov_sub_block_indices(
                         block_location,
                         sub_block_location,
-                        self.mode_grid.is_reciprocal,
-                        self.mode_grid.num_propagating,
+                        self.mode_grid.propagating_indices
                     )
                     # Get weights
                     i, j, u, v = sub_block_location
@@ -1015,17 +988,14 @@ class InputStatisticsManager:
     # Weight matrices
     # -------------------------------------------------------------------------
 
-    def _get_mean_weight_matrix(self) -> Numeric:
+    def _get_mean_weight_matrix(self, has_zero_mode: bool = True) -> Numeric:
         """Get a matrix whose elements are like 1/sqrt(w)
 
         Used to distribute weights across the mean matrix.
         """
 
-        max_index = self.mode_grid.max_index
-        indices = range(-max_index, max_index + 1, 1)
-
         weight_list = []
-        for index in indices:
+        for index in self.mode_grid.propagating_indices:
             mode = self.mode_grid.by_index(index)
             weight_list.append(mode.weight)
 
