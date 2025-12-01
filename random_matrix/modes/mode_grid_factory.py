@@ -112,6 +112,7 @@ def from_tiling(
         vertices_list=vertices_list,
         r_lim=r_lim,
         grid_wave_type=grid_wave_type,
+        is_lattice=True,
     )
 
 
@@ -121,7 +122,8 @@ def from_dr_dt(
     r_lim: float = 1.2,
     include_central_mode: bool = True,
     rotation_angle: float = 0.0,
-    spiderweb: bool = True,
+    is_spiderweb: bool = True,
+    include_edge_modes: bool = False,
 ) -> ModeGrid:
     """Generate polar grid from dr and dt.
 
@@ -164,7 +166,8 @@ def from_dr_dt(
         t_vals=t_vals,
         include_central_mode=include_central_mode,
         rotation_angle=rotation_angle,
-        spiderweb=spiderweb,
+        is_spiderweb=is_spiderweb,
+        include_edge_modes=include_edge_modes,
     )
 
 
@@ -173,7 +176,8 @@ def from_rt_vals(
     t_vals: npt.NDArray[np.float64],
     include_central_mode: bool = True,
     rotation_angle: np.float64 = np.float64(0.0),
-    spiderweb: bool = True,
+    is_spiderweb: bool = True,
+    include_edge_modes: bool = False,
 ) -> ModeGrid:
     """Generate polar grid from arrays of r and t values.
 
@@ -211,6 +215,8 @@ def from_rt_vals(
         t_vals=t_vals,
         rotation_angle=rotation_angle,
         include_central_mode=include_central_mode,
+        is_spiderweb=is_spiderweb,
+        include_edge_modes=include_edge_modes,
     )
 
     # Construct mode objects from dictionary list
@@ -218,13 +224,14 @@ def from_rt_vals(
 
     # Linearlize the arc edges if the spiderweb option is true
     # This ensures the regions are all convex
-    if spiderweb:
-        for m in mode_list:
-            for s in m.sides:
-                if not np.allclose(np.linalg.norm(s.points, axis=1), 1.0):
-                    s.type = "line"
+    # if is_spiderweb:
+    #     for m in mode_list:
+    #         if m.is_edge:
+    #             m.sides[-1].type = "line"
+    #         # Fix weights
+    #         m.weight = m._get_weight(m.vertices, m.sides, m.wave_type)
 
-    return ModeGrid(mode_list=mode_list, r_lim=r_lim)
+    return ModeGrid(mode_list=mode_list, r_lim=r_lim, is_lattice=False)
 
 
 def from_dx_dy() -> None:
@@ -294,6 +301,7 @@ def _get_mode_grid(
     vertices_list: Iterator[npt.NDArray[np.float64]],
     r_lim: float,
     grid_wave_type: str,
+    is_lattice: bool = True,
 ) -> ModeGrid:
     """Intermediate function for generating ModeGrid.
 
@@ -339,7 +347,7 @@ def _get_mode_grid(
     # Construct mode objects from dictionary list
     mode_list = list(_get_mode_list(mode_boundary_dict_list))
 
-    return ModeGrid(mode_list=mode_list, r_lim=r_lim)
+    return ModeGrid(mode_list=mode_list, r_lim=r_lim, is_lattice=is_lattice)
 
 
 def _get_mode_list(
@@ -525,9 +533,7 @@ def _generate_tiling_vertices_list(
                 continue
 
             vertices = geometry_utils.rotate_points(vertices, rotation_angle)
-            vertices = geometry_utils.translate_points(
-                vertices, translation_vector
-            )
+            vertices = geometry_utils.translate_points(vertices, translation_vector)
 
             # Give points correct rotational order
             vertices = geometry_utils.order_points(vertices)
@@ -576,9 +582,7 @@ def _generate_unit_cell(
             )
 
         case "rectangles":
-            yield from _generate_rectangles(
-                center=center, side_length=side_length
-            )
+            yield from _generate_rectangles(center=center, side_length=side_length)
 
         case "hexagons":
             yield from _generate_hexagons(
@@ -594,6 +598,8 @@ def _get_polar_mode_boundary_dict_list(
     t_vals: npt.NDArray[np.float64],
     include_central_mode: bool,
     rotation_angle: float,
+    is_spiderweb: bool,
+    include_edge_modes: bool,
 ) -> Iterator[dict[str, Any]]:
     """Generates polar mode boundaries for polar grids.
 
@@ -651,7 +657,9 @@ def _get_polar_mode_boundary_dict_list(
             (r_central * np.cos(t_vals), r_central * np.sin(t_vals))
         )
 
-        arc_points_list = list(array_utils.get_pairs(vertices, cyclic=True))
+        arc_points_list = (
+            [] if is_spiderweb else list(array_utils.get_pairs(vertices, cyclic=True))
+        )
         new_mode_boundary_dict = {
             "vertices": vertices,
             "arc_points_list": arc_points_list,
@@ -661,15 +669,13 @@ def _get_polar_mode_boundary_dict_list(
     else:
         # Get wedges
         for t_1, t_2 in array_utils.get_pairs(t_vals):
-            vertices_polar = np.array(
-                [[0.0, 0.0], [r_central, t_1], [r_central, t_2]]
-            )
+            vertices_polar = np.array([[0.0, 0.0], [r_central, t_1], [r_central, t_2]])
             vertices = geometry_utils.polar_to_cartesian(vertices_polar)
 
             # Rotate according to the provided rotation angle
             vertices = geometry_utils.rotate_points(vertices, rotation_angle)
 
-            arc_points_list = [vertices[1:]]
+            arc_points_list = [] if is_spiderweb else [vertices[1:]]
             new_mode_boundary_dict = {
                 "vertices": vertices,
                 "arc_points_list": arc_points_list,
@@ -679,16 +685,49 @@ def _get_polar_mode_boundary_dict_list(
     # All modes beyond the central ones
     # Get rid of 0 from the r_vals list
     r_vals = r_vals[1:]
-    for r_1, r_2 in array_utils.get_pairs(r_vals):
+    for r_1, r_2 in array_utils.get_pairs(r_vals)[:-1]:
+        for t_1, t_2 in array_utils.get_pairs(t_vals):
+            vertices_polar = np.array([[r_1, t_1], [r_1, t_2], [r_2, t_2], [r_2, t_1]])
+            vertices = geometry_utils.polar_to_cartesian(vertices_polar)
+            # Rotate according to the provided rotation angle
+            vertices = geometry_utils.rotate_points(vertices, rotation_angle)
+
+            arc_points_list = [] if is_spiderweb else [vertices[0:2], vertices[2:]]
+            new_mode_boundary_dict = {
+                "vertices": vertices,
+                "arc_points_list": arc_points_list,
+            }
+            yield new_mode_boundary_dict
+
+    # Edge case
+    r_1, r_2 = array_utils.get_pairs(r_vals)[-1]
+    for t_1, t_2 in array_utils.get_pairs(t_vals):
+        vertices_polar = np.array([[r_1, t_1], [r_1, t_2], [r_2, t_2], [r_2, t_1]])
+        vertices = geometry_utils.polar_to_cartesian(vertices_polar)
+        vertices = geometry_utils.rotate_points(vertices, rotation_angle)
+        arc_points_list = (
+            []
+            if (is_spiderweb and include_edge_modes)
+            else [vertices[2:]]
+        )
+        new_mode_boundary_dict = {
+            "vertices": vertices,
+            "arc_points_list": arc_points_list,
+        }
+        yield new_mode_boundary_dict
+
+    # Handle modes at the edge for spiderweb grid
+    # Get the extra parts at the edge for the spiderweb case
+    if is_spiderweb and include_edge_modes:
         for t_1, t_2 in array_utils.get_pairs(t_vals):
             vertices_polar = np.array(
-                [[r_1, t_1], [r_1, t_2], [r_2, t_2], [r_2, t_1]]
+                [[1.0, t_1], [1.0, (t_1 + t_2) / 2], [1.0, t_2]]
             )
             vertices = geometry_utils.polar_to_cartesian(vertices_polar)
             # Rotate according to the provided rotation angle
             vertices = geometry_utils.rotate_points(vertices, rotation_angle)
 
-            arc_points_list = [vertices[0:2], vertices[2:]]
+            arc_points_list = [vertices[0:2], vertices[1:3]]
             new_mode_boundary_dict = {
                 "vertices": vertices,
                 "arc_points_list": arc_points_list,
@@ -721,9 +760,7 @@ def _generate_random_vertices_list(
     """
 
     factor = 1.1
-    points = np.random.uniform(
-        -factor * r_lim, factor * r_lim, (num_points, 2)
-    )
+    points = np.random.uniform(-factor * r_lim, factor * r_lim, (num_points, 2))
 
     corner_points = np.array(
         [
@@ -743,9 +780,7 @@ def _generate_random_vertices_list(
             v = scipy.spatial.Voronoi(points)
             poly_points = []
             regions = [
-                region
-                for region in v.regions
-                if len(region) > 0 and not -1 in region
+                region for region in v.regions if len(region) > 0 and not -1 in region
             ]
             for region in regions:
                 poly_points.append(np.array([v.vertices[i] for i in region]))
@@ -787,14 +822,10 @@ def _cut_and_filter(
     """
 
     # Cut across propagating-evanescent mode boundary
-    mode_boundary_dict_list = _cut_by_circle(
-        mode_boundary_dict_list, radius=1.0
-    )
+    mode_boundary_dict_list = _cut_by_circle(mode_boundary_dict_list, radius=1.0)
 
     # Cut across maximum evanescent mode radial boundary
-    mode_boundary_dict_list = _cut_by_circle(
-        mode_boundary_dict_list, radius=r_lim
-    )
+    mode_boundary_dict_list = _cut_by_circle(mode_boundary_dict_list, radius=r_lim)
 
     # Filter according to what modes are desired.
     match grid_wave_type:
@@ -855,11 +886,9 @@ def _cut_by_circle(
             continue
 
         # Now find all intersection points
-        intersection_points = (
-            geometry_utils.get_polygon_circle_intersection_points(
-                vertices,
-                skspatial.objects.Circle([0.0, 0.0], radius),
-            )
+        intersection_points = geometry_utils.get_polygon_circle_intersection_points(
+            vertices,
+            skspatial.objects.Circle([0.0, 0.0], radius),
         )
 
         # If there are no intersections, we also don't need to cut,
@@ -871,9 +900,7 @@ def _cut_by_circle(
         # Combine the original points with the intersection points
         # and clean them up
         augmented_vertices = np.vstack((vertices, intersection_points))
-        augmented_vertices = array_utils.remove_duplicate_points(
-            augmented_vertices
-        )
+        augmented_vertices = array_utils.remove_duplicate_points(augmented_vertices)
         augmented_vertices = geometry_utils.order_points(augmented_vertices)
 
         # Roll points around so that an evanescent one is at the beginning
@@ -882,18 +909,14 @@ def _cut_by_circle(
         # This intimidating expression just gives the index of the first
         # value for which r > radius
         index = np.ravel(
-            np.argwhere(
-                np.where(np.isclose(r_vals, radius), 0.0, r_vals) > radius
-            )
+            np.argwhere(np.where(np.isclose(r_vals, radius), 0.0, r_vals) > radius)
         )[0]
 
         augmented_vertices = np.roll(augmented_vertices, -2 * index)
 
         # We now figure out where all the circular arcs are that will cut
         # up the modes
-        intersection_types = _get_intersection_types(
-            augmented_vertices, radius
-        )
+        intersection_types = _get_intersection_types(augmented_vertices, radius)
         arc_indices = _get_circular_arc_indices(intersection_types)
 
         # arc_indices is None if there are only deflection points.
@@ -1015,8 +1038,7 @@ def _get_intersection_types(
             previous_point = points[i - 1]
             prev_point_norm = np.linalg.norm(previous_point)
             previous_point_inside = (
-                np.isclose(prev_point_norm, radius)
-                or prev_point_norm <= radius
+                np.isclose(prev_point_norm, radius) or prev_point_norm <= radius
             )
 
             if previous_point_inside:
@@ -1247,9 +1269,7 @@ def _generate_rectangles(
     w = dx / 2
     h = dy / 2
 
-    yield np.array(
-        [[x - w, y + h], [x - w, y - h], [x + w, y + h], [x + w, y - h]]
-    )
+    yield np.array([[x - w, y + h], [x - w, y - h], [x + w, y + h], [x + w, y - h]])
 
 
 def _generate_hexagons(

@@ -49,23 +49,18 @@ def get_block(matrix: np.ndarray | cp.ndarray, block: str):
     elif matrix.ndim == 3:
         return matrix[:, block_indices[0], block_indices[1]]
     else:
-        raise ValueError(
-            f"matrix has ndim {matrix.ndim}, but it must be 2 or 3"
-        )
+        raise ValueError(f"matrix has ndim {matrix.ndim}, but it must be 2 or 3")
 
 
 def get_sub_block_indices(
     block: str,
     sub_block: tuple[int, int],
-    is_reciprocal: bool,
-    num_propagating: int,
-    num_evanescent: int = 0,
-    wave_block: str = "pp",
+    mode_indices: list[int],
 ) -> tuple[int, int]:
     """Get the S matrix indices as slice objects from information about the
     block"""
 
-    second_half = 2 * num_propagating
+    second_half = 2 * len(mode_indices)
 
     if block == "r":
         row = 0
@@ -81,12 +76,11 @@ def get_sub_block_indices(
         col = second_half
 
     i, j = sub_block
-    row = row + 2 * j
-    col = col + 2 * i
+    i_sequence = mode_indices.index(i)
+    j_sequence = mode_indices.index(j)
 
-    if is_reciprocal:
-        row = row + num_propagating - 1
-        col = col + num_propagating - 1
+    row = row + 2 * j_sequence
+    col = col + 2 * i_sequence
 
     row_slice = slice(row, row + 2)
     col_slice = slice(col, col + 2)
@@ -129,9 +123,12 @@ def get_sub_block_antidiagonal(A):
     for m in range(M):
         for i in range(N):
             j = N - 1 - i
-            out[m, 2*i:2*i+2, 2*j:2*j+2] = A[m, 2*i:2*i+2, 2*j:2*j+2]
+            out[m, 2 * i : 2 * i + 2, 2 * j : 2 * j + 2] = A[
+                m, 2 * i : 2 * i + 2, 2 * j : 2 * j + 2
+            ]
 
     return out
+
 
 def get_sub_block_from_indices(
     row_index: int,
@@ -174,13 +171,11 @@ def get_sub_block_from_indices(
 def get_cov_starting_index(
     block: str,
     sub_block: tuple[int, int],
-    is_reciprocal: bool,
-    num_propagating: int,
-    num_evanescent: int = 0,
-    wave_block: str = "pp",
+    mode_indices: list[int],
 ) -> int:
     """Get the starting index within the covariance matrix from information
     about the block for which the statistics will correspond to"""
+    num_propagating = len(mode_indices)
 
     index = 0
     match block:
@@ -194,11 +189,10 @@ def get_cov_starting_index(
             index += 3 * num_propagating**2
 
     i, j = sub_block
-    mid_value = num_propagating // 2
-    if is_reciprocal:
-        i += mid_value
-        j += mid_value
-    partial = j * num_propagating + i
+    i_sequence = mode_indices.index(i)
+    j_sequence = mode_indices.index(j)
+
+    partial = j_sequence * num_propagating + i_sequence
 
     index += partial
     index *= 4
@@ -209,10 +203,7 @@ def get_cov_starting_index(
 def get_cov_sub_block_indices(
     blocks: str,
     sub_blocks: tuple[int, int, int, int],
-    is_reciprocal: bool,
-    num_propagating: int,
-    num_evanescent: int = 0,
-    wave_block: str = "pp",
+    mode_indices: list[int],
 ) -> tuple[int, int]:
     """Get the cov matrix indices as slice objects from information about the
     block"""
@@ -221,12 +212,8 @@ def get_cov_sub_block_indices(
     sub_block_ij = sub_blocks[:2]
     sub_block_uv = sub_blocks[2:]
 
-    row_index = get_cov_starting_index(
-        block_ij, sub_block_ij, is_reciprocal, num_propagating
-    )
-    col_index = get_cov_starting_index(
-        block_uv, sub_block_uv, is_reciprocal, num_propagating
-    )
+    row_index = get_cov_starting_index(block_ij, sub_block_ij, mode_indices)
+    col_index = get_cov_starting_index(block_uv, sub_block_uv, mode_indices)
     row_slice = slice(row_index, row_index + 4)
     col_slice = slice(col_index, col_index + 4)
 
@@ -244,9 +231,7 @@ def get_cov_block_indices(
 
     block_ij, block_uv = blocks.split(",")
 
-    start_row_index = get_cov_starting_index(
-        block_ij, (0, 0), False, num_propagating
-    )
+    start_row_index = get_cov_starting_index(block_ij, (0, 0), False, num_propagating)
     end_row_index = get_cov_starting_index(
         block_ij,
         (num_propagating - 1, num_propagating - 1),
@@ -254,9 +239,7 @@ def get_cov_block_indices(
         num_propagating,
     )
 
-    start_col_index = get_cov_starting_index(
-        block_uv, (0, 0), False, num_propagating
-    )
+    start_col_index = get_cov_starting_index(block_uv, (0, 0), False, num_propagating)
     end_col_index = get_cov_starting_index(
         block_uv,
         (num_propagating - 1, num_propagating - 1),
@@ -376,11 +359,7 @@ def r_sym(matrix: np.ndarray | cp.ndarray) -> np.ndarray | cp.ndarray:
 
 
 def get_reciprocal_sub_block_indices(
-    block: str,
-    sub_block: tuple[int, int],
-    num_propagating: int,
-    num_evanescent: int = 0,
-    wave_block: str = "pp",
+    block: str, sub_block: tuple[int, int], mode_indices: list[int]
 ) -> tuple[int, int]:
     """Given a sub block of S, find the location of its reciprocal partner."""
 
@@ -388,14 +367,7 @@ def get_reciprocal_sub_block_indices(
     reciprocal_block = reciprocal_blocks[block]
     reciprocal_sub_block = (-sub_block[1], -sub_block[0])
 
-    return get_sub_block_indices(
-        reciprocal_block,
-        reciprocal_sub_block,
-        True,
-        num_propagating,
-        num_evanescent,
-        wave_block,
-    )
+    return get_sub_block_indices(reciprocal_block, reciprocal_sub_block, mode_indices)
 
 
 def get_closest_unitary_approximation(
@@ -409,9 +381,7 @@ def get_closest_unitary_approximation(
     return u @ vh
 
 
-def get_exchange_matrix(
-    size: int, use_cupy: bool = False
-) -> np.ndarray | cp.ndarray:
+def get_exchange_matrix(size: int, use_cupy: bool = False) -> np.ndarray | cp.ndarray:
     """Return the exchange matrix with 1s on the anti diagonal and zeros
     elsewhere"""
     xp = cp if use_cupy else np
@@ -462,9 +432,7 @@ def get_S_reciprocity_matrix(
     return product
 
 
-def get_M_energy_matrix(
-    size: int, use_cupy: bool = False
-) -> np.ndarray | cp.ndarray:
+def get_M_energy_matrix(size: int, use_cupy: bool = False) -> np.ndarray | cp.ndarray:
     """Return Omega as defined in Niall's thesis such that
 
     M^dag Omega M = Omega
@@ -728,10 +696,9 @@ def get_cholesky_decomposition(
 
     for i in range(first_power, final_power, 1):
         try:
-            covariance_matrix_altered = (
-                covariance_matrix
-                + scipy.sparse.identity(size_of_covariance_matrix) * 10 ** (i)
-            )
+            covariance_matrix_altered = covariance_matrix + scipy.sparse.identity(
+                size_of_covariance_matrix
+            ) * 10 ** (i)
             chol = sksparse.cholmod.cholesky(
                 covariance_matrix_altered, ordering_method="natural"
             ).L()
