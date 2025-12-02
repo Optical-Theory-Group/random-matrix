@@ -3,6 +3,7 @@ from typing import Optional
 from random_matrix.modes.mode_grid import ModeGrid
 import matplotlib.pyplot as plt
 
+
 class FieldVector:
     def __init__(self, mode_grid: ModeGrid):
         self.mode_grid = mode_grid
@@ -45,18 +46,17 @@ class FieldVector:
     # Plotting
     # -------------------------------------------------------------------------
 
-    def plot(self, array: np.array, **plot_kwargs) -> None:
-        """Plot the values contained in array on top of the mode grid"""
+    def plot_polygon(self, array: np.array, **plot_kwargs) -> None:
+        """Plot the values contained in array on top of the mode grid using
+        a polygon based approach"""
         vertices_list = self.mode_grid.propagating_modes_vertices
 
-        norm = plt.Normalize(
-            vmin=np.min(array), vmax=np.max(array)
-        )
+        norm = plt.Normalize(vmin=np.min(array), vmax=np.max(array))
         cmap = plt.cm.jet
 
         fig, ax = plt.subplots(figsize=(6, 6))
-        ax.set_xlim(-1,1)
-        ax.set_ylim(-1,1)
+        ax.set_xlim(-1, 1)
+        ax.set_ylim(-1, 1)
         ax.set_aspect("equal")
 
         bg_color = cmap(norm(np.min(array)))
@@ -73,3 +73,86 @@ class FieldVector:
 
         ax.set_xlabel("kx")
         ax.set_ylabel("ky")
+
+    def get_imshow_array(self, array: np.ndarray) -> None:
+        # Construct 2D array for correlation computations
+        rows = []
+        cols = []
+        values = []
+        spacing = 0.07
+
+        for mode in self.mode_grid.propagating_modes_list:
+            if mode.is_edge:
+                continue
+
+            center = mode.center
+            multiples = np.rint(center / spacing).astype(int)
+            rows.append(-multiples[1])
+            cols.append(multiples[0])
+            values.append(
+                array[self.mode_grid.propagating_indices.index(mode.index)]
+            )
+
+        rows_shifted = [row + abs(min(rows)) for row in rows]
+        cols_shifted = [col + abs(min(cols)) for col in cols]
+        size = max(rows_shifted) + 1
+        print(size)
+        values_array = np.zeros((size, size), dtype=np.float64)
+        for r, c, v in zip(rows_shifted, cols_shifted, values):
+            values_array[r, c] = v
+        return values_array
+    
+    def plot_imshow(self, array: np.array, **plot_kwargs) -> None:
+        """Plot the values contained in array on top of the mode grid using
+        a polygon based approach"""
+        values_array = self.get_imshow_array(array)
+        norm = plt.Normalize(
+            vmin=np.min(values_array), vmax=np.max(values_array)
+        )
+        cmap = plt.cm.jet
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+
+        fig, ax = plt.subplots()
+        im = ax.imshow(values_array, norm=norm, cmap=cmap)
+        fig.colorbar(sm, ax=ax)
+
+    def plot_imshows(self, arrays: list[np.array], **plot_kwargs) -> None:
+        """Plot the values contained in array on top of the mode grid using
+        a polygon based approach"""
+        # Construct 2D array for correlation computations
+        rows = []
+        cols = []
+        values = []
+        spacing = 0.07
+
+        for mode in self.mode_grid.propagating_modes_list:
+            if mode.is_edge:
+                continue
+
+            center = mode.center
+            multiples = np.rint(center / spacing).astype(int)
+            rows.append(-multiples[1])
+            cols.append(multiples[0])
+            values.append(
+                array[self.mode_grid.propagating_indices.index(mode.index)]
+            )
+
+        rows_shifted = [row + abs(min(rows)) for row in rows]
+        cols_shifted = [col + abs(min(cols)) for col in cols]
+        size = max(rows_shifted) + 1
+        print(size)
+        values_array = np.zeros((size, size), dtype=np.float64)
+        for r, c, v in zip(rows_shifted, cols_shifted, values):
+            values_array[r, c] = v
+
+        norm = plt.Normalize(
+            vmin=np.min(values_array), vmax=np.max(values_array)
+        )
+        cmap = plt.cm.jet
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+
+        fig, ax = plt.subplots()
+        im = ax.imshow(values_array, norm=norm, cmap=cmap)
+        fig.colorbar(sm, ax=ax)
