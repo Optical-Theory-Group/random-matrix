@@ -74,7 +74,7 @@ class FieldVector:
         ax.set_xlabel("kx")
         ax.set_ylabel("ky")
 
-    def get_imshow_array(self, array: np.ndarray) -> None:
+    def get_2d_representation(self, array: np.ndarray) -> None:
         # Construct 2D array for correlation computations
         rows = []
         cols = []
@@ -96,63 +96,44 @@ class FieldVector:
         rows_shifted = [row + abs(min(rows)) for row in rows]
         cols_shifted = [col + abs(min(cols)) for col in cols]
         size = max(rows_shifted) + 1
-        print(size)
-        values_array = np.zeros((size, size), dtype=np.float64)
+        values_array = np.zeros((size, size), dtype=array.dtype)
         for r, c, v in zip(rows_shifted, cols_shifted, values):
             values_array[r, c] = v
         return values_array
-    
+
     def plot_imshow(self, array: np.array, **plot_kwargs) -> None:
         """Plot the values contained in array on top of the mode grid using
         a polygon based approach"""
-        values_array = self.get_imshow_array(array)
-        norm = plt.Normalize(
-            vmin=np.min(values_array), vmax=np.max(values_array)
-        )
+        norm = plt.Normalize(vmin=np.min(array), vmax=np.max(array))
         cmap = plt.cm.jet
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
 
         fig, ax = plt.subplots()
-        im = ax.imshow(values_array, norm=norm, cmap=cmap)
+        im = ax.imshow(array, norm=norm, cmap=cmap)
         fig.colorbar(sm, ax=ax)
 
     def plot_imshows(self, arrays: list[np.array], **plot_kwargs) -> None:
         """Plot the values contained in array on top of the mode grid using
         a polygon based approach"""
-        # Construct 2D array for correlation computations
-        rows = []
-        cols = []
-        values = []
-        spacing = 0.07
 
-        for mode in self.mode_grid.propagating_modes_list:
-            if mode.is_edge:
-                continue
+        num_arrays = len(arrays)
 
-            center = mode.center
-            multiples = np.rint(center / spacing).astype(int)
-            rows.append(-multiples[1])
-            cols.append(multiples[0])
-            values.append(
-                array[self.mode_grid.propagating_indices.index(mode.index)]
-            )
+        # Global normalization for all arrays
+        global_min = min(np.min(a) for a in arrays)
+        global_max = max(np.max(a) for a in arrays)
+        norm = plt.Normalize(vmin=global_min, vmax=global_max)
 
-        rows_shifted = [row + abs(min(rows)) for row in rows]
-        cols_shifted = [col + abs(min(cols)) for col in cols]
-        size = max(rows_shifted) + 1
-        print(size)
-        values_array = np.zeros((size, size), dtype=np.float64)
-        for r, c, v in zip(rows_shifted, cols_shifted, values):
-            values_array[r, c] = v
+        fig, axs = plt.subplots(1, num_arrays, figsize=(5 * num_arrays, 5))
 
-        norm = plt.Normalize(
-            vmin=np.min(values_array), vmax=np.max(values_array)
-        )
-        cmap = plt.cm.jet
-        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-        sm.set_array([])
+        if num_arrays == 1:
+            axs = [axs]
 
-        fig, ax = plt.subplots()
-        im = ax.imshow(values_array, norm=norm, cmap=cmap)
-        fig.colorbar(sm, ax=ax)
+        # Plot each image
+        for ax, array in zip(axs, arrays):
+            ax.imshow(array, norm=norm, cmap="jet")
+
+        # One shared colorbar
+        sm = plt.cm.ScalarMappable(norm=norm, cmap="jet")
+        sm.set_array([])  # required by older Matplotlib
+        fig.colorbar(sm, ax=axs, fraction=0.02, pad=0.04)

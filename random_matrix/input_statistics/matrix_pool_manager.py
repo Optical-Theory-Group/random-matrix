@@ -359,9 +359,11 @@ class MatrixPoolManager:
                 "Turn off symmetrize in order to use random_only."
             )
 
-        xp = np
+        print("Loading statistics...")
+        xp = cp if use_cupy else np
         mean_S = self.mean_S
         cholesky = self.cholesky
+        print("Loaded. Generating matrices...")
 
         size_of_S = len(mean_S)
         size_of_t = int(size_of_S // 2)
@@ -437,7 +439,7 @@ class MatrixPoolManager:
         """Sample S matrices under the assumption that the cholesky
         decomposition for the entire S matrix was taken"""
 
-        xp = cp if use_cupy else np
+        xp = np
         mean_S = self.mean_S
         chol = self.chol["full"]
 
@@ -705,7 +707,9 @@ class MatrixPoolManager:
         pool_size = len(pool)
 
         # Prepare data directory
-        h5_file_path = self.matrix_pools_paths.get_cascade_h5_path(cascade_name)
+        h5_file_path = self.matrix_pools_paths.get_cascade_h5_path(
+            cascade_name
+        )
 
         # Validate batch size
         batch_size = min(batch_size, num_samples)
@@ -762,7 +766,9 @@ class MatrixPoolManager:
                 )
         else:
             with h5py.File(h5_file_path, "r+") as f:
-                working_matrices = f[paths.DEFAULT_WORKING_MATRICES_PATH_ENDING]
+                working_matrices = f[
+                    paths.DEFAULT_WORKING_MATRICES_PATH_ENDING
+                ]
                 for s, bs in zip(slices, batch_sizes):
                     if use_transfer_matrices:
                         working_matrices[s] = self.get_initialized_M_array(
@@ -796,7 +802,9 @@ class MatrixPoolManager:
 
             else:
                 with h5py.File(h5_file_path, "r+") as f:
-                    working_matrices = f[paths.DEFAULT_WORKING_MATRICES_PATH_ENDING]
+                    working_matrices = f[
+                        paths.DEFAULT_WORKING_MATRICES_PATH_ENDING
+                    ]
                     for s, bs in zip(slices, batch_sizes):
                         # load the batch into RAM
                         batch_matrices = working_matrices[s]
@@ -828,7 +836,9 @@ class MatrixPoolManager:
                             f[key][analysis_points.index(i)] = new_output
                 else:
                     with h5py.File(h5_file_path, "r+") as f:
-                        working_matrices = f[paths.DEFAULT_WORKING_MATRICES_PATH_ENDING]
+                        working_matrices = f[
+                            paths.DEFAULT_WORKING_MATRICES_PATH_ENDING
+                        ]
                         for (
                             key,
                             analysis_function,
@@ -847,3 +857,102 @@ class MatrixPoolManager:
         if not is_single_batch:
             with h5py.File(h5_file_path, "r+") as f:
                 del f[paths.DEFAULT_WORKING_MATRICES_PATH_ENDING]
+
+    def cascade_hdf5_depth_first(
+        self,
+        cascade_name: str,
+        num_samples: int,
+        analysis_points: list[int] | list[np.float64],
+        analysis_functions: dict[str, Callable],
+        use_transfer_matrices: bool = False,
+        use_multi_pool: bool = False,
+    ) -> None:
+        """Method for more intense data runs. This particular vesrion does each
+        matrix one by one.
+
+        Data is automatically saved in a hdf5 file. It as assumed that all
+        analysis functions return numpy arrays for their outputs"""
+        xp = self.single_pool_S_array_module
+        use_cupy = xp == cp
+
+        # Check if analysis points has ints or floats
+        if isinstance(analysis_points[0], int):
+            pass
+        else:
+            # Convert to appropriate ints based on the thickness of the
+            # elementary slab
+            pass
+        max_iteration = analysis_points[-1]
+        num_analysis_points = len(analysis_points)
+
+        # Get the random matrix pool
+        pool = self.get_pool(use_transfer_matrices, use_multi_pool)
+        pool_exists = pool is not None
+        if not pool_exists:
+            raise ValueError(
+                f"Desired pool does not exist. Please populate it or load it first"
+            )
+        pool_size = len(pool)
+
+        # Prepare data directory
+        h5_file_path = self.matrix_pools_paths.get_cascade_h5_path(
+            cascade_name
+        )
+
+        # Create test matrix to assess return data shape
+        (test_matrix,) = (
+            self.get_initialized_M_array(1)
+            if use_transfer_matrices
+            else self.get_initialized_S_array(1)
+        )
+
+        with h5py.File(h5_file_path, "w") as f:
+            for dataset_name, analysis_function in analysis_functions.items():
+                # Initialize return data storage
+                output = analysis_function(test_matrix)
+                output_shape = output.shape
+                augmented_shape = (
+                    num_analysis_points,
+                    num_samples,
+                    *output_shape,
+                )
+                f.create_dataset(
+                    dataset_name, shape=augmented_shape, dtype=output.dtype
+                )
+        analysis_index_map = {
+            pt: idx for idx, pt in enumerate(analysis_points)
+        }
+
+        # Main cascade loop
+        with h5py.File(h5_file_path, "r+") as f:
+            for sample_number in tqdm(range(num_samples)):
+                # Get new working matrix
+                (working_matrix,) = (
+                    self.get_initialized_M_array(1)
+                    if use_transfer_matrices
+                    else self.get_initialized_S_array(1)
+                )
+                # Do matrix products to work through thicknesses
+                for i in range(1, max_iteration + 1):
+
+                    # Check if need to swtich to using scattering matrices
+                    # TO BE IMPLEMENTED
+
+                    random_matrix_index = random.randrange(0, pool_size)
+                    working_matrix = (
+                        pool[random_matrix_index] @ working_matrix
+                        if use_transfer_matrices
+                        else matrix_utils.S_product(
+                            working_matrix, pool[random_matrix_index]
+                        )
+                    )
+                    # Do the analysis
+                    if i in analysis_points:
+                        idx = analysis_index_map[i]
+                        for (
+                            key,
+                            analysis_function,
+                        ) in analysis_functions.items():
+                            f[key][idx, sample_number, ...] = (
+                                analysis_function(working_matrix)
+                            )
