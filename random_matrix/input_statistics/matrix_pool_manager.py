@@ -395,27 +395,54 @@ class MatrixPoolManager:
         r_mat = self._reorder_block(r).transpose(2, 0, 1)
         t_mat = self._reorder_block(t).transpose(2, 0, 1)
         r2_mat = self._reorder_block(r2).transpose(2, 0, 1)
+        t2_mat = np.zeros(t_mat.shape, dtype=t_mat.dtype)
 
         sigma_p = matrix_utils.get_S_block_reciprocity_matrix(
             size_of_t, False
-        )[None, :, :]
+        )[None, :, :][0]
+
+        r_mat_antidiagonal = matrix_utils.get_sub_block_antidiagonal(r_mat)
+        r2_mat_antidiagonal = matrix_utils.get_sub_block_antidiagonal(r2_mat)
 
         # Enforce reciprocity symmetry
-        r_mat_antidiagonal = matrix_utils.get_sub_block_antidiagonal(r_mat)
-        r_mat = r_mat + sigma_p @ matrix_utils.r_sym(r_mat) @ sigma_p
-        r_mat_antidiagonal = (
-            r_mat_antidiagonal
-            + sigma_p @ matrix_utils.r_sym(r_mat_antidiagonal) @ sigma_p
-        ) / 2
+        for idx in tqdm(range(num_matrices)):
+            r = r_mat[idx]
 
-        r2_mat_antidiagonal = matrix_utils.get_sub_block_antidiagonal(r2_mat)
-        r2_mat = r2_mat + sigma_p @ matrix_utils.r_sym(r2_mat) @ sigma_p
-        r2_mat_antidiagonal = (
-            r2_mat_antidiagonal
-            + sigma_p @ matrix_utils.r_sym(r2_mat_antidiagonal) @ sigma_p
-        ) / 2
+            r_antidiagonal = r_mat_antidiagonal[idx]
+            r_no_antidiagonal = r - r_antidiagonal
 
-        t2_mat = sigma_p @ matrix_utils.r_sym(t_mat) @ sigma_p
+            r_antidiagonal = (
+                r_antidiagonal
+                + sigma_p @ matrix_utils.r_sym(r_antidiagonal) @ sigma_p
+            ) / 2
+            r_no_antidiagonal = (
+                r_no_antidiagonal
+                + sigma_p @ matrix_utils.r_sym(r_no_antidiagonal) @ sigma_p
+            )
+
+            r_final = r_no_antidiagonal + r_antidiagonal
+            r_mat[idx] = r_final
+
+            # Same for r2
+            r2 = r2_mat[idx]
+
+            r2_antidiagonal = r2_mat_antidiagonal[idx]
+            r2_no_antidiagonal = r2 - r2_antidiagonal
+
+            r2_antidiagonal = (
+                r2_antidiagonal
+                + sigma_p @ matrix_utils.r_sym(r2_antidiagonal) @ sigma_p
+            ) / 2
+            r2_no_antidiagonal = (
+                r2_no_antidiagonal
+                + sigma_p @ matrix_utils.r_sym(r2_no_antidiagonal) @ sigma_p
+            )
+
+            r2_final = r2_no_antidiagonal + r2_antidiagonal
+            r2_mat[idx] = r2_final
+
+            # t2
+            t2_mat[idx] = sigma_p @ matrix_utils.r_sym(t_mat[idx]) @ sigma_p
 
         if not random_only:
             identity = np.identity(size_of_t, dtype=t_mat.dtype)
@@ -438,14 +465,9 @@ class MatrixPoolManager:
     ) -> np.ndarray | cp.ndarray:
         """Sample S matrices under the assumption that the cholesky
         decomposition for the entire S matrix was taken"""
-
         xp = np
         mean_S = self.mean_S
         chol = self.chol["full"]
-
-        if use_cupy:
-            mean_S = cp.asarray(mean_S)
-            chol = cpsparse.csr_matrix(chol)
 
         size_of_S, _ = mean_S.shape
         size_of_block = int(size_of_S // 2)
@@ -506,7 +528,11 @@ class MatrixPoolManager:
 
         if symmetrize:
             output = matrix_utils.get_closest_unitary_approximation(output)
-        return output
+
+        if use_cupy:
+            return cp.asarray(output)
+        else:
+            return output
 
     def populate_single_pool(
         self,
@@ -866,15 +892,14 @@ class MatrixPoolManager:
         analysis_functions: dict[str, Callable],
         use_transfer_matrices: bool = False,
         use_multi_pool: bool = False,
+        use_cupy: bool = False,
     ) -> None:
         """Method for more intense data runs. This particular vesrion does each
         matrix one by one.
 
         Data is automatically saved in a hdf5 file. It as assumed that all
         analysis functions return numpy arrays for their outputs"""
-        xp = self.single_pool_S_array_module
-        use_cupy = xp == cp
-
+        xp = cp if use_cupy else np
         # Check if analysis points has ints or floats
         if isinstance(analysis_points[0], int):
             pass
@@ -887,6 +912,9 @@ class MatrixPoolManager:
 
         # Get the random matrix pool
         pool = self.get_pool(use_transfer_matrices, use_multi_pool)
+        if use_cupy:
+            pool = cp.asarray(pool)
+
         pool_exists = pool is not None
         if not pool_exists:
             raise ValueError(
@@ -928,9 +956,9 @@ class MatrixPoolManager:
             for sample_number in tqdm(range(num_samples)):
                 # Get new working matrix
                 (working_matrix,) = (
-                    self.get_initialized_M_array(1)
+                    self.get_initialized_M_array(1, use_cupy)
                     if use_transfer_matrices
-                    else self.get_initialized_S_array(1)
+                    else self.get_initialized_S_array(1, use_cupy)
                 )
                 # Do matrix products to work through thicknesses
                 for i in range(1, max_iteration + 1):
@@ -953,6 +981,6 @@ class MatrixPoolManager:
                             key,
                             analysis_function,
                         ) in analysis_functions.items():
-                            f[key][idx, sample_number, ...] = (
+                            f[key][idx, sample_number, ...] = cp.asnumpy(
                                 analysis_function(working_matrix)
                             )

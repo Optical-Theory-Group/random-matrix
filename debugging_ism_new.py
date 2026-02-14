@@ -36,7 +36,7 @@ medium_parameters = MediumParameters(
     number_density=number_density,
     slab_thickness=slab_thickness,
 )
-term = DensityFunctionTerm.from_delta({"x": 2.0, "m": 1.2})
+term = DensityFunctionTerm.from_delta({"x": 0.1, "m": 1.2})
 particle_statistics = ParticleStatistics(
     term,
     isotropic_sphere.get_A,
@@ -46,28 +46,52 @@ particle_statistics = ParticleStatistics(
 medium_statistics = MediumStatistics([particle_statistics])
 integration_task_config = IntegrationTaskConfig(integration_method="lattice")
 
-side_lengths = [0.08, 0.0435]
-names = [f"memory_effect_hexagonal_{side_lengths[0]}", f"memory_effect_hexagonal"]
-for sl, name in zip(side_lengths, names):
-    print(f"Starting sl = {sl:.3f}")
-    my_grid = mode_grid_factory.from_tiling(
-        tiling_type="hexagons",
-        side_length=sl,
-        r_lim=1.2,
-        grid_wave_type="propagating",
-        rotation_angle=0.0,
-        translation_vector=np.array([0.0, 0.0]),
-    )
-    print(f"Number of modes: {my_grid.num_propagating}")
-    my_grid.plot()
-    simulation_name = name
-    ism = InputStatisticsManager(
-        simulation_name,
-        medium_parameters,
-        medium_statistics,
-        my_grid,
-        integration_task_config,
-        base_path="/mnt/raid/rmt/data"
-    )
-    mpm = ism.get_matrix_pool_manager()
-    print("Finishing...")
+sl = 0.07
+name = "memory_effect_rectangular_rayleigh"
+print(f"Starting sl = {sl:.3f}")
+my_grid = mode_grid_factory.from_tiling(
+    tiling_type="rectangles",
+    side_length=[sl, sl],
+    r_lim=1.2,
+    grid_wave_type="propagating",
+    rotation_angle=0.0,
+    translation_vector=np.array([0.0, 0.0]),
+)
+print(f"Number of modes: {my_grid.num_propagating}")
+my_grid.plot()
+simulation_name = name
+ism = InputStatisticsManager(
+    simulation_name,
+    medium_parameters,
+    medium_statistics,
+    my_grid,
+    integration_task_config,
+    base_path="/mnt/raid/rmt/data"
+)
+mpm = ism.get_matrix_pool_manager()
+print("Finishing...")
+
+# -----------------------------------------------------------------------------
+
+my_grid = mode_grid_factory.from_dr_dt(
+    dr=0.05,
+    dt=2 * np.pi / 40,
+    r_lim=1.0,
+    include_central_mode=False,
+    rotation_angle=0.0,
+    is_spiderweb=True,
+    include_edge_modes=False,
+)
+print(f"Number of modes: {my_grid.num_propagating}")
+dr = 0.05
+dt_divisor = 40
+simulation_name = f"spiderweb_dr={dr:.3f}_dt_divisor={dt_divisor}_rayleigh"
+ism = InputStatisticsManager(
+    simulation_name,
+    medium_parameters,
+    medium_statistics,
+    my_grid,
+    integration_task_config,
+    base_path="/mnt/raid/rmt/data/",
+)
+pm = ism.get_matrix_pool_manager()

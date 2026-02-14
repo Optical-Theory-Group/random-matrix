@@ -76,8 +76,8 @@ def run_one(dr, dt_divisor):
     return
 
 
-drs = [0.1, 0.05]
-dt_divisors = [10, 20, 30, 40, 50]
+drs = [1/25]
+dt_divisors = [40]
 for dr in drs:
     for dt_divisor in dt_divisors:
         print(f"Starting dr={dr:.3f}, dt_divisor={dt_divisor}")
