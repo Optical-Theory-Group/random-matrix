@@ -10,7 +10,7 @@ data/
 paper_data/
 paper_data/data/
 paper_data/*
-
+rmt_analysis/*
 
 .gitignore
 cov.pkl
