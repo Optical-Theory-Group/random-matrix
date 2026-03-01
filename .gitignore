@@ -21,3 +21,5 @@ nohup.out
 *.pkl
 *.png
 *.txt
+to-be-moved
+tests/
