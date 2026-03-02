@@ -38,23 +38,21 @@ class InputStatisticsLogger:
     # -------------------------------------------------------------------------
 
     @contextmanager
-    def log(self, operation: str) -> Generator[None, None, None]:
+    def log(
+        self, operation: str, time_only: bool = False, **kwargs
+    ) -> Generator[None, None, None]:
         """Main logging method that handles printing and method timing."""
+        if not time_only:
+            message_template = self.messages.get(operation, "")
+            message = message_template.format(**kwargs)
 
-        # Print start message
-        print(
-            f"{self._get_date_time()} {self.messages.get(operation, '')}",
-            flush=True,
-        )
+            print(f"{self._get_date_time()} {message}", flush=True)
 
         # Time code for performance
         start = time.perf_counter()
         yield
         end = time.perf_counter()
         self.times[operation] = end - start
-
-        # Print end message
-        print(f"{self._get_date_time()} Done", flush=True)
 
     @staticmethod
     def _get_date_time() -> str:
@@ -102,10 +100,9 @@ class IndexFinderLogger(InputStatisticsLogger):
     def __init__(self) -> None:
         super().__init__()
         self.messages = {
-            "independent_elements": "Find independent elements",
-            "mean": "Calculate mean indices",
-            "covariance": "Calculate covariance indices",
-            "pseudo_covariance": "Calculate pseudo_covariance indices",
+            "independent_elements": "Finding independent elements...",
+            "mean": "Finding indices for non-zero mean sub-blocks...",
+            "covariance": "Finding indices for correlated sub-blocks...",
         }
 
     # -------------------------------------------------------------------------
@@ -198,9 +195,9 @@ class IntegrationTaskPreparerLogger(InputStatisticsLogger):
     def __init__(self) -> None:
         super().__init__()
         self.messages = {
-            "mean": "Prepare mean tasks",
-            "covariance": "Prepare covariance tasks",
-            "pseudo_covariance": "Prepare pseudo covariance tasks",
+            "mean": "Calculating mean S matrix statistics...",
+            "covariance": "Calculating S matrix element covariances...",
+            "pseudo_covariance": "Calculating S matrix element pseudo-covariances...",
         }
 
     def show_report(self) -> None:
@@ -211,10 +208,21 @@ class InputStatisticsManagerLogger(InputStatisticsLogger):
     def __init__(self) -> None:
         super().__init__()
         self.messages = {
-            "tasks": "Execute tasks",
-            "mean": "Get mean matrix",
-            "covariance": "Get covariance matrix",
-            "psuedo_covariance": "Get pseudo covariance matrix",
+            "indices_exists": "Independent elements and indices have already been computed.",
+            "indices": "Computing independent elements and indices.",
+            "mean_S_exists": "mean_S has already been computed.",
+            "mean_S": "Calculating the mean scattering matrix...",
+            "volumes_exists": "Volumes have already been computed.",
+            "volumes": "Calculating volumes...",
+            "a_matrix_values_exists": "Amplitude matrix values have already been computed.",
+            "a_matrix": "Calculating amplitude matrix values...",
+            "cholesky_blocks_exists": "Cholesky blocks have already been computed.",
+            "cholesky_blocks": "Calculating choesky matrix blocks...",
+            "real_covariance_exists": "Covariance matrix for block {block} exists. Loading...",
+            "real_covariance": "Computing the covariance matrix for block {block}...",
+            "cholesky_block": "Computing the cholesky decomposition for the covariance matrix associated with block {block}...",
+            "cholesky_dict": "Compiling the cholesky dictionary...",
+            "complete": "All statistics calculated. Creating matrix pool manager...",
         }
 
     def show_report(self) -> None:

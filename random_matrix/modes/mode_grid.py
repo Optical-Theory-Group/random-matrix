@@ -5,6 +5,8 @@ ModeGrid serves as a container for Mode objects.
 
 from dataclasses import InitVar, dataclass, field
 from typing import Any
+from pathlib import Path
+import shapely
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -58,6 +60,7 @@ class ModeGrid:
     r_lim: float
 
     mode_list: InitVar[list[Mode]] = None
+    is_lattice: bool = False
 
     is_reciprocal: bool = field(init=False)
     modes: dict[tuple[str, str], Mode] = field(init=False)
@@ -343,6 +346,27 @@ class ModeGrid:
         return [self.by_index(index) for index in self.propagating_indices]
 
     @property
+    def propagating_modes_vertices_dict(self) -> list[Mode]:
+        propagating_modes_list = self.propagating_modes_list
+        return {mode.index: mode.vertices for mode in propagating_modes_list}
+
+    @property
+    def propagating_modes_vertices(self) -> list[np.ndarray]:
+        return [mode.vertices for mode in self.propagating_modes_list]
+
+    @property
+    def propagating_modes_weights_dict(self) -> list[Mode]:
+        propagating_modes_list = self.propagating_modes_list
+        return {mode.index: mode.weight for mode in propagating_modes_list}
+
+    @property
+    def propagating_modes_mean_vertices_dict(self) -> dict:
+        vertices_dict = self.propagating_modes_vertices_dict
+        return {
+            key: np.mean(vertices, axis=0) for key, vertices in vertices_dict.items()
+        }
+
+    @property
     def evanescent_modes_list(self) -> list[Mode]:
         return [self.by_index(index) for index in self.evanescent_indices]
 
@@ -361,6 +385,32 @@ class ModeGrid:
     @property
     def central_index(self) -> int:
         return 0 if self.is_reciprocal else int((self.num_propagating - 1) / 2)
+
+    @property
+    def weight_dict(self) -> dict:
+        return {
+            index: self.by_index(index).weight for index in self.propagating_indices
+        }
+
+    @property
+    def vertices_dict(self) -> dict:
+        return {
+            index: self.by_index(index).vertices for index in self.propagating_indices
+        }
+
+    @property
+    def centers_dict(self) -> dict:
+        return {
+            index: self.by_index(index).center for index in self.propagating_indices
+        }
+
+    @property
+    def propagating_modes_is_edge_dict(self) -> dict:
+        return {mode.index: mode.is_edge for mode in self.propagating_modes_list}
+
+    @property
+    def has_zero_mode(self) -> bool:
+        return 0 in self.propagating_indices
 
     # --------------------------------------------------------------------------
     # Public methods
@@ -409,6 +459,36 @@ class ModeGrid:
 
         return mode
 
+    def by_point(
+        self, point: tuple[float, float], wave_type: str = "propagating"
+    ) -> int | None:
+        """
+        Returns the index of the mode whose polygon contains or touches
+        the given (kx, ky).
+
+        Parameters
+        ----------
+        kx : float
+            kx coordinate
+        ky : float
+            ky coordinate
+        wave_type : str
+            "propagating" or "evanescent"
+
+        Returns
+        -------
+        index : str or None
+            Index of the containing/touching mode, or None if not found
+        """
+        point = shapely.geometry.Point(*point)
+        for mode in self.propagating_modes_list:
+            vertices = np.array(mode.vertices)
+            polygon = shapely.geometry.Polygon(vertices)
+            if polygon.contains(point) or polygon.touches(point):
+                return mode
+        return None
+
+
     # --------------------------------------------------------------------------
     # Object representations
     # --------------------------------------------------------------------------
@@ -425,6 +505,9 @@ class ModeGrid:
     def plot(
         self,
         show_indices: bool = False,
+        save_path: None | str | Path = None,
+        close_fig: bool = False,
+        **subplots_kwargs,
     ) -> None:
         """
         Draws the grid of modes.
@@ -442,23 +525,23 @@ class ModeGrid:
         """
 
         # Set up k space plot
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(**subplots_kwargs)
         ax.set_aspect("equal")
         ax.set_xticks([-1.0, -0.5, 0.0, 0.5, 1.0])
         ax.set_yticks([-1.0, -0.5, 0.0, 0.5, 1.0])
 
         # x and y axes
-        plotting_utils.draw_ray(
-            ax, r_min=-1, theta=0, linestyle="-", color="black", alpha=0.5
-        )
-        plotting_utils.draw_ray(
-            ax,
-            r_min=-1,
-            theta=np.pi / 2,
-            linestyle="-",
-            color="black",
-            alpha=0.5,
-        )
+        # plotting_utils.draw_ray(
+        #     ax, r_min=-1, theta=0, linestyle="-", color="black", alpha=0.5
+        # )
+        # plotting_utils.draw_ray(
+        #     ax,
+        #     r_min=-1,
+        #     theta=np.pi / 2,
+        #     linestyle="-",
+        #     color="black",
+        #     alpha=0.5,
+        # )
 
         for mode in self.modes.values():
             mode.plot(
@@ -469,4 +552,8 @@ class ModeGrid:
 
         plotting_utils.draw_circle(ax)
         plotting_utils.draw_circle(ax, r=self.r_lim)
-        # fig.savefig("./modes.svg", format='svg')
+        if save_path is not None:
+            fig.savefig(save_path, format="svg")
+        if close_fig:
+            plt.close()
+        return fig, ax

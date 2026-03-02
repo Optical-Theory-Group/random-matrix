@@ -8,7 +8,7 @@ import functools
 import inspect
 import math
 from typing import Any, Callable
-
+import cupy as cp
 import numpy as np
 
 from random_matrix.utils.types import Numeric, MathematicalFunction
@@ -236,3 +236,4 @@ def vectorize_functions_args(
         return output_array
 
     return vectorized_function
+

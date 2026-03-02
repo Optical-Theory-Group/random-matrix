@@ -8,9 +8,12 @@ import scipy.spatial
 import scipy.stats
 import shapely
 import skspatial.objects
-
+import cupy as cp
+import cdd
+import cdd.gmp
 from random_matrix.utils import array_utils
 from random_matrix.utils.types import Numeric
+from fractions import Fraction
 
 
 def get_unit_vector(angle):
@@ -860,7 +863,8 @@ def intersect_hull_with_hyperplane(
         # Get the sign of r*n -d
         sign = np.sign(value)
         signs.append(sign)
-
+    counter = 0
+    counter2 = 0
     # Loop over edges and find intersections where they exist
     sorted_edges = set()
     intersections = []
@@ -890,18 +894,94 @@ def intersect_hull_with_hyperplane(
             if product == 0:
                 if sign1 == 0:
                     if not any(np.allclose(v1, pt) for pt in intersections):
+                        counter += 1
                         intersections.append(v1)
                 if sign2 == 0:
                     if not any(np.allclose(v2, pt) for pt in intersections):
                         intersections.append(v2)
+                        counter += 1
                 continue
 
             # The product must be -1, so there is an intersection
             intersection = v1 + (d - np.dot(v1, n)) / np.dot(v2 - v1, n) * (
                 v2 - v1
             )
+            counter2 += 1
             intersections.append(intersection)
+    print(counter)
+    print(counter2)
+    print(len(intersections))
     return np.array(intersections)
+
+
+def intersect_hull_with_hyperplane_v2(
+    points: np.ndarray,
+    simplices: np.ndarray,
+    hyperplane: tuple[np.ndarray, float],
+) -> np.ndarray:
+    """Find the intersection of a convex hull object with a hyperplane
+
+    The convex hull object is defined by the two variables points, an array of
+    the points, and simplicies, which is a list of lists of indices telling you
+    which points form each simplex. These basically should look like
+    hull.points and hull.simplices.
+
+    The hyperplane should be given as a tuple containing an array n defining
+    the normal vector n and a float d such that the hyperplane is defined by
+    the equation
+
+    r * n = d
+
+    The output is an array of points that bound the intersection. Note that
+    these points may contain redundancies, i.e. may contain additional points
+    on the edges of the boundary, rather than purely the vertices. This is a
+    feature, not a bug.
+    """
+    n, d = hyperplane
+
+    # Compute dot products and signs for all points
+    values = np.dot(points, n) - d
+    values[np.isclose(values, 0.0)] = 0.0  # Clean edge cases
+    signs = np.sign(values)
+
+    # Extract edges from simplices and remove duplicates
+    edges = np.vstack(
+        [
+            np.sort(
+                np.array(list(itertools.combinations(simplex, 2)), dtype=int),
+                axis=1,
+            )
+            for simplex in simplices
+        ]
+    )
+    edges = np.unique(edges, axis=0)
+
+    # Get the signs of the two vertices of each edge
+    signs1 = signs[edges[:, 0]]
+    signs2 = signs[edges[:, 1]]
+    product = signs1 * signs2
+
+    # Identify edges intersecting the hyperplane
+    crossing_edges = edges[product == -1]  # Opposite signs
+    on_plane_edges = edges[product == 0]  # At least one vertex on the plane
+
+    # Initialize list of intersections
+    intersections = []
+
+    # Add vertices lying on the plane
+    for edge in on_plane_edges:
+        for idx in edge:
+            if signs[idx] == 0:
+                intersections.append(points[idx])
+
+    intersections = np.unique(intersections, axis=0)
+    # Compute intersections for crossing edges
+    v1 = points[crossing_edges[:, 0]]
+    v2 = points[crossing_edges[:, 1]]
+    t = (d - np.dot(v1, n)) / np.dot(v2 - v1, n)
+    intersection_points = v1 + t[:, None] * (v2 - v1)
+    intersections = np.vstack((intersections, intersection_points))
+    return intersections
 
 
 def get_degenerate_hull_simplices(
@@ -924,11 +1004,326 @@ def get_degenerate_hull_simplices(
     dimension = points.shape[1]
     new_point = np.random.randn(dimension)
     augmented_points = np.vstack([points, new_point])
+    new_point_index = len(augmented_points) - 1
 
     hull = scipy.spatial.ConvexHull(augmented_points)
-    new_point_index = array_utils.get_array_index(hull.points, new_point)
-
     # Filter out simplices containing the new point index
     mask = ~np.isin(hull.simplices, new_point_index).any(axis=1)
     filtered_simplices = hull.simplices[mask]
     return filtered_simplices
+
+
+def intersect_hull_with_hyperplane_new(
+    points: np.ndarray | cp.ndarray,
+    simplices: np.ndarray | cp.ndarray,
+    hyperplane: tuple[np.ndarray | cp.ndarray, float],
+) -> np.ndarray | cp.ndarray:
+    xp = cp.get_array_module(points)
+    n, d = hyperplane
+    values = xp.dot(points, n) - d
+    values[xp.isclose(values, 0.0)] = 0.0  # Handle edge cases
+    signs = xp.sign(values)
+
+    _, num_dim = points.shape
+    simplices = xp.sort(simplices)
+    pairs = xp.array(list(itertools.combinations(range(num_dim), 2)))
+    edge_indices = simplices[:, pairs].reshape(-1, 2)
+    coded = xp.unique(array_utils.bitwise_hash(edge_indices))
+    edges = array_utils.inverse_bitwise_hash(coded)
+
+    product = signs[edges[:, 0]] * signs[edges[:, 1]]
+    crossing_edges = edges[product == -1]  # Opposite signs
+
+    # Add vertices lying on the plane
+    on_plane_point_indices = np.where(np.isclose(signs, 0.0))
+    on_plane_points = points[on_plane_point_indices]
+
+    # Compute intersections for crossing edges
+    v1 = points[crossing_edges[:, 0]]
+    v2 = points[crossing_edges[:, 1]]
+    t = (d - xp.dot(v1, n)) / xp.dot(v2 - v1, n)
+    crossing_points = v1 + t[:, None] * (v2 - v1)
+
+    return xp.vstack((on_plane_points, crossing_points))
+
+
+def get_convex_hull_iterative(
+    points: np.ndarray,
+    max_iterations: int = 50,
+    verbose: bool = False,
+    qhull_options: str | None = None,
+) -> scipy.spatial.ConvexHull:
+    """Iteratively compute the convex hull of a set of points, using the
+    computed vertices as the input points for the next iteration. This ensures
+    that redundant points are gradually filtered out, resulting in a hull with
+    minimal vertices and simplices."""
+    old_points = points
+    num_old_vertices = len(old_points)
+
+    for i in range(max_iterations):
+        hull = scipy.spatial.ConvexHull(
+            old_points, qhull_options=qhull_options
+        )
+
+        # Check if the number of points has decreased or not.
+        # If it hasn't, continue.
+        new_vertices = hull.vertices
+        new_simplices = hull.simplices
+        new_points = hull.points[new_vertices]
+        num_new_vertices = len(new_vertices)
+        num_new_simplices = len(new_simplices)
+
+        if verbose:
+            print(
+                f"Iteration {i + 1}: "
+                f"Vertices={num_new_vertices}, "
+                f"Simplices={num_new_simplices}, "
+                f"Volume={hull.volume:.4f}."
+            )
+
+        is_equal_vertices = num_new_vertices == num_old_vertices
+        is_equal_simplices = (
+            True if i == 0 else num_new_simplices == num_old_simplices
+        )
+        is_finished = (
+            num_new_vertices == num_old_vertices and is_equal_simplices
+        )
+        if is_finished:
+            break
+
+        # The number of vertices has changed, so repeat
+        old_points = new_points
+        num_old_vertices = num_new_vertices
+        num_old_simplices = num_new_simplices
+
+    return hull
+
+
+def get_intersection_vertices_numpy(
+    vertices: np.ndarray,
+    correlation_signature: list[int] | None = None,
+) -> np.ndarray:
+    """Compute the intersection of the polytope with given vertices with
+    hyperplanes as defined by the memory effect condition described by the
+    given correlation signature."""
+    # Set up cdd matrix object for the initial polytope
+    t = np.ones(len(vertices))
+
+    polytope_mat = cdd.matrix_from_array(
+        np.column_stack((t.T, vertices)), rep_type=cdd.RepType.GENERATOR
+    )
+
+    # Get the halfspace representation inequalities
+    polytope = cdd.polyhedron_from_matrix(polytope_mat)
+    polytope_inequalities = np.array(cdd.copy_inequalities(polytope).array)
+
+    # Intersect the polytope with the hyperplanes
+    if correlation_signature is None:
+        correlation_signature = [1, -1, -1, 1]
+    a, b, c, d = correlation_signature
+    hyperplane_equations = np.array(
+        [[0, a, 0, b, 0, c, 0, d, 0], [0, 0, a, 0, b, 0, c, 0, d]]
+    )
+    lin_set = set([0, 1])
+    augmented_inequalities = np.vstack(
+        (hyperplane_equations, polytope_inequalities)
+    )
+
+    intersection_mat = cdd.matrix_from_array(
+        augmented_inequalities,
+        rep_type=cdd.RepType.INEQUALITY,
+        lin_set=lin_set,
+    )
+    intersection = cdd.polyhedron_from_matrix(intersection_mat)
+    intersection_vertices = np.array(cdd.copy_generators(intersection).array)
+
+    if intersection_vertices.ndim == 1:
+        return None
+
+    truncated_vertices = intersection_vertices[:, 1:]
+    return truncated_vertices
+
+
+def get_intersection_vertices_fraction(
+    vertices: np.ndarray,
+    correlation_signature: list[int] | None = None,
+) -> np.ndarray | None:
+    """Compute the intersection of the polytope with given vertices with
+    hyperplanes as defined by the memory effect condition described by the
+    given correlation signature, using exact fractions and GMP mode."""
+
+    # Convert vertices to Fractions for exact arithmetic
+    vertices_frac = np.vectorize(Fraction)(vertices)
+
+    # Generator matrix with ones in first column
+    t = np.ones(len(vertices_frac), dtype=object)
+    gen_matrix = np.column_stack((t, vertices_frac))
+    polytope_mat = cdd.gmp.matrix_from_array(
+        gen_matrix, rep_type=cdd.RepType.GENERATOR
+    )
+
+    # Get inequalities of the polytope in exact arithmetic
+    polytope = cdd.gmp.polyhedron_from_matrix(polytope_mat)
+    polytope_inequalities = np.array(
+        cdd.gmp.copy_inequalities(polytope).array, dtype=object
+    )
+
+    # Hyperplanes to intersect
+    if correlation_signature is None:
+        correlation_signature = [1, -1, -1, 1]
+    a, b, c, d = correlation_signature
+    hyperplane_equations = np.array(
+        [[0, a, 0, b, 0, c, 0, d, 0], [0, 0, a, 0, b, 0, c, 0, d]],
+        dtype=object,
+    )
+
+    # Set equality indices
+    lin_set = {0, 1}
+
+    # Stack hyperplanes and inequalities
+    augmented_matrix = np.vstack((hyperplane_equations, polytope_inequalities))
+
+    # Convert all entries to Fractions
+    augmented_matrix_frac = np.vectorize(Fraction)(augmented_matrix)
+
+    # Build CDD matrix in GMP mode
+    intersection_mat = cdd.gmp.matrix_from_array(
+        augmented_matrix_frac,
+        rep_type=cdd.RepType.INEQUALITY,
+        lin_set=lin_set,
+    )
+
+    # Compute intersection polyhedron
+    intersection = cdd.gmp.polyhedron_from_matrix(intersection_mat)
+    intersection_vertices_frac = np.array(
+        cdd.gmp.copy_generators(intersection).array, dtype=object
+    )
+
+    # No intersection
+    if intersection_vertices_frac.ndim == 1:
+        return None
+
+    # Drop first column (weights)
+    truncated_vertices = intersection_vertices_frac[:, 1:]
+
+    # Convert Fractions back to floats
+    truncated_vertices_float = np.vectorize(float)(truncated_vertices)
+
+    return truncated_vertices_float
+
+
+def get_intersection_vertices_dirac_density(
+    vertices: np.ndarray | cp.ndarray,
+    kj: np.ndarray | cp.ndarray,
+    kv: np.ndarray | cp.ndarray,
+    correlation_signature: list[int] | None = None,
+) -> np.ndarray | cp.ndarray:
+    """Compute the intersection of the polytope with given vertices with
+    hyperplanes as defined by the memory effect condition described by the
+    given correlation signature."""
+    xp = cp.get_array_module(vertices)
+    # Set up cdd matrix object for the initial polytope
+    t = xp.ones(len(vertices))
+    polytope_mat = cdd.matrix_from_array(
+        xp.column_stack((t.T, vertices)), rep_type=cdd.RepType.GENERATOR
+    )
+
+    # Get the halfspace representation inequalities
+    polytope = cdd.polyhedron_from_matrix(polytope_mat)
+    polytope_inequalities = xp.array(cdd.copy_inequalities(polytope).array)
+
+    # Intersect the polytope with the hyperplanes
+    if correlation_signature is None:
+        correlation_signature = [1, -1, -1, 1]
+    a, b, c, d = correlation_signature
+    hyperplane_equations = xp.array(
+        [
+            [0, a, 0, b, 0, c, 0, d, 0],
+            [0, 0, a, 0, b, 0, c, 0, d],
+            [kj[0], 0, 0, -1, 0, 0, 0, 0, 0],
+            [kj[1], 0, 0, 0, -1, 0, 0, 0, 0],
+            [kv[0], 0, 0, 0, 0, 0, 0, -1, 0],
+            [kv[1], 0, 0, 0, 0, 0, 0, 0, -1],
+        ]
+    )
+    lin_set = set([0, 1, 2, 3, 4, 5])
+    augmented_inequalities = xp.vstack(
+        (hyperplane_equations, polytope_inequalities)
+    )
+    intersection_mat = cdd.matrix_from_array(
+        augmented_inequalities,
+        rep_type=cdd.RepType.INEQUALITY,
+        lin_set=lin_set,
+    )
+    intersection = cdd.polyhedron_from_matrix(intersection_mat)
+    intersection_vertices = xp.array(cdd.copy_generators(intersection).array)
+
+    # Truncate the
+    truncated_vertices = intersection_vertices[:, 1:]
+    return truncated_vertices
+
+
+def get_minkowski_filter_area(
+    mode_i: np.ndarray,
+    mode_j: np.ndarray,
+    mode_u: np.ndarray,
+    mode_v: np.ndarray,
+) -> np.float128:
+    """Given four shapes (defined by vertices), find the area of the minkowski filtering process"""
+    try:
+        # Find the centroids
+        mean_i = np.mean(mode_i, axis=0)
+        mean_j = np.mean(mode_j, axis=0)
+        centre_ij = np.mean(np.vstack((mean_i, mean_j)), axis=0)
+        mean_u = np.mean(mode_u, axis=0)
+        mean_v = np.mean(mode_v, axis=0)
+        centre_uv = np.mean(np.vstack((mean_u, mean_v)), axis=0)
+
+        # Find the difference space associated with centre_ij
+        mode_j_ref = reflect_through_point(mode_j, centre_ij)
+        ij_intersect = intersection(mode_i, mode_j_ref)
+        new_ij = 2 * translate_points(ij_intersect, -centre_ij)
+
+        # Find the difference space associated with centre_uv
+        mode_v_ref = reflect_through_point(mode_v, centre_uv)
+        uv_intersect = intersection(mode_u, mode_v_ref)
+        new_uv = 2 * translate_points(uv_intersect, -centre_uv)
+
+        # Find the intersection of the difference spaces and get
+        # its area
+        ijuv_intersect = intersection(new_ij, new_uv)
+        area = get_polygon_area(ijuv_intersect)
+        return np.float128(area if np.isfinite(area) else 0.0)
+    except Exception as e:
+        return np.float128(0.0)
+
+
+def get_six_dimensional_intersection_volume(
+    mode_i: np.ndarray,
+    mode_j: np.ndarray,
+    mode_u: np.ndarray,
+    mode_v: np.ndarray,
+) -> float:
+    """Find the volume associated with the intersection of the Cartesian
+    product of the four modes"""
+    # Find the volume associated with no shift
+    columns_to_keep = [0, 1, 2, 3, 4, 5]
+    cartesian_product = iterated_cartesian_product(
+        [mode_i, mode_j, mode_u, mode_v]
+    )
+    try:
+        reduced_intersection = get_intersection_vertices_numpy(
+            cartesian_product
+        )[:, columns_to_keep]
+    except RuntimeError:
+        reduced_intersection = get_intersection_vertices_fraction(
+            cartesian_product
+        )[:, columns_to_keep]
+
+    try:
+        reduced_hull = scipy.spatial.ConvexHull(
+            reduced_intersection, qhull_options="QJ"
+        )
+    except Exception as _:
+        return 0.0
+    return reduced_hull.volume

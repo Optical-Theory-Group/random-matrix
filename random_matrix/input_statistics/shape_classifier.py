@@ -238,6 +238,14 @@ class ClassQuadruple:
         template"""
         return [self.template_singles_indices] + self.members_singles_indices
 
+    @property
+    def quadruples(self) -> list[ShapeQuadruple]:
+        """List of all of the quadruples, including the template"""
+        return [self.template] + self.members
+
+    def __repr__(self):
+        return f"ClassQuadruple"
+
 
 @dataclass
 class ClassQuadrupleList:
@@ -290,6 +298,9 @@ class ClassQuadrupleList:
 
     def append(self, new_class: ClassQuadruple) -> None:
         self.add_class(new_class)
+
+    def __repr__(self):
+        return f"ClassQuadrupleList"
 
 
 # -------------------------------------------------------------------------

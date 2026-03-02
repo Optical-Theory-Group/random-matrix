@@ -1,11 +1,12 @@
 """Utility functions that assist with numerical integration"""
 
 import inspect
-from typing import Any
-
+from typing import Any, Callable
+import math
 import numpy as np
 import quadpy
-
+import cupy as cp
+import scipy
 from random_matrix.utils import function_utils
 from random_matrix.utils.types import Numeric, MathematicalFunction
 
@@ -39,7 +40,7 @@ def basic_product_integral(
     scheme:
         The cubature scheme. If not provided, defaults will be used.
 
-    Returns: 
+    Returns:
     --------
     integral:
         The integral of function over the domain
@@ -112,7 +113,7 @@ def basic_triangle_integral(
         function = function_utils.vectorize_arguments(function)
 
     if scheme is None:
-        scheme = quadpy.t2.get_good_scheme(12)
+        scheme = quadpy.t2.get_good_scheme(3)
 
     # Reshape domain stack if necessary
     # again to make quadpy happy
@@ -160,7 +161,7 @@ def basic_simplex_integral(
         function = function_utils.vectorize_arguments(function)
 
     if scheme is None:
-        scheme = quadpy.tn.grundmann_moeller(dim, 1)
+        scheme = quadpy.tn.grundmann_moeller(dim, 3)
 
     # Reshape domain stack if necessary
     # again to make quadpy happy
@@ -175,4 +176,173 @@ def basic_simplex_integral(
     # else:
     #     print("All good!")
 
+    return integral
+
+
+def test_func(x):
+    return x[:, 0] ** 2 + x[:, 1] ** 2
+
+
+def hull_surface_integral(
+    function: MathematicalFunction,
+    hull: scipy.spatial.ConvexHull,
+    scheme: Any | None = None,
+    use_gpu: bool = False,
+) -> np.ndarray | cp.ndarray:
+    """Compute the integral of a function over the surface of a convex hull. It
+    is assumed that the function returns a scalar output, i.e. maps R^n -> R.
+
+    function: The function to be integrated. This function must be vectorized
+    to accept arguments of shape
+
+    N x n
+
+    where n-1 is the number of dimensions of the simplical facets of the
+    surface (alternatively, n is the number of dimensions of the ambient space
+    in which the surface lies. For example, for the surface of a sphere, n=3)
+
+    hull: The convex hull object that defines the surface.
+    scheme: Integration scheme to be used.
+    use_gpu: If true, use cupy instead of numpy
+    """
+    # Pick appropriate array module
+    xp = cp if use_gpu else np
+
+    # Pick integration scheme
+    # For future developers: one can use Cayley-Menger determinants for d > 2
+    num_dimensions = hull.points.shape[1] - 1
+    if num_dimensions > 2:
+        raise NotImplementedError(
+            "Integration of surfaces in d > 2 dimensions"
+            "not currently supported."
+        )
+
+    if scheme is None:
+        # The second parameter to quadpy's scheme method here is about
+        # accuracy of the scheme, not the number of spatial dimensions.
+        scheme = quadpy.tn.grundmann_moeller(num_dimensions, 3)
+
+    barycentric_weights = xp.asarray(scheme.points)
+    weights = xp.asarray(scheme.weights)
+
+    # Generate integration points
+    num_simplices = len(hull.simplices)
+    num_weights = len(weights)
+    simplical_points = xp.asarray(hull.points)[
+        xp.asarray(hull.simplices)
+    ].transpose(0, 2, 1)
+    integration_points = simplical_points @ barycentric_weights
+    reshaped_points = integration_points.transpose(0, 2, 1).reshape(
+        -1, num_dimensions + 1
+    )
+
+    # Find simplex volumes using cross product
+    v1s = simplical_points[:, :, 1] - simplical_points[:, :, 0]
+    v2s = simplical_points[:, :, 2] - simplical_points[:, :, 0]
+    cross_products = xp.cross(v1s, v2s)
+    areas = 0.5 * xp.sqrt(xp.sum(cross_products**2, axis=1))
+
+    # Output
+    function_output = function(reshaped_points)
+    weighted_output = (
+        function_output
+        * xp.tile(weights, num_simplices)
+        * xp.repeat(areas, num_weights)
+    )
+    integral = xp.sum(weighted_output)
+    return integral
+
+
+def simplex_integral(
+    function: Callable,
+    simplices: np.ndarray,
+    scheme: Any | None = None,
+    use_gpu: bool = False,
+) -> np.ndarray | cp.ndarray:
+    """Compute the integral of a function over a (collection of) simplex/ices.
+
+    function: The function to be integrated. The simplices should be of shape
+
+    N x (n+1) x n
+
+    where n is the number of dimensions of the simplices. The function, however,
+    must accept inputs of the form
+
+    M x n
+
+    and yield an output of shape
+
+    M x k
+
+    where k is the size of the output for one input.
+
+    simplices: The simplices with shape as described above.
+    scheme: Integration scheme to be used.
+    use_gpu: If true, use cupy instead of numpy
+    """
+    xp = cp.get_array_module(simplices)
+    # Pick integration scheme
+    num_dimensions = simplices.shape[2]
+    if scheme is None:
+        # The second parameter to quadpy's scheme method here is about
+        # accuracy of the scheme, not the number of spatial dimensions.
+        scheme = quadpy.tn.grundmann_moeller(num_dimensions, 3)
+
+    # barycentric weights should be of shape M x (n+1),
+    # where n is the number of dimensions (vertices in the simplex)
+    # M is the number of points in the cubature scheme
+    barycentric_weights = xp.asarray(scheme.points).T
+    weights = xp.asarray(scheme.weights)
+
+    # Find simplex volumes using Cayley-Menger determinants
+    contents = xp.abs(
+        xp.linalg.det(simplices[:, 1:, :] - simplices[:, 0, None, :])
+        / math.factorial(num_dimensions)
+    )
+
+    # Generate integration points
+    # Integration points should be of size N x M x n
+    # Number of simplices x number of integration poits per simplex x dimension
+    integration_points = barycentric_weights @ simplices
+
+    # Reduce dimensionality of integration pont array for calculation
+    # efficiency
+    num_simplices, points_per_simplex, _ = integration_points.shape
+    reshaped_integration_points = integration_points.reshape(
+        num_simplices * points_per_simplex, num_dimensions
+    )
+    # Output
+    function_output = function(reshaped_integration_points)
+    _, output_size = function_output.shape
+    reshaped_function_output = function_output.reshape(
+        num_simplices, points_per_simplex, output_size
+    )
+    weighted_output = (
+        reshaped_function_output
+        * contents[:, np.newaxis, np.newaxis]
+        * weights[np.newaxis, :, np.newaxis]
+    )
+
+    # Sum over the points per simplex axis
+    integral = xp.sum(weighted_output, axis=1)
+    return integral
+
+
+def midpoint_integral(
+    function: Callable,
+    midpoint_array: np.ndarray,
+    volume_array: np.ndarray,
+    use_gpu: bool = False,
+) -> np.ndarray | cp.ndarray:
+    """Compute the integral of a function over a domain by using a midpoint
+    approximation.
+
+    function: The function to be integrated.
+    midpoint_array: Array of the midpoints.
+    volume_array: Array of the volumes.
+    use_gpu: If true, use cupy instead of numpy
+    """
+    xp = cp.get_array_module(midpoint_array)
+    function_output = function(midpoint_array)
+    integral = function_output * volume_array
     return integral

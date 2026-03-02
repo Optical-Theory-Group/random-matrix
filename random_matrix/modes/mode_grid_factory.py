@@ -112,6 +112,7 @@ def from_tiling(
         vertices_list=vertices_list,
         r_lim=r_lim,
         grid_wave_type=grid_wave_type,
+        is_lattice=True,
     )
 
 
@@ -121,6 +122,8 @@ def from_dr_dt(
     r_lim: float = 1.2,
     include_central_mode: bool = True,
     rotation_angle: float = 0.0,
+    is_spiderweb: bool = True,
+    include_edge_modes: bool = False,
 ) -> ModeGrid:
     """Generate polar grid from dr and dt.
 
@@ -163,6 +166,8 @@ def from_dr_dt(
         t_vals=t_vals,
         include_central_mode=include_central_mode,
         rotation_angle=rotation_angle,
+        is_spiderweb=is_spiderweb,
+        include_edge_modes=include_edge_modes,
     )
 
 
@@ -171,6 +176,8 @@ def from_rt_vals(
     t_vals: npt.NDArray[np.float64],
     include_central_mode: bool = True,
     rotation_angle: np.float64 = np.float64(0.0),
+    is_spiderweb: bool = True,
+    include_edge_modes: bool = False,
 ) -> ModeGrid:
     """Generate polar grid from arrays of r and t values.
 
@@ -208,12 +215,23 @@ def from_rt_vals(
         t_vals=t_vals,
         rotation_angle=rotation_angle,
         include_central_mode=include_central_mode,
+        is_spiderweb=is_spiderweb,
+        include_edge_modes=include_edge_modes,
     )
 
     # Construct mode objects from dictionary list
     mode_list = list(_get_mode_list(mode_boundary_dict_list))
 
-    return ModeGrid(mode_list=mode_list, r_lim=r_lim)
+    # Linearlize the arc edges if the spiderweb option is true
+    # This ensures the regions are all convex
+    # if is_spiderweb:
+    #     for m in mode_list:
+    #         if m.is_edge:
+    #             m.sides[-1].type = "line"
+    #         # Fix weights
+    #         m.weight = m._get_weight(m.vertices, m.sides, m.wave_type)
+
+    return ModeGrid(mode_list=mode_list, r_lim=r_lim, is_lattice=False)
 
 
 def from_dx_dy() -> None:
@@ -283,6 +301,7 @@ def _get_mode_grid(
     vertices_list: Iterator[npt.NDArray[np.float64]],
     r_lim: float,
     grid_wave_type: str,
+    is_lattice: bool = True,
 ) -> ModeGrid:
     """Intermediate function for generating ModeGrid.
 
@@ -328,10 +347,12 @@ def _get_mode_grid(
     # Construct mode objects from dictionary list
     mode_list = list(_get_mode_list(mode_boundary_dict_list))
 
-    return ModeGrid(mode_list=mode_list, r_lim=r_lim)
+    return ModeGrid(mode_list=mode_list, r_lim=r_lim, is_lattice=is_lattice)
 
 
-def _get_mode_list(mode_boundary_dict_list: Iterator[dict[str, Any]]) -> Iterator[Mode]:
+def _get_mode_list(
+    mode_boundary_dict_list: Iterator[dict[str, Any]],
+) -> Iterator[Mode]:
     """Intermediate function for generating ModeGrid.
 
     Should not be run directly. This method is used automatically
@@ -577,6 +598,8 @@ def _get_polar_mode_boundary_dict_list(
     t_vals: npt.NDArray[np.float64],
     include_central_mode: bool,
     rotation_angle: float,
+    is_spiderweb: bool,
+    include_edge_modes: bool,
 ) -> Iterator[dict[str, Any]]:
     """Generates polar mode boundaries for polar grids.
 
@@ -630,8 +653,13 @@ def _get_polar_mode_boundary_dict_list(
                 [0.0, -r_central],
             ]
         )
+        vertices = np.column_stack(
+            (r_central * np.cos(t_vals), r_central * np.sin(t_vals))
+        )
 
-        arc_points_list = list(array_utils.get_pairs(vertices, cyclic=True))
+        arc_points_list = (
+            [] if is_spiderweb else list(array_utils.get_pairs(vertices, cyclic=True))
+        )
         new_mode_boundary_dict = {
             "vertices": vertices,
             "arc_points_list": arc_points_list,
@@ -647,7 +675,7 @@ def _get_polar_mode_boundary_dict_list(
             # Rotate according to the provided rotation angle
             vertices = geometry_utils.rotate_points(vertices, rotation_angle)
 
-            arc_points_list = [vertices[1:]]
+            arc_points_list = [] if is_spiderweb else [vertices[1:]]
             new_mode_boundary_dict = {
                 "vertices": vertices,
                 "arc_points_list": arc_points_list,
@@ -657,14 +685,49 @@ def _get_polar_mode_boundary_dict_list(
     # All modes beyond the central ones
     # Get rid of 0 from the r_vals list
     r_vals = r_vals[1:]
-    for r_1, r_2 in array_utils.get_pairs(r_vals):
+    for r_1, r_2 in array_utils.get_pairs(r_vals)[:-1]:
         for t_1, t_2 in array_utils.get_pairs(t_vals):
             vertices_polar = np.array([[r_1, t_1], [r_1, t_2], [r_2, t_2], [r_2, t_1]])
             vertices = geometry_utils.polar_to_cartesian(vertices_polar)
             # Rotate according to the provided rotation angle
             vertices = geometry_utils.rotate_points(vertices, rotation_angle)
 
-            arc_points_list = [vertices[0:2], vertices[2:]]
+            arc_points_list = [] if is_spiderweb else [vertices[0:2], vertices[2:]]
+            new_mode_boundary_dict = {
+                "vertices": vertices,
+                "arc_points_list": arc_points_list,
+            }
+            yield new_mode_boundary_dict
+
+    # Edge case
+    r_1, r_2 = array_utils.get_pairs(r_vals)[-1]
+    for t_1, t_2 in array_utils.get_pairs(t_vals):
+        vertices_polar = np.array([[r_1, t_1], [r_1, t_2], [r_2, t_2], [r_2, t_1]])
+        vertices = geometry_utils.polar_to_cartesian(vertices_polar)
+        vertices = geometry_utils.rotate_points(vertices, rotation_angle)
+        arc_points_list = (
+            []
+            if (is_spiderweb and include_edge_modes)
+            else [vertices[2:]]
+        )
+        new_mode_boundary_dict = {
+            "vertices": vertices,
+            "arc_points_list": arc_points_list,
+        }
+        yield new_mode_boundary_dict
+
+    # Handle modes at the edge for spiderweb grid
+    # Get the extra parts at the edge for the spiderweb case
+    if is_spiderweb and include_edge_modes:
+        for t_1, t_2 in array_utils.get_pairs(t_vals):
+            vertices_polar = np.array(
+                [[1.0, t_1], [1.0, (t_1 + t_2) / 2], [1.0, t_2]]
+            )
+            vertices = geometry_utils.polar_to_cartesian(vertices_polar)
+            # Rotate according to the provided rotation angle
+            vertices = geometry_utils.rotate_points(vertices, rotation_angle)
+
+            arc_points_list = [vertices[0:2], vertices[1:3]]
             new_mode_boundary_dict = {
                 "vertices": vertices,
                 "arc_points_list": arc_points_list,
