@@ -123,16 +123,6 @@ fig.savefig("/home/nbyrnes/code/random-matrix/examples/hexagon_grid.svg", format
 # fig.savefig("/home/nbyrnes/code/random-matrix/examples/square_grid.svg", format="svg")
 
 # Standard polar grid rotated
-<<<<<<< HEAD
-g = mode_grid_factory.from_dr_dt(
-    dr=0.1,
-    dt=2 * np.pi / 20,
-    r_lim=1.0,
-    rotation_angle=0.0,
-    include_central_mode=True,
-)
-g.plot(show_indices=True, close=False)
-=======
 # g = mode_grid_factory.from_dr_dt(
 #     dr=0.1,
 #     dt=2 * np.pi / 20,
@@ -141,7 +131,6 @@ g.plot(show_indices=True, close=False)
 #     include_central_mode=True,
 # )
 # g.plot(show_indices=True, close=False)
->>>>>>> 9c2d3a37e2ff8baf3656384cef89985d509d7bc0
 
 assert False
 

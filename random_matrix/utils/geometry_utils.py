@@ -1320,7 +1320,16 @@ def get_six_dimensional_intersection_volume(
             cartesian_product
         )[:, columns_to_keep]
 
+<<<<<<< HEAD
     reduced_hull = scipy.spatial.ConvexHull(
         reduced_intersection, qhull_options="QJ"
     )
+=======
+    try:
+        reduced_hull = scipy.spatial.ConvexHull(
+            reduced_intersection, qhull_options="QJ"
+        )
+    except Exception as _:
+        return 0.0
+>>>>>>> 9c2d3a37e2ff8baf3656384cef89985d509d7bc0
     return reduced_hull.volume

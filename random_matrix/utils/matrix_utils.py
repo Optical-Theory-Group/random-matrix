@@ -2,7 +2,10 @@ import numpy as np
 import cupy as cp
 import scipy
 import sksparse.cholmod
+<<<<<<< HEAD
 from tqdm import tqdm
+=======
+>>>>>>> 9c2d3a37e2ff8baf3656384cef89985d509d7bc0
 
 # def get_sub_block_indices_vector(independent_element_indices):
 #     indices = np.empty((0, 3), dtype="object")
@@ -50,7 +53,13 @@ def get_block(matrix: np.ndarray | cp.ndarray, block: str):
     elif matrix.ndim == 3:
         return matrix[:, block_indices[0], block_indices[1]]
     else:
+<<<<<<< HEAD
         raise ValueError(f"matrix has ndim {matrix.ndim}, but it must be 2 or 3")
+=======
+        raise ValueError(
+            f"matrix has ndim {matrix.ndim}, but it must be 2 or 3"
+        )
+>>>>>>> 9c2d3a37e2ff8baf3656384cef89985d509d7bc0
 
 
 def get_sub_block_indices(
@@ -229,7 +238,13 @@ def get_cov_block_indices(
 
     block_ij, block_uv = blocks.split(",")
 
+<<<<<<< HEAD
     start_row_index = get_cov_starting_index(block_ij, (0, 0), False, num_propagating)
+=======
+    start_row_index = get_cov_starting_index(
+        block_ij, (0, 0), False, num_propagating
+    )
+>>>>>>> 9c2d3a37e2ff8baf3656384cef89985d509d7bc0
     end_row_index = get_cov_starting_index(
         block_ij,
         (num_propagating - 1, num_propagating - 1),
@@ -237,7 +252,13 @@ def get_cov_block_indices(
         num_propagating,
     )
 
+<<<<<<< HEAD
     start_col_index = get_cov_starting_index(block_uv, (0, 0), False, num_propagating)
+=======
+    start_col_index = get_cov_starting_index(
+        block_uv, (0, 0), False, num_propagating
+    )
+>>>>>>> 9c2d3a37e2ff8baf3656384cef89985d509d7bc0
     end_col_index = get_cov_starting_index(
         block_uv,
         (num_propagating - 1, num_propagating - 1),
@@ -365,6 +386,7 @@ def get_reciprocal_sub_block_indices(
     reciprocal_block = reciprocal_blocks[block]
     reciprocal_sub_block = (-sub_block[1], -sub_block[0])
 
+<<<<<<< HEAD
     return get_sub_block_indices(reciprocal_block, reciprocal_sub_block, mode_indices)
 
 
@@ -690,6 +712,331 @@ def get_real_covariance_matrix(
     )
 
 
+=======
+    return get_sub_block_indices(
+        reciprocal_block, reciprocal_sub_block, mode_indices
+    )
+
+
+def get_closest_unitary_approximation(
+    matrix: np.ndarray | cp.ndarray,
+) -> np.ndarray | cp.ndarray:
+    """Get the closest unitary matrix to a given matrix.
+
+    This is achieved using the svd and forcing all singular values to be 1"""
+    xp = cp.get_array_module(matrix)
+    u, _, vh = xp.linalg.svd(matrix)
+    return u @ vh
+
+
+def get_exchange_matrix(
+    size: int, use_cupy: bool = False
+) -> np.ndarray | cp.ndarray:
+    """Return the exchange matrix with 1s on the anti diagonal and zeros
+    elsewhere"""
+    xp = cp if use_cupy else np
+    return xp.fliplr(xp.eye(size, dtype=xp.complex128))
+
+
+def get_pauli_x(use_cupy: bool = False) -> np.ndarray | cp.ndarray:
+    """Return sigma_y. See thesis"""
+    return get_exchange_matrix(2, use_cupy)
+
+
+def get_pauli_z(use_cupy: bool = False) -> np.ndarray | cp.ndarray:
+    """Return sigma_y. See thesis"""
+    xp = cp if use_cupy else np
+    return xp.array([[1.0, 0.0], [0.0, -1.0]])
+
+
+def get_pauli_y(use_cupy: bool = False) -> np.ndarray | cp.ndarray:
+    """Return sigma_y. See thesis"""
+    xp = cp if use_cupy else np
+    return 1j * xp.array([[0.0, -1.0], [1.0, 0.0]])
+
+
+def get_S_block_reciprocity_matrix(
+    size: int, use_cupy: bool = False
+) -> np.ndarray | cp.ndarray:
+    """Return the sigma_p matrix defined in Eq. (3.153) of Niall's thesis
+
+    size should be the size of a block of S (e.g. r or t)"""
+    xp = cp if use_cupy else np
+    num_modes = int(size // 2)
+    return xp.kron(get_exchange_matrix(num_modes, use_cupy), xp.identity(2))
+
+
+def get_S_reciprocity_matrix(
+    size: int, use_cupy: bool = False
+) -> np.ndarray | cp.ndarray:
+    """Return w as defined in Niall's thesis such that S = w^* S^T w when the
+    medium satisfies reciprocity.
+
+    size should be the size of the scattering matrix"""
+    xp = cp if use_cupy else np
+    num_modes = int(size // 4)
+    identity = xp.eye(2, dtype=np.complex128)
+    exchange = get_exchange_matrix(num_modes, use_cupy)
+    sigma_z = get_pauli_z(use_cupy)
+    product = xp.kron(identity, xp.kron(exchange, sigma_z))
+    return product
+
+
+def get_M_energy_matrix(
+    size: int, use_cupy: bool = False
+) -> np.ndarray | cp.ndarray:
+    """Return Omega as defined in Niall's thesis such that
+
+    M^dag Omega M = Omega
+
+    expresses energy conservation"""
+    xp = cp if use_cupy else np
+    identity_size = int(size // 2)
+    identity = xp.identity(identity_size)
+    sigma_z = get_pauli_z(use_cupy)
+    Omega = xp.kron(sigma_z, identity)
+    return Omega
+
+
+def get_M_reciprocity_matrix(
+    size: int, use_cupy: bool = False
+) -> np.ndarray | cp.ndarray:
+    """Return eta as defined in Niall's thesis such that M = eta M^* eta when
+    the medium satisfies reciprocity.
+
+    size should be the size of the transfer matrix"""
+    xp = cp if use_cupy else np
+    num_modes = int(size // 4)
+    exchange = get_exchange_matrix(num_modes, use_cupy)
+    sigma_x = get_pauli_x(use_cupy)
+    sigma_z = get_pauli_z(use_cupy)
+    product = xp.kron(sigma_x, xp.kron(exchange, sigma_z))
+    return product
+
+
+def get_M_from_S(S: np.ndarray | cp.ndarray) -> np.ndarray | cp.ndarray:
+    """Given S of shape M x n x n, where M is the number of matrices, get an
+    M x n x n array of transfer matrices"""
+    xp = cp.get_array_module(S)
+
+    r = get_block(S, "r")
+    r2 = get_block(S, "r2")
+    t = get_block(S, "t")
+    t2 = get_block(S, "t2")
+
+    t2_inv = xp.linalg.inv(t2)
+    a = t - r2 @ t2_inv @ r
+    b = r2 @ t2_inv
+    c = -t2_inv @ r
+    d = t2_inv
+
+    if S.ndim == 3:
+        axis = 2
+    elif S.ndim == 2:
+        axis = 1
+
+    top = xp.concatenate((a, b), axis=axis)
+    bottom = xp.concatenate((c, d), axis=axis)
+    return xp.concatenate((top, bottom), axis=axis - 1)
+
+
+def get_S_from_M(M: np.ndarray | cp.ndarray) -> np.ndarray | cp.ndarray:
+    """Given M of shape M x n x n, where M is the number of matrices, get an
+    M x n x n array of scattering matrices"""
+    xp = cp.get_array_module(M)
+
+    a = get_block(M, "a")
+    b = get_block(M, "b")
+    c = get_block(M, "c")
+    d = get_block(M, "d")
+
+    d_inv = xp.linalg.inv(d)
+    r = -d_inv @ c
+    t = a - b @ d_inv @ c
+    t2 = d_inv
+    r2 = b @ d_inv
+
+    if M.ndim == 3:
+        axis = 2
+    elif M.ndim == 2:
+        axis = 1
+
+    top = xp.concatenate((r, t2), axis=axis)
+    bottom = xp.concatenate((t, r2), axis=axis)
+    return xp.concatenate((top, bottom), axis=axis - 1)
+
+
+def S_product(
+    S_1: np.ndarray | cp.ndarray, S_2: np.ndarray | cp.ndarray
+) -> np.ndarray | cp.ndarray:
+    """Compute the scattering matrix for the medium combined of two partial
+    media described by S1 and S2
+
+    left space S1 S2 right space
+
+    This corresponds to the transfer matrix product M2 * M1"""
+    xp = cp.get_array_module(S_1)
+    use_cupy = xp == cp
+
+    num_modes = int(len(S_1) // 4)
+
+    sigma_z = get_pauli_z(use_cupy)
+    r_1 = get_block(S_1, "r")
+    r2_1 = get_block(S_1, "r2")
+    t_1 = get_block(S_1, "t")
+    t2_1 = get_block(S_1, "t2")
+    r_2 = get_block(S_2, "r")
+    r2_2 = get_block(S_2, "r2")
+    t_2 = get_block(S_2, "t")
+    t2_2 = get_block(S_2, "t2")
+    J = get_exchange_matrix(num_modes, use_cupy)
+
+    Q = xp.linalg.inv(xp.identity(len(r_1), dtype=xp.complex128) - r2_1 @ r_2)
+
+    partial_one = t_2 @ Q @ t_1
+    partial_two = xp.kron(J, sigma_z)
+
+    r = r_1 + t2_1 @ r_2 @ Q @ t_1
+    r2 = r2_2 + t_2 @ Q @ r2_1 @ t2_2
+    t = partial_one
+    t2 = partial_two @ partial_one.T @ partial_two
+
+    top = xp.concatenate((r, t2), axis=1)
+    bottom = xp.concatenate((t, r2), axis=1)
+    S = xp.concatenate((top, bottom), axis=0)
+    return S
+
+
+def block_cholesky(A: np.ndarray) -> np.ndarray:
+    """
+    Compute the Cholesky decomposition of a 2x2 block matrix.
+
+    A is assumed to be symmetric positive definite. Method adapted from
+    https://scicomp.stackexchange.com/questions/5050/cholesky-factorization-of-block-matrices
+    """
+    n = A.shape[0]
+    k = n // 2
+
+    A11 = A[:k, :k]
+    A21 = A[k:, :k]
+    A22 = A[k:, k:]
+
+    L11 = np.linalg.cholesky(A11)
+    L21 = np.conj(np.linalg.solve(L11, np.conj(A21).T)).T
+    S = A22 - L21 @ np.conj(L21).T
+    L22 = np.linalg.cholesky(S)
+
+    L_top = np.hstack([L11, np.zeros((k, n - k))])
+    L_bottom = np.hstack([L21, L22])
+    L = np.vstack([L_top, L_bottom])
+
+    return L
+
+
+def sparse_cholesky(A: scipy.sparse.csc_matrix) -> scipy.sparse.csc_matrix:
+    """Get the cholesky decomposition of a sparse matrix using sksparse"""
+    return sksparse.cholmod.cholesky(A, ordering_method="natural").L()
+
+
+def block_cholesky_sparse(
+    A: scipy.sparse.csc_matrix,
+) -> scipy.sparse.csc_matrix:
+    """
+    Compute the Cholesky decomposition of a 2x2 block sparse matrix.
+
+    A: symmetric/Hermitian positive definite sparse matrix (csc_matrix)
+    Method based on:
+    https://scicomp.stackexchange.com/questions/5050/cholesky-factorization-of-block-matrices
+
+    """
+    n = A.shape[0]
+    k = n // 2
+
+    # Split blocks
+    A11 = A[:k, :k]
+    A21 = A[k:, :k]
+    A22 = A[k:, k:]
+
+    # Sparse calculations
+    A11_factor = sksparse.cholmod.cholesky(A11)
+    L11 = A11_factor.L()
+    X = A11_factor.solve_L(A21.conj().T, use_LDLt_decomposition=False).conj().T
+    S = A22 - X @ X.conj().T
+    Ls = sksparse.cholmod.cholesky(S).L()
+
+    L = scipy.sparse.bmat([[L11, None], [X, Ls]], format="csc")
+    return L
+
+
+def block_cholesky_sparse_recursive(
+    A: scipy.sparse.csc_matrix, max_depth: int = 1, depth: int = 0
+) -> scipy.sparse.csc_matrix:
+    """
+    Recursively compute the Cholesky decomposition of a sparse
+    symmetric/Hermitian matrix using block_cholesky_sparse.
+
+    Parameters:
+        A : csc_matrix
+            Symmetric/Hermitian positive definite sparse matrix
+        max_depth : int
+            Maximum recursion depth
+        depth : int
+            Current recursion depth (internal use)
+
+    Returns:
+        L : csc_matrix
+            Lower-triangular Cholesky factor of A
+    """
+
+    if depth >= max_depth:
+        return A
+
+    n = A.shape[0]
+    k = n // 2
+
+    # Split blocks
+    A11 = A[:k, :k]
+    A21 = A[k:, :k]
+    A22 = A[k:, k:]
+
+    # Sparse calculations
+    A11_factor = sksparse.cholmod.cholesky(A11)
+    L11 = A11_factor.L()
+    X = A11_factor.solve_L(A21.conj().T, use_LDLt_decomposition=False).conj().T
+    S = A22 - X @ X.conj().T
+    Ls = sksparse.cholmod.cholesky(S).L()
+
+    L = scipy.sparse.bmat([[L11, None], [X, Ls]], format="csc")
+
+    return L
+
+
+def get_real_covariance_matrix(
+    covariance: scipy.sparse.spmatrix,
+    pseudo_covariance: scipy.sparse.spmatrix | None = None,
+) -> scipy.sparse.spmatrix:
+    """Construct a real-valued covariance matrix based on a supplied covariance
+    and pseudo-covariance matrix"""
+    if pseudo_covariance is None:
+        pseudo_covariance = scipy.sparse.csr_matrix(
+            covariance.shape, dtype=covariance.dtype
+        )
+
+    return 0.5 * scipy.sparse.bmat(
+        [
+            [
+                covariance.real + pseudo_covariance.real,
+                -covariance.imag + pseudo_covariance.imag,
+            ],
+            [
+                covariance.imag + pseudo_covariance.imag,
+                covariance.real - pseudo_covariance.imag,
+            ],
+        ]
+    )
+
+
+>>>>>>> 9c2d3a37e2ff8baf3656384cef89985d509d7bc0
 def get_cholesky_decomposition(
     covariance_matrix: scipy.sparse.spmatrix,
     first_power: int = -15,
@@ -702,9 +1049,16 @@ def get_cholesky_decomposition(
 
     for i in range(first_power, final_power, 1):
         try:
+<<<<<<< HEAD
             covariance_matrix_altered = covariance_matrix + scipy.sparse.identity(
                 size_of_covariance_matrix
             ) * 10 ** (i)
+=======
+            covariance_matrix_altered = (
+                covariance_matrix
+                + scipy.sparse.identity(size_of_covariance_matrix) * 10 ** (i)
+            )
+>>>>>>> 9c2d3a37e2ff8baf3656384cef89985d509d7bc0
             chol = sksparse.cholmod.cholesky(
                 covariance_matrix_altered, ordering_method="natural"
             ).L()

@@ -556,3 +556,7 @@ class ModeGrid:
             fig.savefig(save_path, format="svg")
         if close_fig:
             plt.close()
+<<<<<<< HEAD
+=======
+        return fig, ax
+>>>>>>> 9c2d3a37e2ff8baf3656384cef89985d509d7bc0

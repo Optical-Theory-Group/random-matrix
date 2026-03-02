@@ -10,7 +10,11 @@ data/
 paper_data/
 paper_data/data/
 paper_data/*
+<<<<<<< HEAD
 
+=======
+rmt_analysis/*
+>>>>>>> 9c2d3a37e2ff8baf3656384cef89985d509d7bc0
 
 .gitignore
 cov.pkl
@@ -21,3 +25,8 @@ nohup.out
 *.pkl
 *.png
 *.txt
+<<<<<<< HEAD
+=======
+to-be-moved
+tests/
+>>>>>>> 9c2d3a37e2ff8baf3656384cef89985d509d7bc0
