@@ -2,6 +2,7 @@ import numpy as np
 import cupy as cp
 import scipy
 import sksparse.cholmod
+from tqdm import tqdm
 
 # def get_sub_block_indices_vector(independent_element_indices):
 #     indices = np.empty((0, 3), dtype="object")
@@ -49,9 +50,7 @@ def get_block(matrix: np.ndarray | cp.ndarray, block: str):
     elif matrix.ndim == 3:
         return matrix[:, block_indices[0], block_indices[1]]
     else:
-        raise ValueError(
-            f"matrix has ndim {matrix.ndim}, but it must be 2 or 3"
-        )
+        raise ValueError(f"matrix has ndim {matrix.ndim}, but it must be 2 or 3")
 
 
 def get_sub_block_indices(
@@ -230,9 +229,7 @@ def get_cov_block_indices(
 
     block_ij, block_uv = blocks.split(",")
 
-    start_row_index = get_cov_starting_index(
-        block_ij, (0, 0), False, num_propagating
-    )
+    start_row_index = get_cov_starting_index(block_ij, (0, 0), False, num_propagating)
     end_row_index = get_cov_starting_index(
         block_ij,
         (num_propagating - 1, num_propagating - 1),
@@ -240,9 +237,7 @@ def get_cov_block_indices(
         num_propagating,
     )
 
-    start_col_index = get_cov_starting_index(
-        block_uv, (0, 0), False, num_propagating
-    )
+    start_col_index = get_cov_starting_index(block_uv, (0, 0), False, num_propagating)
     end_col_index = get_cov_starting_index(
         block_uv,
         (num_propagating - 1, num_propagating - 1),
@@ -370,9 +365,7 @@ def get_reciprocal_sub_block_indices(
     reciprocal_block = reciprocal_blocks[block]
     reciprocal_sub_block = (-sub_block[1], -sub_block[0])
 
-    return get_sub_block_indices(
-        reciprocal_block, reciprocal_sub_block, mode_indices
-    )
+    return get_sub_block_indices(reciprocal_block, reciprocal_sub_block, mode_indices)
 
 
 def get_closest_unitary_approximation(
@@ -382,13 +375,19 @@ def get_closest_unitary_approximation(
 
     This is achieved using the svd and forcing all singular values to be 1"""
     xp = cp.get_array_module(matrix)
-    u, _, vh = xp.linalg.svd(matrix)
-    return u @ vh
+
+    for i in tqdm(range(matrix.shape[0])):
+        u, _, vh = xp.linalg.svd(matrix[i])
+
+        # overwrite original matrix
+        matrix[i][...] = u @ vh
+        # np.matmul(u, vh, out=matrix[i])
+        # del u, vh
+
+    return matrix
 
 
-def get_exchange_matrix(
-    size: int, use_cupy: bool = False
-) -> np.ndarray | cp.ndarray:
+def get_exchange_matrix(size: int, use_cupy: bool = False) -> np.ndarray | cp.ndarray:
     """Return the exchange matrix with 1s on the anti diagonal and zeros
     elsewhere"""
     xp = cp if use_cupy else np
@@ -439,9 +438,7 @@ def get_S_reciprocity_matrix(
     return product
 
 
-def get_M_energy_matrix(
-    size: int, use_cupy: bool = False
-) -> np.ndarray | cp.ndarray:
+def get_M_energy_matrix(size: int, use_cupy: bool = False) -> np.ndarray | cp.ndarray:
     """Return Omega as defined in Niall's thesis such that
 
     M^dag Omega M = Omega
@@ -705,10 +702,9 @@ def get_cholesky_decomposition(
 
     for i in range(first_power, final_power, 1):
         try:
-            covariance_matrix_altered = (
-                covariance_matrix
-                + scipy.sparse.identity(size_of_covariance_matrix) * 10 ** (i)
-            )
+            covariance_matrix_altered = covariance_matrix + scipy.sparse.identity(
+                size_of_covariance_matrix
+            ) * 10 ** (i)
             chol = sksparse.cholmod.cholesky(
                 covariance_matrix_altered, ordering_method="natural"
             ).L()
