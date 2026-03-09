@@ -9,7 +9,7 @@ from random_matrix.input_statistics import (
 from pathlib import Path
 import warnings
 import scipy
-from random_matrix.modes import mode_grid
+from random_matrix.modes import mode_grid, mode_grid_factory
 from random_matrix.utils import matrix_utils
 from typing import Callable
 import random
@@ -54,6 +54,15 @@ class MatrixPoolManager:
         self.multi_pool_M = None
 
         self._matrix_shape = None
+
+        # Get wavelength for propagators
+        mp_path = self.input_statistics_paths.get("medium_parameters")
+        with open(mp_path, "rb") as f:
+            mp = pickle.load(f)
+            self.k = mp.k
+            self.L = mp.L
+        self.M_propagator_slice_cp = self.get_lambda_plus_minus(self.L, True)
+        self.M_propagator_slice_np = self.get_lambda_plus_minus(self.L, False)
 
     def get_pool_data(
         self, is_transfer_matrix: bool, is_multi_pool: bool
@@ -534,6 +543,52 @@ class MatrixPoolManager:
         else:
             return output
 
+    # -------------------------------------------------------------------------
+    # Propagator matrices
+    # -------------------------------------------------------------------------
+
+    def get_lambda_plus(
+        self, thickness: float, use_cupy: bool = False
+    ) -> np.ndarray | cp.ndarray:
+        xp = cp if use_cupy else np
+        propagating_modes_mean_vertices_dict = (
+            self.mode_grid.propagating_modes_mean_vertices_dict
+        )
+        kz_list = [
+            xp.sqrt(1 - xp.linalg.norm(center) ** 2)
+            for center in propagating_modes_mean_vertices_dict.values()
+        ]
+        exp_mat = xp.diag(xp.exp(1j * self.k * xp.array(kz_list) * thickness))
+        lambda_plus = xp.kron(exp_mat, xp.identity(2, dtype=exp_mat.dtype))
+        return lambda_plus
+
+    def get_lambda_minus(
+        self, thickness: float, use_cupy: bool = False
+    ) -> np.ndarray | cp.ndarray:
+        xp = cp if use_cupy else np
+        return xp.conj(self.get_lambda_plus(thickness, use_cupy))
+
+    def get_lambda_plus_minus(
+        self, thickness: float, use_cupy: bool = False
+    ) -> np.ndarray | cp.ndarray:
+        xp = cp if use_cupy else np
+        lambda_plus = self.get_lambda_plus(thickness, use_cupy)
+        lambda_minus = xp.conj(lambda_plus)
+
+        zeros = xp.zeros_like(lambda_plus)
+        lambda_plus_minus = xp.block(
+            [[lambda_plus, zeros], [zeros, lambda_minus]]
+        )
+
+        return lambda_plus_minus
+
+    def get_lambda_minus_plus(
+        self, thickness: float, use_cupy: bool = False
+    ) -> np.ndarray | cp.ndarray:
+        xp = cp if use_cupy else np
+        lambda_plus_minus = self.get_lambda_plus_minus(thickness, use_cupy)
+        return xp.conj(lambda_plus_minus)
+
     def populate_single_pool(
         self,
         num_matrices: int = 1,
@@ -554,14 +609,25 @@ class MatrixPoolManager:
             num_matrices, symmetrize, use_cupy, seed, random_only
         )
 
+        # Add propagators
+        M_matrices = matrix_utils.get_M_from_S(S_matrices)
+        propagator = (
+            self.M_propagator_slice_cp
+            if use_cupy
+            else self.M_propagator_slice_np
+        )
+        xp = cp if use_cupy else np
+        M_with_propagation = xp.matmul(propagator, M_matrices)
+        S_with_propagation = matrix_utils.get_S_from_M(M_with_propagation)
+
         # Save the pool
         if matrix_type in ("S", "both"):
-            self.single_pool_S = S_matrices
+            self.single_pool_S = S_with_propagation
             if save_matrices:
                 self.save_single_pool_S()
 
         if matrix_type in ("M", "both"):
-            self.single_pool_M = matrix_utils.get_M_from_S(S_matrices)
+            self.single_pool_M = M_with_propagation
             if save_matrices:
                 self.save_single_pool_M()
 
@@ -1107,3 +1173,6 @@ class MatrixPoolManager:
                             f[key][idx, sample_number, ...] = cp.asnumpy(
                                 analysis_function(working_matrix)
                             )
+
+
+grid = mode_grid_factory
