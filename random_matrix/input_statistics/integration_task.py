@@ -279,9 +279,7 @@ class CubatureIntegrationTask(IntegrationTask):
 
         if self.simplex_array is None:
             num_vertices, num_dimensions = expected_shape
-            self.simplex_array = xp.zeros(
-                (0, *expected_shape), dtype=xp.float64
-            )
+            self.simplex_array = xp.zeros((0, *expected_shape), dtype=xp.float64)
 
         # Validate dimensionality
         if self.simplex_array.ndim != 3:
@@ -414,9 +412,7 @@ class IntegrationTaskPreparer:
         medium_parameters: medium_parameters.MediumParameters,
         medium_statistics: medium_statistics.MediumStatistics,
         logger: input_statistics_logger.InputStatisticsLogger,
-        integration_task_config: IntegrationTaskConfig = (
-            IntegrationTaskConfig()
-        ),
+        integration_task_config: IntegrationTaskConfig = (IntegrationTaskConfig()),
     ):
         self.integration_task_config = integration_task_config
         self.mode_grid = mode_grid
@@ -478,9 +474,7 @@ class IntegrationTaskPreparer:
     # Mean
     # -------------------------------------------------------------------------
 
-    def _get_mean_integrand(
-        self, wave_block: str, block: str
-    ) -> MathematicalFunction:
+    def _get_mean_integrand(self, wave_block: str, block: str) -> MathematicalFunction:
         mean_a_matrix = self.medium_statistics.get_mean_a_matrix()
         k = self.medium_parameters.k
         L = self.medium_parameters.L
@@ -582,9 +576,7 @@ class IntegrationTaskPreparer:
                         continue
 
                     # Add domain to integral task
-                    old_stack_length = len(
-                        task_dict[wave_block][block].simplex_array
-                    )
+                    old_stack_length = len(task_dict[wave_block][block].simplex_array)
                     new_stack_length = old_stack_length + len(new_triangles)
                     new_slice = slice(old_stack_length, new_stack_length)
                     new_indices = indices
@@ -604,13 +596,8 @@ class IntegrationTaskPreparer:
                     # Execute tasks if RAM usage is getting too high.
                     # Re-initialize relevant integration task
                     current_cpu_ram_usage = psutil.virtual_memory().percent
-                    if (
-                        current_cpu_ram_usage
-                        > self.integration_task_config.ram_limit
-                    ):
-                        new_result = task_dict[wave_block][
-                            block
-                        ].execute_task()
+                    if current_cpu_ram_usage > self.integration_task_config.ram_limit:
+                        new_result = task_dict[wave_block][block].execute_task()
                         main_result_list.append_result(new_result)
 
                         block_location = (wave_block, block)
@@ -645,12 +632,8 @@ class IntegrationTaskPreparer:
         """Pre-compute A matrix values for faster computation of statistics
         later on"""
         num_modes = self.mode_grid.num_propagating
-        mean_mode_vertices_dict = (
-            self.mode_grid.propagating_modes_mean_vertices_dict
-        )
-        mean_mode_vertices_array = np.stack(
-            list(mean_mode_vertices_dict.values())
-        )
+        mean_mode_vertices_dict = self.mode_grid.propagating_modes_mean_vertices_dict
+        mean_mode_vertices_array = np.stack(list(mean_mode_vertices_dict.values()))
         ki_array = np.repeat(mean_mode_vertices_array, num_modes, axis=0)
         ki_x_array, ki_y_array = ki_array[:, 0], ki_array[:, 1]
         ki_z_array = np.sqrt(1.0 - ki_x_array**2 - ki_y_array**2)
@@ -713,13 +696,11 @@ class IntegrationTaskPreparer:
 
         # Calculate the central volume that is re-used a lot
         central_mode_vertices = mode_vertices_dict[0]
-        central_volume = (
-            geometry_utils.get_six_dimensional_intersection_volume(
-                central_mode_vertices,
-                central_mode_vertices,
-                central_mode_vertices,
-                central_mode_vertices,
-            )
+        central_volume = geometry_utils.get_six_dimensional_intersection_volume(
+            central_mode_vertices,
+            central_mode_vertices,
+            central_mode_vertices,
+            central_mode_vertices,
         )
         volumes = {(0, 0): central_volume}
 
@@ -736,13 +717,11 @@ class IntegrationTaskPreparer:
                 # At least one of i and j is an edge mode
                 mode_i_vertices = mode_vertices_dict[first]
                 mode_j_vertices = mode_vertices_dict[second]
-                volume = (
-                    geometry_utils.get_six_dimensional_intersection_volume(
-                        mode_i_vertices,
-                        mode_j_vertices,
-                        mode_i_vertices,
-                        mode_j_vertices,
-                    )
+                volume = geometry_utils.get_six_dimensional_intersection_volume(
+                    mode_i_vertices,
+                    mode_j_vertices,
+                    mode_i_vertices,
+                    mode_j_vertices,
                 )
                 volumes[(first, second)] = volume
 
@@ -762,24 +741,21 @@ class IntegrationTaskPreparer:
             for second in self.mode_grid.propagating_indices[count:]:
                 mode_i_vertices = mode_vertices_dict[first]
                 mode_j_vertices = mode_vertices_dict[second]
-                volume = (
-                    geometry_utils.get_six_dimensional_intersection_volume(
-                        mode_i_vertices,
-                        mode_j_vertices,
-                        mode_i_vertices,
-                        mode_j_vertices,
-                    )
+                volume = geometry_utils.get_six_dimensional_intersection_volume(
+                    mode_i_vertices,
+                    mode_j_vertices,
+                    mode_i_vertices,
+                    mode_j_vertices,
                 )
                 volumes[(first, second)] = volume
 
         with open(path, "wb") as f:
             pickle.dump(volumes, f)
 
-
-
     def get_covariance_results_lattice_generator(
         self,
         indices: list[tuple[int, int, int, int]],
+        mode_indices: list[int],
         block_key: str,
         a_matrix_values_path: Path,
         volumes_path: Path,
@@ -809,6 +785,10 @@ class IntegrationTaskPreparer:
         reciprocity_correction = int((num_modes - 1) // 2)
         for indices in self.logger.progress_bar(indices):
             i, j, u, v = indices
+            i_sequence = mode_indices.index(i)
+            j_sequence = mode_indices.index(j)
+            u_sequence = mode_indices.index(u)
+            v_sequence = mode_indices.index(v)
             # Determine domain volume. If it's an auto-correlation, it might
             # be an edge mode, which will have smaller area.
             if i == u and j == v:
@@ -817,16 +797,8 @@ class IntegrationTaskPreparer:
                 volume = volumes[(0, 0)]
 
             # Calculate integral
-            ij_val = (
-                num_modes * (i + reciprocity_correction)
-                + j
-                + reciprocity_correction
-            )
-            uv_val = (
-                num_modes * (u + reciprocity_correction)
-                + v
-                + reciprocity_correction
-            )
+            ij_val = num_modes * i_sequence + j_sequence
+            uv_val = num_modes * u_sequence + v_sequence
             ki_z = ki_z_array[ij_val]
             kj_z = kj_z_array[ij_val]
             ku_z = ki_z_array[uv_val]
@@ -840,9 +812,7 @@ class IntegrationTaskPreparer:
             weight_factor = 1.0 / np.sqrt(wi * wj * wu * wv)
             A_ij = A_matrix_values[ij_val]
             A_uv = A_matrix_values[uv_val]
-            sinc_factor = special_functions.sinc(
-                k * L * (ki_z - kj_z - ku_z + kv_z)
-            )
+            sinc_factor = special_functions.sinc(k * L * (ki_z - kj_z - ku_z + kv_z))
             covariance = (
                 volume
                 * const_factor
@@ -949,7 +919,7 @@ class IntegrationTaskPreparer:
 
     #     # Factor common to all covariance integrals
     #     const_factor = self.medium_parameters.cov_const_factor
-        
+
     #     # Load the weights
     #     with open(volumes_path, "rb") as f:
     #         volumes = pickle.load(f)

@@ -440,6 +440,7 @@ class InputStatisticsManager:
         integration_result_generators = [
             self.integration_task_preparer.get_covariance_results_lattice_generator(
                 index_list,
+                self.mode_grid.propagating_indices,
                 block_key,
                 self.paths.a_matrix_values,
                 self.paths.volumes,
@@ -594,9 +595,7 @@ class InputStatisticsManager:
                 # Work out the indices where the matrix must go within the cov
                 # matrix
                 row_slice, col_slice = matrix_utils.get_cov_sub_block_indices(
-                    "r,r",
-                    sub_block_location,
-                    self.mode_grid.propagating_indices
+                    "r,r", sub_block_location, self.mode_grid.propagating_indices
                 )
                 rows = np.arange(row_slice.start, row_slice.stop)
                 cols = np.arange(col_slice.start, col_slice.stop)
@@ -733,9 +732,7 @@ class InputStatisticsManager:
 
                 # Work out the indices
                 row_slice, col_slice = matrix_utils.get_cov_sub_block_indices(
-                    "r,r",
-                    sub_block_location,
-                    self.mode_grid.propagating_indices
+                    "r,r", sub_block_location, self.mode_grid.propagating_indices
                 )
                 rows = np.arange(row_slice.start, row_slice.stop)
                 cols = np.arange(col_slice.start, col_slice.stop)
@@ -863,7 +860,7 @@ class InputStatisticsManager:
                     indices = matrix_utils.get_cov_sub_block_indices(
                         block_location,
                         sub_block_location,
-                        self.mode_grid.propagating_indices
+                        self.mode_grid.propagating_indices,
                     )
                     # Get weights
                     i, j, u, v = sub_block_location
@@ -960,7 +957,7 @@ class InputStatisticsManager:
                     indices = matrix_utils.get_cov_sub_block_indices(
                         block_location,
                         sub_block_location,
-                        self.mode_grid.propagating_indices
+                        self.mode_grid.propagating_indices,
                     )
                     # Get weights
                     i, j, u, v = sub_block_location
