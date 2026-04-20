@@ -775,11 +775,10 @@ class IntegrationTaskPreparer:
         with open(path, "wb") as f:
             pickle.dump(volumes, f)
 
-
-
     def get_covariance_results_lattice_generator(
         self,
         indices: list[tuple[int, int, int, int]],
+        mode_indices: list[int],
         block_key: str,
         a_matrix_values_path: Path,
         volumes_path: Path,
@@ -809,6 +808,10 @@ class IntegrationTaskPreparer:
         reciprocity_correction = int((num_modes - 1) // 2)
         for indices in self.logger.progress_bar(indices):
             i, j, u, v = indices
+            i_sequence = mode_indices.index(i)
+            j_sequence = mode_indices.index(j)
+            u_sequence = mode_indices.index(u)
+            v_sequence = mode_indices.index(v)
             # Determine domain volume. If it's an auto-correlation, it might
             # be an edge mode, which will have smaller area.
             if i == u and j == v:
@@ -817,16 +820,8 @@ class IntegrationTaskPreparer:
                 volume = volumes[(0, 0)]
 
             # Calculate integral
-            ij_val = (
-                num_modes * (i + reciprocity_correction)
-                + j
-                + reciprocity_correction
-            )
-            uv_val = (
-                num_modes * (u + reciprocity_correction)
-                + v
-                + reciprocity_correction
-            )
+            ij_val = num_modes * i_sequence + j_sequence
+            uv_val = num_modes * u_sequence + v_sequence
             ki_z = ki_z_array[ij_val]
             kj_z = kj_z_array[ij_val]
             ku_z = ki_z_array[uv_val]
@@ -835,7 +830,6 @@ class IntegrationTaskPreparer:
             wj = weights_dict[j]
             wu = weights_dict[u]
             wv = weights_dict[v]
-
             sec_factor = 1.0 / np.sqrt(np.abs(ki_z * kj_z * ku_z * kv_z))
             weight_factor = 1.0 / np.sqrt(wi * wj * wu * wv)
             A_ij = A_matrix_values[ij_val]
@@ -949,7 +943,7 @@ class IntegrationTaskPreparer:
 
     #     # Factor common to all covariance integrals
     #     const_factor = self.medium_parameters.cov_const_factor
-        
+
     #     # Load the weights
     #     with open(volumes_path, "rb") as f:
     #         volumes = pickle.load(f)
