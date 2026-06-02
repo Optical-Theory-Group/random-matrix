@@ -593,28 +593,26 @@ class MatrixPoolManager:
         S_matrices = self.S_sampler(
             num_matrices, symmetrize, use_cupy, seed, random_only
         )
-
-        # Add propagators
-        print("converting to M matrices")
+        print("sampling done")
+        # # Add propagators
+        print("converting to M matrices...")
         M_matrices = matrix_utils.get_M_from_S(S_matrices)
         print("conversion done")
-        propagator = (
-            self.M_propagator_slice_cp if use_cupy else self.M_propagator_slice_np
-        )
-        xp = cp if use_cupy else np
-        print("applying propagators")
-        M_with_propagation = xp.matmul(propagator, M_matrices)
-        print("propagators applied")
-        S_with_propagation = matrix_utils.get_S_from_M(M_with_propagation)
+        # propagator = (
+        #     self.M_propagator_slice_cp if use_cupy else self.M_propagator_slice_np
+        # )
+        # xp = cp if use_cupy else np
+        # M_with_propagation = xp.matmul(propagator, M_matrices)
+        # S_with_propagation = matrix_utils.get_S_from_M(M_with_propagation)
 
         # Save the pool
         if matrix_type in ("S", "both"):
-            self.single_pool_S = S_with_propagation
+            self.single_pool_S = S_matrices
             if save_matrices:
                 self.save_single_pool_S()
 
         if matrix_type in ("M", "both"):
-            self.single_pool_M = M_with_propagation
+            self.single_pool_M = M_matrices
             if save_matrices:
                 self.save_single_pool_M()
 
@@ -1118,3 +1116,6 @@ class MatrixPoolManager:
                                 f[key][idx, ...] = f[key][idx, ...] + (
                                     analysis_function(working_matrix)
                                 )
+
+
+grid = mode_grid_factory
