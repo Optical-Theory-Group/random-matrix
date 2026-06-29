@@ -279,9 +279,7 @@ class CubatureIntegrationTask(IntegrationTask):
 
         if self.simplex_array is None:
             num_vertices, num_dimensions = expected_shape
-            self.simplex_array = xp.zeros(
-                (0, *expected_shape), dtype=xp.float64
-            )
+            self.simplex_array = xp.zeros((0, *expected_shape), dtype=xp.float64)
 
         # Validate dimensionality
         if self.simplex_array.ndim != 3:
