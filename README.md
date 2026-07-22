@@ -53,9 +53,3 @@ A conda environment called `random_matrix` containing all necessary packages can
 conda env create -f conda/environment.yml
 conda activate random_matrix
 ```
-
-## Repo to-do list
-
-- Consider adding requirements.txt for installing the project dependencies with pip.
-- Add project description (more physics and how to use).
-- Add license.
