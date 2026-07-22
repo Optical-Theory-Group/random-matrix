@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Byrnes"
+  given-names: "Niall"
+  orcid: "https://orcid.org/0000-0002-1554-3820"
+- family-names: "Dutta"
+  given-names: "Sulagna"
+  orcid: "https://orcid.org/0000-0003-4361-8540"
+- family-names: "Foreman"
+  given-names: "Matthew R."
+  orcid: "https://orcid.org/0000-0001-5864-9636"
+title: "random-matrix"
+version: "1.0.0"
+date-released: 2026-07-22
+url: "https://github.com/Optical-Theory-Group/random-matrix"

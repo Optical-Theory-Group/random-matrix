@@ -9,7 +9,7 @@ from random_matrix.input_statistics import (
 from pathlib import Path
 import warnings
 import scipy
-from random_matrix.modes import mode_grid
+from random_matrix.modes import mode_grid, mode_grid_factory
 from random_matrix.utils import matrix_utils
 from typing import Callable
 import random
@@ -43,9 +43,7 @@ class MatrixPoolManager:
                 "cannot be created without input statistics."
             )
 
-        self.matrix_pools_paths = paths.MatrixPoolsPaths(
-            simulation_name, base_path
-        )
+        self.matrix_pools_paths = paths.MatrixPoolsPaths(simulation_name, base_path)
 
         self._S_sampler_impl = self._S_sampler_separate
         self.single_pool_S = None
@@ -55,9 +53,16 @@ class MatrixPoolManager:
 
         self._matrix_shape = None
 
-    def get_pool_data(
-        self, is_transfer_matrix: bool, is_multi_pool: bool
-    ) -> dict:
+        # Get wavelength for propagators
+        mp_path = self.input_statistics_paths.get("medium_parameters")
+        with open(mp_path, "rb") as f:
+            mp = pickle.load(f)
+            self.k = mp.k
+            self.L = mp.L
+        self.M_propagator_slice_cp = self.get_lambda_plus_minus(self.L, True)
+        self.M_propagator_slice_np = self.get_lambda_plus_minus(self.L, False)
+
+    def get_pool_data(self, is_transfer_matrix: bool, is_multi_pool: bool) -> dict:
         """Packaged data used in various places"""
         pool_map = {
             (False, False): (
@@ -79,9 +84,7 @@ class MatrixPoolManager:
         }
         return pool_map[(is_transfer_matrix, is_multi_pool)]
 
-    def get_pool(
-        self, is_transfer_matrix: bool, is_multi_pool: bool
-    ) -> np.ndarray:
+    def get_pool(self, is_transfer_matrix: bool, is_multi_pool: bool) -> np.ndarray:
         _, pool = self.get_pool_data(is_transfer_matrix, is_multi_pool)
         return pool
 
@@ -97,9 +100,7 @@ class MatrixPoolManager:
     ) -> None:
         """Save a given pool to memory for reuse in the future"""
         # Determine dataset name and pool based on boolean args
-        dataset_name, pool = self.get_pool_data(
-            is_transfer_matrix, is_multi_pool
-        )
+        dataset_name, pool = self.get_pool_data(is_transfer_matrix, is_multi_pool)
 
         # Check pool exists
         if pool is None:
@@ -128,9 +129,7 @@ class MatrixPoolManager:
 
         with h5py.File(self.matrix_pools_paths.pools, "r") as f:
             if attr_name not in f:
-                raise ValueError(
-                    f"Dataset '{attr_name}' not found in HDF5 file"
-                )
+                raise ValueError(f"Dataset '{attr_name}' not found in HDF5 file")
             setattr(self, f"{attr_name}", f[attr_name][:])
 
     # Convenience methods
@@ -228,9 +227,7 @@ class MatrixPoolManager:
     def single_pool_S_array_module(self):
         """Get the array module used for the matrices in single_pool_S"""
         if not self.single_pool_S_exists:
-            raise ValueError(
-                "single_pool_S does not exist. Generate it first!"
-            )
+            raise ValueError("single_pool_S does not exist. Generate it first!")
         return cp.get_array_module(self.single_pool_S[0])
 
     # -------------------------------------------------------------------------
@@ -397,9 +394,9 @@ class MatrixPoolManager:
         r2_mat = self._reorder_block(r2).transpose(2, 0, 1)
         t2_mat = np.zeros(t_mat.shape, dtype=t_mat.dtype)
 
-        sigma_p = matrix_utils.get_S_block_reciprocity_matrix(
-            size_of_t, False
-        )[None, :, :][0]
+        sigma_p = matrix_utils.get_S_block_reciprocity_matrix(size_of_t, False)[
+            None, :, :
+        ][0]
 
         r_mat_antidiagonal = matrix_utils.get_sub_block_antidiagonal(r_mat)
         r2_mat_antidiagonal = matrix_utils.get_sub_block_antidiagonal(r2_mat)
@@ -412,8 +409,7 @@ class MatrixPoolManager:
             r_no_antidiagonal = r - r_antidiagonal
 
             r_antidiagonal = (
-                r_antidiagonal
-                + sigma_p @ matrix_utils.r_sym(r_antidiagonal) @ sigma_p
+                r_antidiagonal + sigma_p @ matrix_utils.r_sym(r_antidiagonal) @ sigma_p
             ) / 2
             r_no_antidiagonal = (
                 r_no_antidiagonal
@@ -490,17 +486,11 @@ class MatrixPoolManager:
         )
         t = (
             reals[int(num_random_numbers / 4) : int(num_random_numbers / 2)]
-            + 1j
-            * imags[int(num_random_numbers / 4) : int(num_random_numbers / 2)]
+            + 1j * imags[int(num_random_numbers / 4) : int(num_random_numbers / 2)]
         )
         t2 = (
-            reals[
-                int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)
-            ]
-            + 1j
-            * imags[
-                int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)
-            ]
+            reals[int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)]
+            + 1j * imags[int(num_random_numbers / 2) : int(num_random_numbers * 3 / 4)]
         )
         r2 = (
             reals[int(num_random_numbers * 3 / 4) :]
@@ -534,6 +524,55 @@ class MatrixPoolManager:
         else:
             return output
 
+    # -------------------------------------------------------------------------
+    # Propagator matrices
+    # -------------------------------------------------------------------------
+
+    def get_lambda_plus(
+        self, thickness: float, use_cupy: bool = False
+    ) -> np.ndarray | cp.ndarray:
+        xp = cp if use_cupy else np
+        propagating_modes_mean_vertices_dict = (
+            self.mode_grid.propagating_modes_mean_vertices_dict
+        )
+        kz_list = [
+            xp.sqrt(1 - xp.linalg.norm(center) ** 2)
+            for center in propagating_modes_mean_vertices_dict.values()
+        ]
+        exp_mat = xp.diag(xp.exp(1j * self.k * xp.array(kz_list) * thickness))
+        lambda_plus = xp.kron(exp_mat, xp.identity(2, dtype=exp_mat.dtype))
+        return lambda_plus
+
+    def get_lambda_minus(
+        self, thickness: float, use_cupy: bool = False
+    ) -> np.ndarray | cp.ndarray:
+        xp = cp if use_cupy else np
+        return xp.conj(self.get_lambda_plus(thickness, use_cupy))
+
+    def get_lambda_plus_minus(
+        self, thickness: float, use_cupy: bool = False
+    ) -> np.ndarray | cp.ndarray:
+        xp = cp if use_cupy else np
+        lambda_plus = self.get_lambda_plus(thickness, use_cupy)
+        lambda_minus = xp.conj(lambda_plus)
+
+        zeros = xp.zeros_like(lambda_plus)
+        if xp == np:
+            lambda_plus_minus = np.block([[lambda_plus, zeros], [zeros, lambda_minus]])
+        else:
+            top = cp.hstack((lambda_plus, zeros))
+            bottom = cp.hstack((zeros, lambda_minus))
+            lambda_plus_minus = cp.vstack((top, bottom))
+
+        return lambda_plus_minus
+
+    def get_lambda_minus_plus(
+        self, thickness: float, use_cupy: bool = False
+    ) -> np.ndarray | cp.ndarray:
+        xp = cp if use_cupy else np
+        lambda_plus_minus = self.get_lambda_plus_minus(thickness, use_cupy)
+        return xp.conj(lambda_plus_minus)
+
     def populate_single_pool(
         self,
         num_matrices: int = 1,
@@ -550,9 +589,21 @@ class MatrixPoolManager:
 
         matrix_type takes three options: "S", "M" or "both"
         """
+        print("Sampling S matrices...")
         S_matrices = self.S_sampler(
             num_matrices, symmetrize, use_cupy, seed, random_only
         )
+        print("sampling done")
+        # # Add propagators
+        print("converting to M matrices...")
+        M_matrices = matrix_utils.get_M_from_S(S_matrices)
+        print("conversion done")
+        # propagator = (
+        #     self.M_propagator_slice_cp if use_cupy else self.M_propagator_slice_np
+        # )
+        # xp = cp if use_cupy else np
+        # M_with_propagation = xp.matmul(propagator, M_matrices)
+        # S_with_propagation = matrix_utils.get_S_from_M(M_with_propagation)
 
         # Save the pool
         if matrix_type in ("S", "both"):
@@ -561,7 +612,7 @@ class MatrixPoolManager:
                 self.save_single_pool_S()
 
         if matrix_type in ("M", "both"):
-            self.single_pool_M = matrix_utils.get_M_from_S(S_matrices)
+            self.single_pool_M = M_matrices
             if save_matrices:
                 self.save_single_pool_M()
 
@@ -594,22 +645,16 @@ class MatrixPoolManager:
 
         # Initialize multi pool
         if use_transfer_matrices:
-            multi_pool = self.get_initialized_M_array(
-                num_matrices, use_cupy=use_cupy
-            )
+            multi_pool = self.get_initialized_M_array(num_matrices, use_cupy=use_cupy)
         else:
-            multi_pool = self.get_initialized_S_array(
-                num_matrices, use_cupy=use_cupy
-            )
+            multi_pool = self.get_initialized_S_array(num_matrices, use_cupy=use_cupy)
 
         for i in tqdm(range(num_matrices)):
             for _ in range(num_single_pool_matrices):
                 random_matrix_index = random.randrange(0, single_pool_size)
 
                 if use_transfer_matrices:
-                    multi_pool[i] = (
-                        single_pool[random_matrix_index] @ multi_pool[i]
-                    )
+                    multi_pool[i] = single_pool[random_matrix_index] @ multi_pool[i]
                 else:
                     multi_pool[i] = matrix_utils.S_product(
                         multi_pool[i],
@@ -648,13 +693,9 @@ class MatrixPoolManager:
 
         # Initialize working matrix array
         if use_transfer_matrices:
-            working_matrices = self.get_initialized_M_array(
-                num_samples, use_cupy
-            )
+            working_matrices = self.get_initialized_M_array(num_samples, use_cupy)
         else:
-            working_matrices = self.get_initialized_S_array(
-                num_samples, use_cupy
-            )
+            working_matrices = self.get_initialized_S_array(num_samples, use_cupy)
 
         # Initialize data collection dictionary
         data = {key: [] for key in analysis_functions}
@@ -733,9 +774,7 @@ class MatrixPoolManager:
         pool_size = len(pool)
 
         # Prepare data directory
-        h5_file_path = self.matrix_pools_paths.get_cascade_h5_path(
-            cascade_name
-        )
+        h5_file_path = self.matrix_pools_paths.get_cascade_h5_path(cascade_name)
 
         # Validate batch size
         batch_size = min(batch_size, num_samples)
@@ -783,27 +822,17 @@ class MatrixPoolManager:
         if is_single_batch:
             # Matrices are directly loaded in RAM
             if use_transfer_matrices:
-                working_matrices = self.get_initialized_M_array(
-                    num_samples, use_cupy
-                )
+                working_matrices = self.get_initialized_M_array(num_samples, use_cupy)
             else:
-                working_matrices = self.get_initialized_S_array(
-                    num_samples, use_cupy
-                )
+                working_matrices = self.get_initialized_S_array(num_samples, use_cupy)
         else:
             with h5py.File(h5_file_path, "r+") as f:
-                working_matrices = f[
-                    paths.DEFAULT_WORKING_MATRICES_PATH_ENDING
-                ]
+                working_matrices = f[paths.DEFAULT_WORKING_MATRICES_PATH_ENDING]
                 for s, bs in zip(slices, batch_sizes):
                     if use_transfer_matrices:
-                        working_matrices[s] = self.get_initialized_M_array(
-                            bs, use_cupy
-                        )
+                        working_matrices[s] = self.get_initialized_M_array(bs, use_cupy)
                     else:
-                        working_matrices[s] = self.get_initialized_S_array(
-                            bs, use_cupy
-                        )
+                        working_matrices[s] = self.get_initialized_S_array(bs, use_cupy)
 
         # Main cascade loop
         for i in tqdm(range(1, max_iteration + 1)):
@@ -828,20 +857,15 @@ class MatrixPoolManager:
 
             else:
                 with h5py.File(h5_file_path, "r+") as f:
-                    working_matrices = f[
-                        paths.DEFAULT_WORKING_MATRICES_PATH_ENDING
-                    ]
+                    working_matrices = f[paths.DEFAULT_WORKING_MATRICES_PATH_ENDING]
                     for s, bs in zip(slices, batch_sizes):
                         # load the batch into RAM
                         batch_matrices = working_matrices[s]
                         for j in range(bs):
-                            random_matrix_index = random.randrange(
-                                0, pool_size
-                            )
+                            random_matrix_index = random.randrange(0, pool_size)
                             if use_transfer_matrices:
                                 batch_matrices[j] = (
-                                    pool[random_matrix_index]
-                                    @ batch_matrices[j]
+                                    pool[random_matrix_index] @ batch_matrices[j]
                                 )
                             else:
                                 batch_matrices[j] = matrix_utils.S_product(
@@ -862,9 +886,7 @@ class MatrixPoolManager:
                             f[key][analysis_points.index(i)] = new_output
                 else:
                     with h5py.File(h5_file_path, "r+") as f:
-                        working_matrices = f[
-                            paths.DEFAULT_WORKING_MATRICES_PATH_ENDING
-                        ]
+                        working_matrices = f[paths.DEFAULT_WORKING_MATRICES_PATH_ENDING]
                         for (
                             key,
                             analysis_function,
@@ -872,9 +894,7 @@ class MatrixPoolManager:
                             batch_outputs = []
                             for s in slices:
                                 batch_matrices = working_matrices[s]
-                                batch_output = analysis_function(
-                                    batch_matrices
-                                )
+                                batch_output = analysis_function(batch_matrices)
                                 batch_outputs.append(batch_output)
                             new_output = np.concatenate(batch_outputs, axis=0)
                             f[key][analysis_points.index(i)] = new_output
@@ -923,9 +943,7 @@ class MatrixPoolManager:
         pool_size = len(pool)
 
         # Prepare data directory
-        h5_file_path = self.matrix_pools_paths.get_cascade_h5_path(
-            cascade_name
-        )
+        h5_file_path = self.matrix_pools_paths.get_cascade_h5_path(cascade_name)
 
         # Create test matrix to assess return data shape
         (test_matrix,) = (
@@ -947,9 +965,7 @@ class MatrixPoolManager:
                 f.create_dataset(
                     dataset_name, shape=augmented_shape, dtype=output.dtype
                 )
-        analysis_index_map = {
-            pt: idx for idx, pt in enumerate(analysis_points)
-        }
+        analysis_index_map = {pt: idx for idx, pt in enumerate(analysis_points)}
 
         # Main cascade loop
         with h5py.File(h5_file_path, "r+") as f:
@@ -1023,9 +1039,7 @@ class MatrixPoolManager:
         pool_size = len(pool)
 
         # Prepare data directory
-        h5_file_path = self.matrix_pools_paths.get_cascade_h5_path(
-            cascade_name
-        )
+        h5_file_path = self.matrix_pools_paths.get_cascade_h5_path(cascade_name)
 
         # Create test matrix to assess return data shape
         (test_matrix,) = (
@@ -1060,9 +1074,7 @@ class MatrixPoolManager:
                     shape=augmented_shape,
                     dtype=np.asarray(output).dtype,
                 )
-        analysis_index_map = {
-            pt: idx for idx, pt in enumerate(analysis_points)
-        }
+        analysis_index_map = {pt: idx for idx, pt in enumerate(analysis_points)}
 
         # Main cascade loop
         with h5py.File(h5_file_path, "r+") as f:
@@ -1097,13 +1109,13 @@ class MatrixPoolManager:
                             analysis_function = config["func"]
                             per_sample = config["per_sample"]
                             if per_sample:
-                                f[key][idx, sample_number, ...] = (
-                                    analysis_function(working_matrix)
+                                f[key][idx, sample_number, ...] = analysis_function(
+                                    working_matrix
                                 )
                             else:
                                 f[key][idx, ...] = f[key][idx, ...] + (
                                     analysis_function(working_matrix)
                                 )
-                            f[key][idx, sample_number, ...] = cp.asnumpy(
-                                analysis_function(working_matrix)
-                            )
+
+
+grid = mode_grid_factory
