@@ -1,4 +1,6 @@
 # Random Matrix Simulation Library
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21487389.svg)](https://doi.org/10.5281/zenodo.21487389)
+
 ![Random grid](/assets/images/random_grid.png "Random grid")
 
 A Python library for performing random matrix simulations of the scattering of polarized light in random media.
