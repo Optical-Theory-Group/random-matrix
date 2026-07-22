@@ -14,3 +14,17 @@ title: "random-matrix"
 version: "1.0.0"
 date-released: 2026-07-22
 url: "https://github.com/Optical-Theory-Group/random-matrix"
+
+preferred-citation:
+  type: article
+  authors:
+    - family-names: "Byrnes"
+      given-names: "Niall"
+    - family-names: "Dutta"
+      given-names: "Sulagna"
+    - family-names: "Foreman"
+      given-names: "Matthew R."
+  title: "Extended scattering channels for random matrix simulations of polarized light transport"
+  journal: "Computer Physics Communications"
+  year: 2026
+  doi: "10.1016/j.cpc.2026.110314"
